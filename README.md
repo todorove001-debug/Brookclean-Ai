@@ -4,4 +4,4 @@
 
 Вся игра — один файл `index.html`, сохранения хранятся в браузере (localStorage).
 
-Сайт: https://todorove001-debug.github.io/Brookclean-Ai/ (GitHub Pages, публикуется из корня ветки).
+Сайт: https://brookcleangame.online (GitHub Pages из корня ветки, свой домен — файл CNAME; DNS на Reg.ru).
