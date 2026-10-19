@@ -1102,19 +1102,20 @@ const CONFIG = {
   // По спецразрешению: от задней оси тягача до первой оси прицепа 13 990, между осями прицепа 1800; автопоезд без груза 18 220 кг → прицеп 10 820
   trailer: { model:'Luxuda LZC9405BG', plate:'АО132325', vin:'LA9925T26R1LZC532', length: 17000, kingpin: 650, kingpinToAxle1: 14490, axleBase: 1800, rampLen: 1200,
              upperFrontExt: 175, slideFront: 500, slideRear: 1000, lowerSlideFront: 500, lowerSlideRear: 1000,
-             // в передних сходнях — провал под колесо 5 см
-             slideWell: { depth: 50, len: 400 },
+             // в передних сходнях низа — провал под колесо 5 см; на передних сходнях верха машина ложится на 10 см
+             slideWell: { depth: 50, len: 400 }, upperSlideWell: { depth: 100, len: 400 },
              width: 2550, deckWidth: 2550, postHeight: 3950, wheelR: 400,
              mass: 10820, payload: 20000, axles: 2, axleRating: 11500 },
-  mass: { limit: 36000, tolerancePct: 2, fines: [[10,150000],[20,300000],[50,450000],[Infinity,600000]] },
+  mass: { limit: 40000, tolerancePct: 2, fines: [[10,150000],[20,300000],[50,450000],[Infinity,600000]] },
   capacity: { lower: 4, upper: 5 },
   // начало места (передний бампер, мм от кромки прицепа), если место перед ним пустое — машина встаёт на своё место, а не подтягивается вперёд
   slotStart: { lower: [null, 4200, 9000, 13700], upper: [null, 3400, 8300, 12900, 13600] },
   // нижний ярус: гусак 1305, колодец ≈580, над осями ≈900; аппарели в конце идут вниз круче — до 600 мм; задние сходни продолжают уклон
   lowerProfile: [[0,1305],[3550,1305],[5000,580],[11300,580],[12300,900],[17000,900],[18200,600]],
+  // верхний ярус — две части: передняя над кабиной (передняя и средняя стойки) и задняя от средней стойки до задней —
+  // её поднимают и наклоняют гидравликой на средней и задней стойках
   sections: [ {k:'F', a:-175, b:4219, name:'Передняя', over:'над Н1'},
-              {k:'M', a:4519, b:12620, name:'Средняя', over:'над Н2–Н3'},
-              {k:'R', a:12850, b:17000, name:'Задняя', over:'над Н3–Н4'} ],
+              {k:'R', a:4519, b:17000, name:'Задняя', over:'над Н2–Н4', tilt:true} ],
   // Провалы под колёса на обоих ярусах: центры по чертежу (под колёсами штатной схемы на 8 машин), глубина и длина — ориентировочно
   wells: { depth: 100, len: 800, lower: [2900, 7800, 10100, 15100], upper: [2700, 7700, 9950, 14950], snap: 1000 },
   sectionRange: { min: 2400, max: 3800, step: 10, start: 3000, maxTilt: 800, levelTol: 50 },
@@ -1608,6 +1609,7 @@ for (const c of CATALOG) c.org = ORG_RU.has(c.model) ? 'ru' : ORG_BOTH.has(c.mod
 const CLASS = { kei:{label:'Кей-кар', many:'кей-кары'}, sedan:{label:'Седан / хэтчбек', many:'седаны'}, cross:{label:'Кроссовер', many:'кроссоверы'}, jeep:{label:'Джип / автобус', many:'джипы и автобусы'} };
 
 /* ================== Геометрия ================== */
+const SEC_ACC = { F:'переднюю', R:'заднюю' };
 const LIM = CONFIG.limits;
 const G = (() => {
   const t = CONFIG.trailer, tr = CONFIG.truck, d = CONFIG.deck;
@@ -1645,18 +1647,19 @@ function topFrac(S, t){
   return P[P.length-1][1];
 }
 const EXT0 = {front:false, rear:false, lowerFront:false, lowerRear:false};
-function flatSec(v, ext){ return {F:{f:v,r:v}, M:{f:v,r:v}, R:{f:v,r:v}, ext: Object.assign({}, EXT0, ext || {})}; }
+function flatSec(v, ext){ return {F:{f:v,r:v}, R:{f:v,r:v}, ext: Object.assign({}, EXT0, ext || {})}; }
 
 /* Выдвижные сходни верхнего яруса меняют длину передней и задней секции */
 function secA(S, sec){ return S.k === 'F' && sec.ext && sec.ext.front ? S.a - CONFIG.trailer.slideFront : S.a; }
 function secB(S, sec){ return S.k === 'R' && sec.ext && sec.ext.rear ? S.b + CONFIG.trailer.slideRear : S.b; }
-function upperSpan(sec){ return [secA(SECS[0], sec), secB(SECS[2], sec)]; }
-function breaksOf(sec){ return [secA(SECS[0], sec), SECS[0].b, SECS[1].a, SECS[1].b, SECS[2].a, secB(SECS[2], sec)]; }
+const SEC_LAST = () => SECS[SECS.length - 1];
+function upperSpan(sec){ return [secA(SECS[0], sec), secB(SEC_LAST(), sec)]; }
+function breaksOf(sec){ return [secA(SECS[0], sec)].concat(...SECS.map((S, i) => i ? [S.a, S.b] : [S.b])).slice(0, -1).concat([secB(SEC_LAST(), sec)]); }
 
-/* Провалы под колёса: колесо в провале стоит ниже на глубину провала. В выдвинутых передних сходнях — свой провал 5 см */
+/* Провалы под колёса: колесо в провале стоит ниже на глубину провала. В выдвинутых передних сходнях — свой провал: внизу 5 см, наверху 10 см */
 function wellsOf(tier, sec){
   const W = CONFIG.wells, t = CONFIG.trailer, e = (sec && sec.ext) || {}, out = W[tier].map(c => ({c, len: W.len, depth: W.depth}));
-  if (tier === 'upper' && e.front) out.unshift({c: SECS[0].a - t.slideFront / 2, len: t.slideWell.len, depth: t.slideWell.depth});
+  if (tier === 'upper' && e.front) out.unshift({c: SECS[0].a - t.slideFront / 2, len: t.upperSlideWell.len, depth: t.upperSlideWell.depth});
   if (tier === 'lower' && e.lowerFront) out.unshift({c: -t.lowerSlideFront / 2, len: t.slideWell.len, depth: t.slideWell.depth});
   return out;
 }
@@ -1695,14 +1698,14 @@ function upperFloor(x, sec){
   const [a0, b0] = upperSpan(sec);
   if (x < a0 || x > b0) return null;
   const d = deckPanel(x, sec); if (d != null) return d;
-  for (let i=0;i<2;i++) if (x > SECS[i].b && x < SECS[i+1].a) return lerp(sec[SECS[i].k].r, sec[SECS[i+1].k].f, (x-SECS[i].b)/(SECS[i+1].a-SECS[i].b));
+  for (let i=0;i<SECS.length-1;i++) if (x > SECS[i].b && x < SECS[i+1].a) return lerp(sec[SECS[i].k].r, sec[SECS[i+1].k].f, (x-SECS[i].b)/(SECS[i+1].a-SECS[i].b));
   return null;
 }
 function supportUpper(x, sec){
   const [a0, b0] = upperSpan(sec), m = CONFIG.deck.wheelMargin;
   if (x < a0 + m || x > b0 - m) return null;
   const d = panelSurface(x, sec); if (d != null) return d;
-  for (let i=0;i<2;i++) if (x > SECS[i].b && x < SECS[i+1].a){
+  for (let i=0;i<SECS.length-1;i++) if (x > SECS[i].b && x < SECS[i+1].a){
     const h1 = sec[SECS[i].k].r, h2 = sec[SECS[i+1].k].f;
     return Math.abs(h1 - h2) <= CONFIG.sectionRange.levelTol ? lerp(h1, h2, (x-SECS[i].b)/(SECS[i+1].a-SECS[i].b)) : null;
   }
@@ -1711,9 +1714,9 @@ function supportUpper(x, sec){
 function sectionsAt(x, sec){
   const [a0, b0] = upperSpan(sec);
   if (x < a0 || x > b0) return [];
-  for (let i=0;i<3;i++){
+  for (let i=0;i<SECS.length;i++){
     if (x >= secA(SECS[i], sec) && x <= secB(SECS[i], sec)) return [SECS[i].k];
-    if (i < 2 && x > SECS[i].b && x < SECS[i+1].a) return [SECS[i].k, SECS[i+1].k];
+    if (i < SECS.length-1 && x > SECS[i].b && x < SECS[i+1].a) return [SECS[i].k, SECS[i+1].k];
   }
   return [];
 }
@@ -1809,7 +1812,7 @@ function finalize(g, tier, i, fits){
 }
 function isVaried(sec){
   const v = SECS.map(S => sec[S.k]);
-  return v.some(s => Math.abs(s.f - s.r) >= 100) || Math.abs(v[0].r - v[1].f) >= 100 || Math.abs(v[1].r - v[2].f) >= 100;
+  return v.some((s, i) => Math.abs(s.f - s.r) >= 100 || (i && Math.abs(v[i-1].r - s.f) >= 100));
 }
 /* Раскладка яруса. cars — по местам, пустое место = null: машина за пустым местом встаёт не раньше начала своего места */
 function layoutTier(cars, tier, sec, noRoll, upperG){
@@ -1935,8 +1938,7 @@ function evaluate(lowerCars, upperCars, sec){
     const ci = clearInfo(p, sec, upFit), minGap = ci.gap;
     p.gap = minGap; p.gapX = ci.x; p.gapBy = ci.by;
     if (minGap < CONFIG.deck.clearance){
-      const ACC = { F:'переднюю', M:'среднюю', R:'заднюю' };
-      const need = Math.ceil(CONFIG.deck.clearance - minGap), ks = ci.x == null ? [] : sectionsAt(ci.x, sec), S = SECS.filter(q => ks.includes(q.k)).map(q => ACC[q.k]);
+      const need = Math.ceil(CONFIG.deck.clearance - minGap), ks = ci.x == null ? [] : sectionsAt(ci.x, sec), S = SECS.filter(q => ks.includes(q.k)).map(q => SEC_ACC[q.k]);
       const what = ci.by === 'deck' ? 'в настил верхнего яруса' : ci.by === 'track' ? 'в колеи верхнего яруса' : ci.by === 'cargo' ? 'в груз наверху' : `в днище ${(upFit.find(q => q.id === ci.by) || {}).slot || 'верхней машины'}`;
       add(p, 'physical', 'clear', `${p.slot} ${p.car.model}: крыша упирается ${what} — поднимите ${S.length ? S.join(' и ') + (S.length > 1 ? ' секции' : ' секцию') : 'секцию'} на ${String(Math.ceil(need / 10)).replace('.', ',')} см`, need);
     }
@@ -1965,7 +1967,9 @@ function evaluate(lowerCars, upperCars, sec){
 
 /* Автоподбор: каждая секция ровная, минимально возможная над нижними машинами (с учётом провалов верхнего яруса) */
 function reqFor(list, base, upperG){
-  const R = CONFIG.sectionRange, d = CONFIG.deck, req = {F:R.min, M:R.min, R:R.min};
+  const R = CONFIG.sectionRange, d = CONFIG.deck, req = {}, pts = {};
+  for (const S of SECS){ req[S.k] = R.min; pts[S.k] = []; }
+  Object.defineProperty(req, 'pts', { value: pts });
   for (const p of list){
     if (!p.fits) continue;
     const xs = samples(p, 50).concat(breaksOf(base).filter(b => b > p.x0 && b < p.x1));
@@ -1973,7 +1977,7 @@ function reqFor(list, base, upperG){
       const ks = sectionsAt(x, base); if (!ks.length) continue;
       // нужная высота пола секции над этой точкой крыши: между колеями — с учётом днища верхней машины
       const need = roofOpen(p.car) ? topAt(p, x) - roofAllow(x, base, upperG).a : topAt(p, x) + d.clearance + d.thickness + wellDrop('upper', x, base);
-      for (const k of ks) req[k] = Math.max(req[k], need);
+      for (const k of ks){ req[k] = Math.max(req[k], need); pts[k].push([x, need]); }
     }
   }
   return req;
@@ -1988,7 +1992,7 @@ function autoFit(lowerCars, ext, upperCars){
   // последнюю нижнюю машину пробуем откатить назад: задние колёса на уклоне аппарелей / сходнях — крыша сзади ниже, верх можно опустить
   const n = lower.length, last = lower[n-1];
   if (last && last.fits){
-    const prev = lower.slice(0, n-1), [, wMax] = wheelLimits('lower', base), sum = r => r.F + r.M + r.R;
+    const prev = lower.slice(0, n-1), [, wMax] = wheelLimits('lower', base), sum = r => SECS.reduce((a, S) => a + fitSec(S, r)[2], 0);
     for (let s = 100; s <= 2500; s += 100){
       const h = tryPlace(last.car, last.x0 + s, 'lower', base, prev);
       if (!h) continue;
@@ -1999,9 +2003,28 @@ function autoFit(lowerCars, ext, upperCars){
     }
   }
   const sec = { ext: Object.assign({}, EXT0, ext || {}) };
-  for (const k of Object.keys(req)){ const v = clamp(Math.ceil(req[k] / R.step - 1e-9) * R.step, R.min, R.max); sec[k] = {f:v, r:v}; }
+  for (const S of SECS){ const [f, r] = fitSec(S, req); sec[S.k] = {f, r}; }
   return sec;
 }
+/* Высота части яруса под нужды машин снизу: передняя — ровно; задняя на двух стойках — с наклоном, минимальная по средней высоте */
+function fitSec(S, req){
+  const R = CONFIG.sectionRange, up = v => clamp(Math.ceil(v / R.step - 1e-9) * R.step, R.min, R.max), flat = up(req[S.k]);
+  let best = [flat, flat, 2 * flat];
+  if (!S.tilt || !req.pts) return best;
+  const P = req.pts[S.k].map(([x, n]) => [clamp((x - S.a) / (S.b - S.a), 0, 1), n]);
+  for (let f = R.min; f <= R.max; f += R.step){
+    let r = Math.max(R.min, f - R.maxTilt), ok = true;
+    for (const [t, n] of P){
+      if (t < 1e-6){ if (n > f + 0.5){ ok = false; break; } continue; }
+      r = Math.max(r, (n - f * (1 - t)) / t);
+    }
+    r = Math.ceil(r / R.step - 1e-9) * R.step;
+    if (!ok || r > Math.min(R.max, f + R.maxTilt)) continue;
+    if (f + r < best[2] || (f + r === best[2] && Math.max(f, r) < Math.max(best[0], best[1]))) best = [f, r, f + r];
+  }
+  return best;
+}
+const fitLock = sec => Object.fromEntries(SECS.map(S => [S.k, sec[S.k].f === sec[S.k].r]));
 
 /* ================== Маршруты, рынок, заказы ================== */
 function routeOf(key){ return CONFIG.routes[key] || CONFIG.routes.nsk; }
@@ -2791,8 +2814,13 @@ function autoAdjust(st, plan, sec, lim){
     let moved = false;
     for (const k of keys){
       if (Math.min(cur[k].f, cur[k].r) - R.step < R.min) continue;
-      const nx = shiftSec(cur, k, -R.step), c2 = adjustCheck(st, plan, nx, lim);
-      if (c2.ok){ cur = nx; chk = c2; moved = true; }
+      // задняя часть на двух стойках: сначала пробуем опустить один край — средний или задний, потом всю часть
+      const S = SECS.find(q => q.k === k), v = cur[k], tries = [shiftSec(cur, k, -R.step)];
+      if (S && S.tilt) for (const e of ['f', 'r']){
+        const o = e === 'f' ? 'r' : 'f';
+        if (v[e] - R.step >= R.min && Math.abs(v[e] - R.step - v[o]) <= R.maxTilt){ const nx = secCopy(cur); nx[k][e] -= R.step; tries.unshift(nx); }
+      }
+      for (const nx of tries){ const c2 = adjustCheck(st, plan, nx, lim); if (c2.ok){ cur = nx; chk = c2; moved = true; break; } }
     }
     if (!moved) break;
   }
@@ -2802,7 +2830,7 @@ function autoAdjust(st, plan, sec, lim){
 function boardCars(st, plan){
   return tripEval(st, plan).all.filter(p => p.fits).map(p => ({ g:p, x0:p.x0, x1:p.x1, tier:p.tier, until: cityKmOn(plan.key, p.car.dest), car:p.id }));
 }
-function secCopy(sec){ return { F:Object.assign({}, sec.F), M:Object.assign({}, sec.M), R:Object.assign({}, sec.R), ext:Object.assign({}, EXT0, sec.ext || {}) }; }
+function secCopy(sec){ return { F:Object.assign({}, sec.F), R:Object.assign({}, sec.R), ext:Object.assign({}, EXT0, sec.ext || {}) }; }
 /* Секцию верхнего яруса, над которой ничего не стоит, водитель поднимает гидравликой — под ней проходит груз снизу */
 function emptySecs(sec, occ){
   return SECS.filter(S => !occ.some(q => q.tier === 'upper' && q.x1 > secA(S, sec) - 50 && q.x0 < secB(S, sec) + 50)).map(S => S.k);
@@ -3114,7 +3142,7 @@ let save = loadSave();
 let state = {
   screen:'garage', mode: save.mode || 'easy', route: save.route || 'nsk', trip:1, balance:0,
   market:[], theme:'', lower:[], upper:[],
-  sec: flatSec(3000), lock:{F:true, M:true, R:true}, autoFit:true, maint:false, bribe:true, econ:null,
+  sec: flatSec(3000), lock:{F:true, R:true}, autoFit:true, maint:false, bribe:true, econ:null,
   sel:null, ruler:4480, zoom:false, reveal:false, sort:'price', tab:'market',
   tripResult:null
 };
@@ -3926,7 +3954,7 @@ function tpostSVG(a, b, z0, z1, cyl, label){
 function upperDeckSVG(sec){
   const T = CONFIG.deck.thickness;
   let s = '';
-  for (let i=0;i<3;i++){
+  for (let i=0;i<SECS.length;i++){
     const S = SECS[i], v = sec[S.k], a = secA(S, sec), b = secB(S, sec);
     // каждая секция — своя группа: в рейсе её поднимают гидравликой под попутный груз
     s += `<g class="dk" data-k="${S.k}">`;
@@ -3942,7 +3970,7 @@ function upperDeckSVG(sec){
     if (b !== S.b) s += `<rect class="sv-slideplate" x="${S.b}" y="${-v.r}" width="${b - S.b}" height="70"/>`;
     for (const w of wellsOf('upper', sec)) if (w.c >= a - 1 && w.c <= b + 1){ const h = deckPanel(w.c, sec); if (h != null) s += wellSVG(w, h); }
     s += `</g>`;
-    if (i < 2){
+    if (i < SECS.length - 1){
       const n = sec[SECS[i+1].k];
       if (Math.abs(v.r - n.f) <= CONFIG.sectionRange.levelTol) s += `<line class="sv-bridge" x1="${S.b}" y1="${-v.r}" x2="${SECS[i+1].a}" y2="${-n.f}" stroke-width="1.2"/>`;
     }
@@ -4156,8 +4184,8 @@ function rigSVG(sec, noDeck){
   // стойки (фермы) и гидроцилиндры подъёма секций
   const lift = k => Math.max(sec[k].f, sec[k].r);
   s += tpostSVG(0, 230, LP[0][1], t.postHeight, false, '+7 924 0000 120');
-  s += tpostSVG(SECS[0].b, SECS[1].a, lowerFloor((SECS[0].b + SECS[1].a)/2) || 900, Math.min(t.postHeight, lift('M') + 250), true, 'АВТО ПОД ЗАКАЗ');
-  s += tpostSVG(SECS[1].b, SECS[2].a, lowerFloor((SECS[1].b + SECS[2].a)/2) || 900, Math.min(t.postHeight, lift('R') + 250), true);
+  // средняя стойка: на ней передний край задней части яруса (и задний край передней)
+  s += tpostSVG(SECS[0].b, SECS[1].a, lowerFloor((SECS[0].b + SECS[1].a)/2) || 900, Math.min(t.postHeight, Math.max(lift('F'), lift('R')) + 250), true, 'АВТО ПОД ЗАКАЗ');
   s += tpostSVG(16770, 17000, 900, t.postHeight, false);
   let rungs = ''; for (let h = 1300; h < 3800; h += 350) rungs += `M16770 ${-h}h230`;
   s += `<path class="sv-line" d="${rungs}" stroke-width=".7"/>`;
@@ -4238,7 +4266,7 @@ function drawingSVG(ev, sec, opts){
     }
     const ex = sec.ext || {};
     if (ex.front) s += dim(secA(SECS[0], sec) + 250, -sec.F.f - 140, '+500', 'middle', 230);
-    if (ex.rear) s += dim(secB(SECS[2], sec) - 500, -sec.R.r - 140, '+1000', 'middle', 230);
+    if (ex.rear) s += dim(secB(SEC_LAST(), sec) - 500, -sec.R.r - 140, '+1000', 'middle', 230);
     if (ex.lowerFront) s += dim(-250, -1305 + 380, '+500', 'middle', 230);
     if (ex.lowerRear) s += dim(G.rampEnd + 500, -480 + 380, '+1000', 'middle', 230);
     s += `<circle class="sv-callout" cx="${t.kingpin}" cy="${-tr.fifthWheelHeight}" r="760" stroke-width="1" stroke-dasharray="4 3"/>`;
@@ -4425,7 +4453,7 @@ function heroSample(){
   const passat = {model:'Volkswagen Passat', cls:'sedan', L:4873, W:1834, H:1501, wb:2871, shape:'sedan', mass:1500};
   const mk = (b,i) => withOverhang(Object.assign({}, b, {id:'h'+i, price:0, dir:1}));
   const lower = [mk(passat,1), mk(suv,2), mk(suv,3), mk(suv,4)], upper = [mk(suv,5), mk(suv,6), mk(suv,7), mk(suv,8)];
-  const sec = {F:{f:3010,r:3010}, M:{f:3000,r:3000}, R:{f:3000,r:3000}, ext:{front:true, rear:true}};
+  const sec = {F:{f:3010,r:3010}, R:{f:3000,r:3000}, ext:{front:true, rear:true}};
   lower.forEach(c => c.snap = false); upper.forEach(c => c.snap = false);
   const ev = evaluate(lower, upper, sec);
   ev.permitOn = true;   // заводская схема — сравниваем с пределом по разрешению
@@ -4733,7 +4761,8 @@ function normalizeState(){
   for (const S of SECS){ const v = sec[S.k]; if (typeof v === 'number') sec[S.k] = {f:v, r:v}; else if (!v) sec[S.k] = {f:3000, r:3000}; }
   sec.ext = Object.assign({}, EXT0, sec.ext || {});
   state.sec = sec;
-  state.lock = state.lock || {F:true, M:true, R:true};
+  state.lock = state.lock || {F:true, R:true};
+  delete sec.M; delete state.lock.M;
   if (state.maint == null) state.maint = false;
   if (!CONFIG.routes[state.route]) state.route = 'nsk';
   if (!state.tab) state.tab = 'market';
@@ -4750,7 +4779,7 @@ function startRoute(key){
   if (!s.demand || !s.demand.rates) s.demand = nextDemand(s.demand);
   const ext = Object.assign({}, EXT0, (state.sec && state.sec.ext) || {});
   Object.assign(state, { mode: state.mode, trip:s.trip, balance:s.balance, lower: Array(CAP.lower).fill(null), upper: Array(CAP.upper).fill(null),
-    sec: flatSec(CONFIG.sectionRange.start, ext), lock:{F:true, M:true, R:true},
+    sec: flatSec(CONFIG.sectionRange.start, ext), lock:{F:true, R:true},
     autoFit: state.mode==='easy', sel:null, reveal:false, ruler:4480, tripResult:null, econ: econFor(s.date), tab:'market',
     // на «Стажёре» ТО ставится само, если до него меньше длины рейса
     maint: state.mode === 'easy' && toLeft(s.rig) < routeKm(key) });
@@ -4767,7 +4796,7 @@ function startRoute(key){
 let animNext = null;
 function afterChange(anim){
   state.reveal = false;
-  if (state.mode==='easy' && state.autoFit) state.sec = autoFit(carsAt(state.lower), state.sec.ext, carsAt(state.upper));
+  if (state.mode==='easy' && state.autoFit){ state.sec = autoFit(carsAt(state.lower), state.sec.ext, carsAt(state.upper)); state.lock = fitLock(state.sec); }
   animNext = Object.assign({prev: lastPos}, anim || {});
   renderGame();
 }
@@ -4906,7 +4935,7 @@ function passportHTML(){
     ['Провалы нижнего яруса (центры от кромки)', CONFIG.wells.lower.map(fmt).join(' · ')],
     ['Провалы верхнего яруса (центры от кромки)', CONFIG.wells.upper.map(fmt).join(' · ')],
     ['Пол Н1 (гусак)', '1305'], ['Пол колодца (Н2, часть Н3)', '≈580'], ['Пол над осями (Н4)', '≈900'],
-    ['Секции верхнего яруса по длине', `${fmt(SECS[0].b - SECS[0].a)} · ${fmt(SECS[1].b - SECS[1].a)} · ${fmt(SECS[2].b - SECS[2].a)}`],
+    ['Части верхнего яруса по длине', SECS.map(S => fmt(S.b - S.a)).join(' · ')],
     ['Высота секций / наклон / шаг', `${fmt(R.min)}–${fmt(R.max)} / до ${R.maxTilt} / ${R.step}`],
     ['Высота автопоезда: без разрешения / по разрешению', `${fmt(LIM.height)} / ${fmt(CONFIG.permit.maxHeight)}`],
     ['Оси: свес · база тягача · до 1-й оси прицепа · между осями', `${fmt(tr.frontOverhang)} · ${fmt(tr.wheelbase)} · ${fmt(G.axle1 - G.rearAxle)} · ${fmt(t.axleBase)}`],
@@ -4918,7 +4947,7 @@ function passportHTML(){
     ['Крыша между колеями: выше колеи до · зазор до днища верхней', `${d.roofIn} · ${d.bellyClear}`],
     ['Зазор бампер—бампер · нос—хвост по высоте', `${d.gap} · ${d.nestClearance}`],
     ['Масса тягача / прицепа, кг', `${fmt(tr.mass)} / ${fmt(t.mass)}`],
-    ['Допустимая масса автопоезда (4 оси), кг', fmt(M.limit)],
+    ['Максимальная масса автопоезда, кг', fmt(M.limit)],
     ['Можно погрузить машин, кг', fmt(M.limit - tr.mass - t.mass)]
   ];
   return `<details class="passport"><summary>Паспорт автовоза (мм, кг)</summary><table class="ptable">${rows.map(([a,b])=>`<tr><td>${a}</td><td>${b}</td></tr>`).join('')}</table>
@@ -5041,7 +5070,7 @@ function renderRules(){
     `Водителей четверо: быстрый ломает чаще и рвёт резину, медленный бережёт машину, но делает меньше рейсов в месяц. Каждые сутки в пути — постоянные расходы ${rub(CONFIG.dailyFixed)}. У двоих есть «хитрый жук»: сливают топливо на ${rub(CONFIG.slyCost)} за рейс.`,
     `В дороге бывают поломки и посты ДПС. ТО — каждые ${fmt(CONFIG.service.toKm)} км, это два рейса до Москвы: ${rub(CONFIG.service.toCost)} и сутки в сервисе. Без ТО через ${CONFIG.service.failTrips[0]}–${CONFIG.service.failTrips[1]} рейсов ломаются мотор, коробка, редуктор. «Проездной» экономит время и придирки на постах.`,
     `Лизинг: платёж ${rub(CONFIG.start.lease.payment)} каждое ${CONFIG.start.lease.payDay}-е число, если в кассе хватает денег. Не хватило — пеня ${String(CONFIG.start.lease.peni * 100).replace('.', ',')}% в день, после ${Math.round(CONFIG.start.lease.seizeDays / 30)} месяцев неоплаты сцепку изымают. Капремонт мотора — на ${fmt(CONFIG.service.overhaul.km)} км.`,
-    `Масса автопоезда с 4 осями — не больше ${fmt(CONFIG.mass.limit)} кг. Тягач и прицеп весят ${fmt(CONFIG.truck.mass + CONFIG.trailer.mass)} кг, на машины остаётся ${fmt(CONFIG.mass.limit - CONFIG.truck.mass - CONFIG.trailer.mass)} кг.`,
+    `Масса автопоезда — не больше ${fmt(CONFIG.mass.limit)} кг. Тягач и прицеп весят ${fmt(CONFIG.truck.mass + CONFIG.trailer.mass)} кг, на машины остаётся ${fmt(CONFIG.mass.limit - CONFIG.truck.mass - CONFIG.trailer.mass)} кг.`,
     `Расходы: дизель 88–90 ₽/л, летом ${E.consumption.summer} л/100 км, зимой 40–45; «Платон» ${c(E.platonPerKm)} ₽/км; водитель ${E.driverPerKm} ₽/км на руки; резина ${c(E.tires.perKm['лето'])}–${c(E.tires.perKm['зима'])} ₽/км и переобувка ${rub(E.tires.change)} дважды в год.`,
     `Налоги — в кабинете: УСН 6% (минус взносы 30%, но не больше половины налога) или АУСН 8% без взносов. НДФЛ 13% за водителя платится в обоих режимах.`,
     `Рамки АПВГК стоят по всей трассе и меряют с погрешностью ${CONFIG.measure.tolMin / 10}–${CONFIG.measure.tolMax / 10} см — у каждой рамки своя. Превышение сверх погрешности — штраф собственнику по ст. 12.21.1 КоАП на каждой рамке: до 10 см — 150 000 ₽, 10–20 см — 300 000 ₽, 20–50 см — 450 000 ₽, больше 50 см — 600 000 ₽. Перегруз по массе рамки тоже штрафуют.`,
@@ -5575,7 +5604,6 @@ function raiseDecks(rs, delay){
   Sfx.play('hydro', delay / 1000); Sfx.play('hydro', delay / 1000 + 0.5); Sfx.play('hydro', delay / 1000 + 1);
   return dur;
 }
-const SEC_ACC = { F:'переднюю', M:'среднюю', R:'заднюю' };
 const raiseText = rs => `${rs.keys.map(k => SEC_ACC[k]).join(' и ')} ${plural(rs.keys.length, 'секцию', 'секции', 'секций')}`;
 
 /* ---------- Рейс ---------- */
@@ -6515,7 +6543,7 @@ document.addEventListener('click', e => {
     if (holdFired){ holdFired = false; return; }   // кнопку держали — шаги уже сделаны
     secStep(b, 1); Sfx.play('hydro'); if (state.mode==='hard') renderStatus(curEval()); return;
   }
-  if (a === 'fit'){ state.sec = autoFit(carsAt(state.lower), state.sec.ext, carsAt(state.upper)); state.lock = {F:true,M:true,R:true}; Sfx.play('hydro'); afterChange(); toast('Секции выставлены ровно на минимальную высоту'); return; }
+  if (a === 'fit'){ state.sec = autoFit(carsAt(state.lower), state.sec.ext, carsAt(state.upper)); state.lock = fitLock(state.sec); Sfx.play('hydro'); afterChange(); toast('Секции выставлены ровно на минимальную высоту'); return; }
   if (a === 'ruler'){ state.ruler = clamp(state.ruler + (+b.dataset.d) * 10, 0, 5000); const inp = $('#ruler'); if (inp) inp.value = state.ruler; renderLight(); return; }
   if (a === 'go'){
     const ev = curEval();
@@ -6573,7 +6601,7 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const el = e.target;
   if (el.matches && el.matches('input[type=range][data-k]') && state.mode==='hard') renderStatus(curEval());
-  if (el.id === 'autoFit'){ state.autoFit = el.checked; if (state.autoFit){ state.sec = autoFit(carsAt(state.lower), state.sec.ext, carsAt(state.upper)); state.lock = {F:true,M:true,R:true}; } Sfx.play('click'); afterChange(); }
+  if (el.id === 'autoFit'){ state.autoFit = el.checked; if (state.autoFit){ state.sec = autoFit(carsAt(state.lower), state.sec.ext, carsAt(state.upper)); state.lock = fitLock(state.sec); } Sfx.play('click'); afterChange(); }
   if (el.dataset && el.dataset.lock){ const k = el.dataset.lock; state.lock[k] = el.checked; if (el.checked) state.sec[k].r = state.sec[k].f; afterChange(); }
   if (el.id === 'sortSel'){ state.sort = el.value; renderMarket(); }
   if (el.dataset && el.dataset.ext){ state.sec.ext = Object.assign({}, state.sec.ext, {[el.dataset.ext]: el.checked}); Sfx.play('hydro'); afterChange(); toast(el.checked ? 'Сходни выдвинуты' : 'Сходни задвинуты'); }
