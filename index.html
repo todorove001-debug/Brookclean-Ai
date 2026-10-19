@@ -3581,7 +3581,12 @@ const Audio2 = (() => {
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;
     try { ac = new AC(); } catch(e){ return null; }
     comp = ac.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4; comp.connect(ac.destination);
-    document.addEventListener('visibilitychange', () => { if (!ac) return; if (document.hidden) ac.suspend(); else if (Music.on || Sfx.on) ac.resume(); });
+    // Вернулись из другого приложения: браузер мог остановить звук (на iOS — состояние «interrupted»), и resume() без касания не срабатывает.
+    // Пробуем сразу при возврате и ещё раз на первом касании/клавише — тогда звук точно включится
+    const wake = () => { if (!ac || document.hidden || !(Music.on || Sfx.on) || ac.state === 'running') return; try { const p = ac.resume(); if (p && p.catch) p.catch(() => {}); } catch(e){} };
+    document.addEventListener('visibilitychange', () => { if (!ac) return; if (document.hidden){ try { ac.suspend(); } catch(e){} } else wake(); });
+    window.addEventListener('pageshow', wake); window.addEventListener('focus', wake);
+    for (const ev of ['pointerdown', 'touchend', 'keydown']) document.addEventListener(ev, wake, { capture: true, passive: true });
     return ac;
   }
   return { ctx, out: () => comp, get ac(){ return ac; } };
@@ -3767,7 +3772,7 @@ const Music = (() => {
 /* Звуки действий */
 const Sfx = (() => {
   let bus = null, last = {};
-  const ok = () => { if (!save.sound.sfx) return null; const ac = Audio2.ctx(); if (!ac) return null; if (!bus){ bus = ac.createGain(); bus.gain.value = 0.55; bus.connect(Audio2.out()); } if (ac.state === 'suspended') ac.resume(); return ac; };
+  const ok = () => { if (!save.sound.sfx) return null; const ac = Audio2.ctx(); if (!ac) return null; if (!bus){ bus = ac.createGain(); bus.gain.value = 0.55; bus.connect(Audio2.out()); } if (ac.state !== 'running'){ try { const p = ac.resume(); if (p && p.catch) p.catch(() => {}); } catch(e){} } return ac; };
   const S = {
     tap(ac, t){ tone(ac, bus, 'triangle', 880, t, 0.05, 0.08); },
     place(ac, t){ // мотор: сначала обороты вверх, потом стук колёс на настиле
