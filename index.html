@@ -2308,9 +2308,9 @@ function genMarket(mode, trip, key, demand, avoid, lastTheme){
   const TH = THEMES[R.pool || 'vl'], CAT = poolOf(key);
   const themes = TH.filter(t => t.name !== lastTheme);
   const theme = Math.random() < 0.3 ? TH[0] : rnd(themes);
-  // во Владивостоке на бирже 20–25 машин всего (вместе с машинами в ближние города); на обратных рейсах — как раньше
+  // во Владивостоке на бирже 40–60 машин на всех логистов (вместе с машинами в ближние города); на обратных рейсах — как раньше
   const kNear = R.near ? Math.round(rr(5, 7.4)) : 0, vl = R.from === 'Владивосток';
-  const n = vl ? Math.round(rr(20, 25.49)) - kNear : Math.max(14, Math.round(rr(16, 21)) - Math.min(4, trip - 1));
+  const n = vl ? Math.round(rr(40, 60.49)) - kNear : Math.max(14, Math.round(rr(16, 21)) - Math.min(4, trip - 1));
   const t = trip - 1;
   const cw = { kei: Math.max(8, 24 - 3*t), sedan: Math.max(18, 32 - 2*t), cross: 26, jeep: Math.min(45, 18 + 5*t) };
   const cnt = {}; CAT.forEach(c => cnt[c.cls] = (cnt[c.cls] || 0) + 1);
