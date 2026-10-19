@@ -906,6 +906,15 @@ u.fine{background:var(--signal);border-radius:1px!important}
 .fl-card .fl-s svg{width:14px;height:14px}
 .shop{margin-top:16px}
 .lgx{margin-top:16px}
+.lgwin{border:2px solid var(--line);border-radius:var(--r-lg);background:var(--surface);padding:10px 12px;margin:0 0 10px}
+.lgw-h{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+.lgw-h b{display:flex;gap:6px;align-items:center}.lgw-h svg{width:16px;height:16px}
+.lgw-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.lgw-c{display:flex;flex-direction:column;gap:3px;align-items:flex-start;text-align:left;border:2px solid var(--line);border-radius:var(--r);background:var(--surface);padding:8px 10px;cursor:pointer;font:inherit;color:var(--ink)}
+.lgw-c.on{border-color:var(--amber);box-shadow:0 3px 0 var(--amber-deep)}
+.lgw-c.empty{opacity:.55;cursor:default}
+.lgw-c .lgw-n{font-weight:700;font-size:14px}
+.lgw-c .lgw-t{color:var(--signal)}
 .shop-card .sc-f.one{grid-template-columns:1fr}
 .lg-tag{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--surface-2);color:var(--ink);margin-top:3px;width:max-content}
 .lg-tag svg{width:13px;height:13px}
@@ -1038,6 +1047,7 @@ u.fine{background:var(--signal);border-radius:1px!important}
               </label>
             </div>
             <div class="news" id="marketNews"></div>
+            <div class="lgwin" id="lgWin" hidden></div>
             <div class="market" id="market"></div>
           </div>
           <div class="panel" data-pane="calc">
@@ -2561,8 +2571,11 @@ function newRig(kind, date){
 const LOGISTS = CONFIG.logists;
 /* Каждый заказ — от одного из логистов: своя ставка; Саня Кореец — одна ставка без рынка; кто перестал работать — заказов не даёт */
 function assignLogists(orders, key, s){
+  // логисты — только на погрузке во Владивостоке; обратные рейсы с заводов идут без них
+  if (routeOf(key).from !== 'Владивосток') return orders;
+  // у каждого логиста сегодня своё число машин: вес на рейс случайный
   const L = lgState(s), pool = LOGISTS.filter(l => !(l.id === 'korean' && L.korBan)), w = {};
-  pool.forEach((l, i) => w[i] = l.w);
+  pool.forEach((l, i) => w[i] = l.w * rr(0.15, 1.9));
   for (const o of orders){
     const x = pool[+weighted(w)]; o.lg = x.id;
     if (x.fixed){ o.price = Math.round(tariffAt(key, o.cls, o.km, null) * (1 + (o.urgentPct || 0) / 100) / 1000) * 1000; o.demandPct = 0; continue; }
@@ -5046,7 +5059,7 @@ function exchangeHTML(){
   const pc = v => Math.round(Math.abs(v - 1) * 100);
   const rate = l => l.fixed ? 'одна ставка, без рынка' : l.k[0] >= 1 ? `+${pc(l.k[0])}–${pc(l.k[1])}% к рынку` : l.k[1] <= 1 ? `−${pc(l.k[1])}–${pc(l.k[0])}% к рынку` : `±${Math.max(pc(l.k[0]), pc(l.k[1]))}% к рынку`;
   const pay = l => !l.nonpay ? 'платит всегда' : `не платит ≈ в ${Math.round(l.nonpay * 100)}% рейсов`;
-  let h = `<div class="panel-h"><h3>Биржа</h3><span class="small muted">заказы на погрузке приходят от этих логистов</span></div><div class="shop-grid">`;
+  let h = `<div class="panel-h"><h3>Биржа</h3><span class="small muted">заказы при погрузке во Владивостоке; обратные рейсы с заводов — без логистов</span></div><div class="shop-grid">`;
   h += LOGISTS.map(l => `<div class="shop-card ${L.regular === l.id ? 'mine' : ''} ${l.nonpay >= 0.3 ? 'risky' : ''}"><div class="sc-h"><b><span class="lg-tag lg-${l.id}">${ic('driver')}${esc(l.name)}</span></b></div>
     <ul class="sc-f one"><li><span>Ставка</span><b class="${l.k[1] > 1.1 ? 'pos' : ''}">${rate(l)}</b></li><li><span>Оплата</span><b class="${l.nonpay >= 0.3 ? 'neg' : l.nonpay ? '' : 'pos'}">${pay(l)}</b></li></ul>
     <p class="small">${esc(l.about)}</p>${stat(l)}</div>`).join('');
@@ -5221,7 +5234,7 @@ function startRoute(key){
     maint: state.mode === 'easy' && toLeft(s.rig) < routeKm(key) });
   if (R.kind === 'empty'){ state.market = []; state.theme = 'Перегон порожняком'; startTrip(); return; }
   const mk = genMarket(state.mode, state.trip, key, s.demand, new Set(s.lastModels || []), s.lastTheme);
-  assignLogists(mk.orders, key, s);
+  assignLogists(mk.orders, key, s); state.lgPick = null;
   state.market = mk.orders; state.theme = mk.theme;
   s.lastModels = mk.orders.map(o => o.model); s.lastTheme = mk.theme; writeSave();
   if (state.autoFit) state.sec = autoFit([], state.sec.ext);
@@ -5465,8 +5478,23 @@ function renderStatus(ev){
 }
 function renderMarket(){
   const sorters = { price:(a,b)=>b.price-a.price, height:(a,b)=>a.H-b.H, length:(a,b)=>a.L-b.L, mass:(a,b)=>a.mass-b.mass, dest:(a,b)=>b.km-a.km || b.price-a.price };
-  const list = state.market.slice().sort(sorters[state.sort] || sorters.price);
-  $('#marketTitle').textContent = `Биржа заказов · ${state.market.length}`;
+  const hasLg = state.market.some(o => o.lg), pick = hasLg && state.lgPick && state.market.some(o => o.lg === state.lgPick) ? state.lgPick : null;
+  const list = state.market.filter(o => !pick || o.lg === pick).sort(sorters[state.sort] || sorters.price);
+  $('#marketTitle').textContent = `Биржа заказов · ${pick ? `${logistOf(pick).name}: ${list.length} из ${state.market.length}` : state.market.length}`;
+  // окно логистов: у кого сколько машин, ставка и надёжность; догружаться можно у любого
+  const lw = $('#lgWin'); lw.hidden = !hasLg;
+  if (hasLg){
+    const L = lgState(ms()), cnt = id => state.market.filter(o => o.lg === id), inLoad = id => cnt(id).filter(o => tierOf(o.id)).length;
+    const pc = v => Math.round(Math.abs(v - 1) * 100);
+    const rate = l => l.fixed ? 'одна ставка' : l.k[0] >= 1 ? `+${pc(l.k[0])}–${pc(l.k[1])}%` : l.k[1] <= 1 ? `−${pc(l.k[1])}–${pc(l.k[0])}%` : `±${Math.max(pc(l.k[0]), pc(l.k[1]))}%`;
+    const tag = l => l.id === 'korean' && L.korBan ? 'не работает с вами' : l.id === 'brook' && L.brookPen > 0 ? `ставка −${pc(L.brookK)}%, ещё ${L.brookPen} рейс.` : L.regular === l.id ? 'вы постоянный' : '';
+    lw.innerHTML = `<div class="lgw-h"><b>${ic('driver')}Логисты · выберите, у кого грузиться</b><span class="small muted">догружаться можно у любого</span></div><div class="lgw-row">
+      <button type="button" class="lgw-c ${!pick ? 'on' : ''}" data-action="lgPick" data-id=""><b>Все</b><span class="lgw-n">${state.market.length} машин</span><span class="small muted">все заказы</span></button>
+      ${LOGISTS.map(l => { const n = cnt(l.id).length, ld = inLoad(l.id), ban = l.id === 'korean' && L.korBan, t = tag(l);
+        return `<button type="button" class="lgw-c ${pick === l.id ? 'on' : ''} ${!n ? 'empty' : ''}" data-action="lgPick" data-id="${l.id}" ${!n ? 'disabled' : ''}>
+          <span class="lg-tag lg-${l.id}">${esc(l.name)}</span><span class="lgw-n">${ban ? '—' : n ? `${n} ${plural(n, 'машина', 'машины', 'машин')}` : 'сегодня машин нет'}${ld ? ` · в автовозе ${ld}` : ''}</span>
+          <span class="small">${rate(l)} · ${!l.nonpay ? 'платит всегда' : `не платит ≈${Math.round(l.nonpay * 100)}%`}</span>${t ? `<span class="small lgw-t">${t}</span>` : ''}</button>`; }).join('')}</div>`;
+  }
   const dem = ms() && ms().demand;
   if (dem){
     const chip = (label, f) => { const p = Math.round((f - 1) * 100); return `<span class="dchip ${p > 0 ? 'up' : p < 0 ? 'down' : ''}">${label} ${p > 0 ? '↑' : p < 0 ? '↓' : '·'}${Math.abs(p)}%</span>`; };
@@ -6927,6 +6955,7 @@ document.addEventListener('click', e => {
   if (a === 'adjPermit'){ if (adjCtl) adjCtl.permit(); return; }
   if (a === 'adjBack'){ if (adjCtl) adjCtl.back(); return; }
   if (a === 'bingePick'){ if (bingeCtl) bingeCtl.pick(b.dataset.c, b.dataset.id); return; }
+  if (a === 'lgPick'){ state.lgPick = b.dataset.id || null; Sfx.play('click'); renderMarket(); return; }
   if (a === 'fleetSel'){
     const i = +b.dataset.i, s = ms(); if (i === s.cur) return;
     fleetLoad(s, i); state.market = []; state.fleetBuy = false; writeSave(); Sfx.play('click');
