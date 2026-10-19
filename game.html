@@ -896,6 +896,14 @@ u.fine{background:var(--signal);border-radius:1px!important}
 .bg-opt ul li::before{content:'· ';color:var(--ink-3)}
 .bg-none{margin:0;font-size:13px;color:var(--ink-3)}
 @media (max-width:520px){ .bg-opt ul{margin-left:0} .bg-h{grid-template-columns:30px 1fr} .bg-sum{grid-column:2;grid-row:auto} .bg-h .drv-av,.bg-h .drv-av svg{width:30px;height:30px} }
+.fleet{margin-bottom:16px}
+.fl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin:8px 0 10px}
+.fl-card{display:flex;flex-direction:column;gap:3px;text-align:left;border:2px solid var(--line);border-radius:var(--r-lg);background:var(--surface);padding:10px 12px;cursor:pointer;font:inherit;color:var(--ink)}
+.fl-card.on{border-color:var(--amber);box-shadow:0 3px 0 var(--amber-deep)}
+.fl-card.busy{background:var(--surface-2)}
+.fl-card .fl-n{font-family:var(--f-mono);font-size:12px;color:var(--ink-2)}
+.fl-card .fl-s,.fl-card .fl-d{font-size:13px;color:var(--ink-2);display:flex;gap:4px;align-items:center}
+.fl-card .fl-s svg{width:14px;height:14px}
 .shop{margin-top:16px}
 .shop-tabs{display:flex;gap:4px;background:var(--surface-2);border-radius:999px;padding:3px}
 .shop-tabs button{border:0;background:none;font:inherit;font-weight:600;padding:6px 14px;border-radius:999px;cursor:pointer;color:var(--ink-2)}
@@ -962,6 +970,7 @@ u.fine{background:var(--signal);border-radius:1px!important}
       </div>
       <div class="modebar" id="modeBar" role="radiogroup" aria-label="Уровень игры"></div>
       <div class="startbox" id="garageStart" hidden></div>
+      <div class="panel fleet" id="garageFleet"></div>
       <div class="garage-status" id="garageStatus"></div>
       <div class="rigrow" id="garageRigRow"><div class="panel rigpanel" id="garageRig"></div><div class="panel calpanel" id="garageCal"></div></div>
       <div class="permitbar" id="garagePermit"></div>
@@ -1248,6 +1257,8 @@ const CONFIG = {
     { id:'flip',   group:'save', name:'Откидная рамка номера',          price:25000,  platon:true, risky:true,
       about:'Номер прячется под шторку — рамки «Платона» его не видят, «Платон» не платим. Перед постом ДПС водитель должен успеть поднять рамку: не успел — в первый раз штраф 5 000 ₽, во второй водителя лишают прав.' }
   ],
+  // Автопарк: до 10 сцепок. Новая сцепка = тягач из магазина + полуприцеп Luxuda (новый к новому тягачу, с пробегом — к б/у); появляется на базе
+  fleet: { max: 10, trailer: { new: 4800000, used: 1600000 }, base: 'Владивосток' },
   // откидная рамка: шанс, что водитель не успеет поднять номер перед постом ДПС; штраф за первый раз (ч. 2 ст. 12.2 КоАП); после лишения прав — сменщик
   flip: { miss: { timur:0.12, gosha:0.28, palych:0.08, stas:0.15, boss:0.12 }, fine: 5000, fineH: 1, swapKm: 500, swapH: 8 },
   // Ставки из Владивостока за машину (кроссовер; кей-кар, седан и джип — в той же пропорции, что в tariffs): резко взлетают и резко падают.
@@ -2109,15 +2120,21 @@ function deadlineDays(km){ return Math.max(1, Math.ceil(km / CONFIG.economy.dead
 function routeDeadline(key){ return deadlineDays(routeKm(key)); }
 function cityDeadline(key, city){ const c = routeCities(key).find(x => x.name === city); return deadlineDays(c ? c.km : routeKm(key)); }
 // состав водителей текущей игры: новые имена после найма, уволенные, сколько раз срывались (интерфейс обновляет перед расчётами)
-let CREW_NOW = {};
+let CREW_NOW = {}, FLEET_TAKEN = new Set();
 const BOSS = { id:'boss', name:'Вы', nick:'руководитель', kmDay:650, breaks:1, wear:1, fuel:1, pay:0, cams:0, sly:false };
 function driverOf(id){
   if (id === 'boss') return Object.assign({}, BOSS, { kmDay: CONFIG.binge.bossKmDay });
+  // водитель, нанятый в автопарк сверх четырёх: свой id, характер работы — как у одного из четырёх
+  const x = !CONFIG.drivers.some(q => q.id === id) && CREW_NOW[id];
+  if (x && x.base){ const b = CONFIG.drivers.find(q => q.id === x.base) || CONFIG.drivers[0];
+    return Object.assign({}, b, { id, base: b.id, name: x.name, hired: true, sly: false, about: `Нанят в автопарк по объявлению. ${b.about}` }); }
   const d = CONFIG.drivers.find(d => d.id === id) || CONFIG.drivers[0], c = CREW_NOW[d.id];
   return c && c.name ? Object.assign({}, d, { name: c.name, hired: true, sly: false, about: `Новенький по объявлению, взяли на место уволенного. ${d.about}` }) : d;
 }
 function driverFired(crew, id){ return !!(crew && crew[id] && crew[id].fired); }
-function freeDrivers(crew, except){ return CONFIG.drivers.filter(d => !driverFired(crew, d.id) && d.id !== except).map(d => d.id); }
+function allDriverIds(crew){ return CONFIG.drivers.map(d => d.id).concat(Object.keys(crew || {}).filter(k => crew[k] && crew[k].base)); }
+/* Свободные водители: не уволены и не закреплены за другой сцепкой автопарка */
+function freeDrivers(crew, except){ return allDriverIds(crew).filter(id => !driverFired(crew, id) && id !== except && !FLEET_TAKEN.has(id)); }
 /* Дорога руководителя или сменщика до стоянки: до 700 км — машиной/автобусом, дальше — самолёт с пересадкой и такси */
 function bingeTravel(km){
   const h = km <= 700 ? 1 + km / 70 : 9 + km / 800;
@@ -2128,7 +2145,7 @@ function bingeTravel(km){
 function hireDriver(s, id){
   const C = CONFIG.binge, crew = s.crew = Object.assign({}, s.crew || {}), used = new Set(Object.values(crew).map(c => c && c.name).filter(Boolean).concat(CONFIG.drivers.map(d => d.name)));
   const name = C.names.find(n => !used.has(n)) || ('Водитель ' + (Object.keys(crew).length + 1));
-  crew[id] = { name, hired: s.date, binges: 0 };
+  crew[id] = { name, hired: s.date, binges: 0, base: (crew[id] || {}).base };
   s.balance -= C.hireCost; s.stats.hire = (s.stats.hire || 0) + C.hireCost;
   if (s.known) s.known = Object.assign({}, s.known, { [id]: false });
   return name;
@@ -2632,12 +2649,80 @@ function startGame(s, kind){
   s.rig = newRig(used ? 'used' : 'new', s.date);
   s.lease = used ? null : { start: s.date, payment: C.lease.payment, months: C.lease.months, count: 0, paid: 0, unpaid: [], peni: 0, peniPaid: 0,
     peniAt: s.date, next: nextPayDate(s.date), done: false, seized: null, log: [] };
-  s.gameOver = null; s.started = s.date;
+  s.gameOver = null; s.started = s.date; s.fleet = null; fleetInit(s);
   if (!s.demand || !s.demand.rates) s.demand = nextDemand(s.demand); // ставки рынка видны на карточках рейсов с первого дня
   s.stats.capex = (s.stats.capex || 0) + price;
   serviceLog(s, { kind:'start', title: used ? `Купили сцепку с пробегом ${fmt(C.used.odo)} км` : 'Взяли новую сцепку в лизинг', cost: price });
   return s;
 }
+/* ---------- Автопарк ----------
+   Данные активной сцепки лежат прямо в s (rig, loc, driver, tune, tires, permit, lease, service) — весь остальной код работает с ними как раньше.
+   Остальные сцепки — в s.fleet[i].data; при переключении активная складывается в свой слот, выбранная выкладывается в s */
+const FLEET_KEYS = ['rig', 'loc', 'driver', 'tune', 'tires', 'permit', 'lease', 'service'];
+function fleetInit(s){
+  if (!s || !s.rig || s.fleet) return;
+  s.fleet = [{ id: 1, busyUntil: 0, busyTo: null, data: {} }]; s.cur = 0;
+}
+function fleetStash(s){ if (!s.fleet) return; const d = s.fleet[s.cur].data = {}; for (const k of FLEET_KEYS) d[k] = s[k]; }
+function fleetLoad(s, i){
+  if (!s.fleet || i === s.cur || !s.fleet[i]) return;
+  fleetStash(s); s.cur = i;
+  const d = s.fleet[i].data || {}; for (const k of FLEET_KEYS) s[k] = d[k] !== undefined ? d[k] : (k === 'tune' || k === 'service' ? [] : null);
+}
+function fleetBusy(s, i){ const f = s.fleet && s.fleet[i == null ? s.cur : i]; return !!(f && f.busyUntil > s.date); }
+function fleetDriverOf(s, i){ return i === s.cur ? s.driver : s.fleet[i].data && s.fleet[i].data.driver; }
+function fleetTaken(s){ const out = new Set(); if (s && s.fleet) s.fleet.forEach((f, i) => { if (i !== s.cur){ const d = fleetDriverOf(s, i); if (d) out.add(d); } }); return out; }
+/* После рейса: в автопарке из нескольких сцепок дата не уходит вперёд — сцепка занята до прибытия, остальные можно отправлять сегодня */
+function fleetAfterTrip(s, res){
+  if (!s.fleet || s.fleet.length < 2) return;
+  const f = s.fleet[s.cur]; f.busyUntil = s.date; f.busyTo = res.to;
+  s.date = res.econ.date;
+}
+/* Ждать: календарь до ближайшего прибытия; платежи по лизингу всех сцепок; изъятая лизингом сцепка уходит из автопарка */
+function fleetAdvance(s, to){
+  const cur = s.cur, out = [];
+  s.date = Math.max(s.date, to);
+  for (let i = s.fleet.length - 1; i >= 0; i--){
+    fleetLoad(s, i);
+    leaseTick(s, s.date);
+    if (s.gameOver && s.fleet.length > 1){ out.push(`Лизинг изъял сцепку №${s.fleet[i].id}`); fleetDrop(s, i); }
+  }
+  fleetLoad(s, Math.min(cur, s.fleet.length - 1));
+  return out;
+}
+function fleetDrop(s, i){
+  s.fleet.splice(i, 1); s.gameOver = null;
+  s.cur = -1; const j = 0, d = s.fleet[j].data || {}; s.cur = j; for (const k of FLEET_KEYS) s[k] = d[k] !== undefined ? d[k] : null;
+}
+function fleetNext(s){ const t = (s.fleet || []).map(f => f.busyUntil).filter(t => t > s.date); return t.length ? Math.min(...t) : null; }
+/* Новая сцепка: тягач из магазина + полуприцеп; нужен свободный водитель */
+function buyRig(s, id){
+  const T = shopItem(id), F = CONFIG.fleet;
+  if (!T || !s.fleet || s.fleet.length >= F.max) return null;
+  const used = USED_TRUCKS.includes(T), price = T.price + (used ? F.trailer.used : F.trailer.new), drv = freeDrivers(s.crew, s.driver)[0];
+  if (!drv || s.balance < price) return null;
+  s.balance -= price; s.stats.capex = (s.stats.capex || 0) + price;
+  const spec = { id:T.id, brand:T.brand, model:T.model, year:T.year, hp:T.hp, fuel:T.fuel, breaks:T.breaks, mass:T.mass };
+  const rig = { kind: used ? 'used' : 'new', odo: used ? T.odo : 0, engineKm: used ? T.engineKm : 0, sinceTO: used ? Math.round(rr(2500, 6000) / 100) * 100 : 0,
+    failAt: rollFailAt(), lastTO: used ? null : s.date, born: s.date, overhauls: 0, spec, paid: T.price, odo0: used ? T.odo : 0 };
+  const n = Math.max(...s.fleet.map(f => f.id)) + 1;
+  s.fleet.push({ id: n, busyUntil: 0, busyTo: null, data: { rig, loc: F.base, driver: drv, tune: [], tires: s.tires, permit: null, lease: null,
+    service: [{ date: s.date, odo: rig.odo, kind:'start', title:`Купили сцепку №${n}: ${T.model} + Luxuda${used ? ' с пробегом' : ''}`, cost: price }] } });
+  return { T, price, n, drv };
+}
+/* Водитель в автопарк: новый id, характер — случайный из четырёх */
+function hireExtra(s){
+  const C = CONFIG.binge, crew = s.crew = Object.assign({}, s.crew || {});
+  if (s.balance < C.hireCost) return null;
+  const used = new Set(Object.values(crew).map(c => c && c.name).filter(Boolean).concat(CONFIG.drivers.map(d => d.name)));
+  const name = C.names.find(n => !used.has(n)) || ('Водитель ' + (Object.keys(crew).length + 1));
+  let k = 1; while (crew['x' + k]) k++;
+  const id = 'x' + k, base = rnd(CONFIG.drivers).id;
+  crew[id] = { name, hired: s.date, binges: 0, base };
+  s.balance -= C.hireCost; s.stats.hire = (s.stats.hire || 0) + C.hireCost;
+  return { id, name };
+}
+
 /* Лизинг: платёж каждое 10-е, если в кассе хватает денег. Нет — долг и пеня в день; 3 месяца неоплаты — сцепку изымают.
    Возвращает, что произошло: оплачен, не хватило, погашен долг, изъятие, выкуп */
 function leaseAccrue(L, t){
@@ -3257,6 +3342,7 @@ function applyTrip(s, res){
   if (!res.empty) s.best = s.best.concat([res.profit]).sort((a, b) => b - a).slice(0, 5);
   // лизинг: платежи 10-го числа, которые прошли за рейс, — из кассы после рейса
   res.leaseLog = leaseTick(s, s.date);
+  fleetAfterTrip(s, res);
   return s;
 }
 
@@ -3316,7 +3402,7 @@ const IN_CITY = { 'Владивосток':'во Владивостоке', 'М�
 const TO_CITY = { 'Владивосток':'во Владивосток', 'Москва':'в Москву', 'Новосибирск':'в Новосибирск', 'Краснодар':'в Краснодар' };
 const FROM_CITY = { 'Владивосток':'из Владивостока', 'Москва':'из Москвы', 'Новосибирск':'из Новосибирска', 'Краснодар':'из Краснодара' };
 const inCity = n => IN_CITY[n] || ('в городе ' + n), toCity = n => TO_CITY[n] || ('в ' + n), fromCity = n => FROM_CITY[n] || ('из города ' + n);
-const ms = () => { const m = save[state.mode]; CREW_NOW = (m && m.crew) || {}; return m; };
+const ms = () => { const m = save[state.mode]; CREW_NOW = (m && m.crew) || {}; FLEET_TAKEN = fleetTaken(m); return m; };
 
 /* Иконки: простые штриховые, 24×24 */
 const ICON = {
@@ -3666,7 +3752,7 @@ Object.assign(CREW, {
 /* Новый водитель на месте уволенного: свой портрет по имени */
 function drvAvatar(id){
   const d = driverOf(id);
-  if (!d.hired || !CREW[id]) return (CREW[id] || CREW.timur).svg;
+  if (!d.hired) return (CREW[id] || CREW.timur).svg;
   let h = 7; for (const ch of d.name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   const pick = (a, k) => a[(h >>> k) % a.length];
   return personSVG({ hatType: pick(['cap', 'back', 'ushanka', 'cap'], 1), hat: pick(['#2E7D57', '#C9382B', '#1D5FB4', '#6B4A32', '#4A5560'], 3), shirt: pick(['#7B5EA7', '#D03A2C', '#3C5A78', '#2E7D57', '#E88A1A'], 5),
@@ -4651,8 +4737,13 @@ function stCtx(over){
 function driverCards(compact){
   const s = ms(), cur = s.driver || 'timur', ks = routesFrom(s.loc), k0 = ks.find(k => routeOf(k).kind !== 'empty') || ks[0];
   const bar = (label, v) => `<span class="dbar"><span>${label}</span><i><b style="width:${Math.round(clamp(v, 0.05, 1) * 100)}%"></b></i></span>`;
-  return CONFIG.drivers.map(d => {
-    const crew = (s.crew || {})[d.id] || {}, dd = driverOf(d.id), av = drvAvatar(d.id);
+  const rigOf = id => (s.fleet || []).findIndex((f, i) => i !== s.cur && fleetDriverOf(s, i) === id);
+  return allDriverIds(s.crew).map(id => {
+    const d = driverOf(id), crew = (s.crew || {})[d.id] || {}, dd = d, av = drvAvatar(d.id), ri = rigOf(id);
+    if (ri >= 0 && !crew.fired){
+      const body = `<span class="drv-av">${av}</span><span class="drv-h"><b>${esc(dd.name)}</b><em>на сцепке №${s.fleet[ri].id}</em></span>`;
+      return compact ? `<span class="drv-mini fired">${body}</span>` : `<div class="drv fired"><span class="drv-top">${body}</span><span class="drv-facts">Закреплён за другой сцепкой автопарка.</span></div>`;
+    }
     if (crew.fired){
       const H = CONFIG.binge.hireCost, can = s.balance >= H;
       const body = `<span class="drv-av">${av}</span><span class="drv-h"><b>${esc(crew.firedName || dd.name)}</b><em>${crew.firedWhy === 'lic' ? 'лишён прав' : 'уволен за запой'}</em></span>`;
@@ -4712,7 +4803,7 @@ function renderGarage(full){
       <em>${rub(x.balance)} · рейсов ${x.stats.trips + x.stats.empty}</em></button>`;
   }).join('');
   const regime = s.regime === 'ausn' && !(s.ledger && s.ledger.ausnLost) ? 'АУСН 8%' : 'УСН 6%';
-  $('#garageStatus').innerHTML = `<div class="gs-main">${ic('truck', 'big')}<div><span class="gs-l">Автовоз стоит</span><b>${esc(inCity(s.loc))}</b></div></div>
+  $('#garageStatus').innerHTML = `<div class="gs-main">${ic('truck', 'big')}<div><span class="gs-l">${s.fleet && s.fleet.length > 1 ? `Сцепка №${s.fleet[s.cur].id} ` : 'Автовоз '}${fleetBusy(s) ? `в рейсе, прибудет ${fmtDate(s.fleet[s.cur].busyUntil)}` : 'стоит'}</span><b>${esc(inCity(s.loc))}</b></div></div>
     <dl class="gs-facts">
       <div><dt>Касса</dt><dd class="${s.balance < 0 ? 'neg' : ''}">${rub(s.balance)}</dd></div>
       <div><dt>Дата</dt><dd>${fmtDate(s.date)}</dd></div>
@@ -4726,7 +4817,9 @@ function renderGarage(full){
   $('#garageStart').classList.toggle('over', over);
   $('#garageStart').innerHTML = over ? gameOverHTML() : fresh ? startHTML() : '';
   $('#garageRigRow').hidden = fresh || over;
-  $('#garagePlay').hidden = fresh || over;
+  $('#garagePlay').hidden = fresh || over || fleetBusy(s);
+  $('#garageFleet').hidden = fresh || over;
+  if (!fresh && !over) $('#garageFleet').innerHTML = fleetHTML();
   $('#garagePermit').hidden = fresh || over;
   $('#garageShop').hidden = fresh || over;
   if (!fresh && !over) $('#garageShop').innerHTML = shopHTML();
@@ -4823,6 +4916,39 @@ function rigHTML(){
       return `<li class="${e.kind}"><span class="rl-d">${fmtDate(e.date)}</span>${ic(k[0])}<b>${esc(e.title || k[1])}</b><span class="rl-o">${fmt(e.odo || 0)} км</span>${e.cost ? `<span class="rl-c">−${rub(e.cost)}</span>` : ''}</li>`; }).join('')}</ul></details>` : ''}`;
 }
 let ohArmed = false;
+/* Автопарк: карточки сцепок, ожидание прибытия, наём водителей, покупка сцепок */
+function fleetHTML(){
+  const s = ms(), F = CONFIG.fleet, n = s.fleet.length, nx = fleetNext(s), free = freeDrivers(s.crew, s.driver);
+  const cards = s.fleet.map((f, i) => {
+    const d = i === s.cur ? s : (f.data || {}), T = truckOf(d.rig), busy = f.busyUntil > s.date, drv = d.driver ? driverOf(d.driver).name : '—';
+    return `<button type="button" class="fl-card ${i === s.cur ? 'on' : ''} ${busy ? 'busy' : ''}" data-action="fleetSel" data-i="${i}" aria-pressed="${i === s.cur}">
+      <span class="fl-n">№${f.id}</span><b>${esc(T.model.replace(/ 4×2$/, ''))}</b>
+      <span class="fl-s">${busy ? `${ic('truck')}в рейсе ${toCity(f.busyTo || d.loc)}, до ${fmtDate(f.busyUntil)}` : `${ic('pin')}${esc(inCity(d.loc))}`}</span>
+      <span class="fl-d">${esc(drv)} · ${fmt(d.rig ? d.rig.odo : 0)} км${d.lease && !d.lease.done ? ' · лизинг' : ''}</span></button>`;
+  }).join('');
+  const busyN = s.fleet.filter(f => f.busyUntil > s.date).length;
+  let h = `<div class="panel-h"><h3>Автопарк · ${n} из ${F.max}</h3><span class="small muted">${busyN ? `в рейсе ${busyN}, свободно ${n - busyN}` : 'все на месте'}</span></div>
+    <div class="fl-grid">${cards}</div>
+    <div class="toolrow left">
+      ${nx ? `<button class="btn sm ${n === busyN ? 'primary' : ''}" type="button" data-action="fleetWait">${ic('hour')}Ждать до ${fmtDate(nx)}</button>` : ''}
+      ${n < F.max ? `<button class="btn sm ${state.fleetBuy ? 'on' : ''}" type="button" data-action="fleetBuyToggle">${ic('plus')}Купить сцепку</button>` : ''}
+      <button class="btn sm" type="button" data-action="fleetHire" ${s.balance < CONFIG.binge.hireCost ? 'disabled' : ''}>${ic('plus')}Нанять водителя · ${rub(CONFIG.binge.hireCost)}</button>
+      <span class="small muted">Свободных водителей: ${free.length}</span></div>`;
+  if (fleetBusy(s)) h += `<p class="small permit-note">${ic('truck')}<span>Сцепка №${s.fleet[s.cur].id} в рейсе — выберите свободную сцепку или нажмите «Ждать»: календарь перейдёт к ближайшему прибытию.</span></p>`;
+  if (state.fleetBuy && n < F.max){
+    const row = (T, used) => {
+      const price = T.price + (used ? F.trailer.used : F.trailer.new), can = free.length && s.balance >= price;
+      return `<div class="shop-card"><div class="sc-h"><b>${esc(T.model)}</b><span class="pill ${used ? 'warn' : 'ok'}">${used ? `б/у · ${T.year}` : 'новый'}</span></div>
+        <div class="sc-p">${mln(price)}<em>тягач ${mln(T.price)} + Luxuda ${used ? 'с пробегом' : 'новый'} ${mln(used ? F.trailer.used : F.trailer.new)}</em></div>
+        <ul class="sc-f"><li><span>Расход</span><b>${T.fuel < 1 ? '−' : T.fuel > 1 ? '+' : '±'}${Math.round(Math.abs(T.fuel - 1) * 100)}%</b></li><li><span>Поломки</span><b>${T.breaks < 1 ? '−' : T.breaks > 1 ? '+' : '±'}${Math.round(Math.abs(T.breaks - 1) * 100)}%</b></li>${used ? `<li><span>Пробег</span><b>${fmt(T.odo)} км</b></li>` : ''}</ul>
+        <button class="btn sm ${can ? 'primary' : ''}" type="button" data-action="fleetBuy" data-id="${T.id}" ${can ? '' : 'disabled'}>${ic('coin')}Купить</button></div>`;
+    };
+    h += `<p class="small muted">Новая сцепка встаёт на базе ${inCity(F.base)}. ${free.length ? `Поедет свободный водитель: ${esc(driverOf(free[0]).name)}.` : '<b>Нет свободного водителя — сначала наймите.</b>'}</p>
+      <h4 class="shop-sub">Новые</h4><div class="shop-grid">${TRUCKS.map(T => row(T, false)).join('')}</div>
+      <h4 class="shop-sub">С пробегом</h4><div class="shop-grid">${USED_TRUCKS.map(T => row(T, true)).join('')}</div>`;
+  }
+  return h;
+}
 /* Магазин: техника (новые и б/у тягачи) и тюнинг */
 let shopArmed = null;
 function shopHTML(){
@@ -4978,6 +5104,7 @@ function startRoute(key){
   const s = ms(), R = routeOf(key);
   if (s.gameOver){ toast('Сцепки нет — начните игру заново в гараже', 'bad'); state.screen = 'garage'; render(); return; }
   if (!s.rig){ toast('Сначала выберите сцепку: с пробегом или новую в лизинг', 'bad'); state.screen = 'garage'; render(); return; }
+  if (fleetBusy(s)){ toast(`Сцепка №${s.fleet[s.cur].id} в рейсе до ${fmtDate(s.fleet[s.cur].busyUntil)} — выберите свободную или ждите`, 'bad'); return; }
   if (R.from !== s.loc){ toast(`Автовоз сейчас ${inCity(s.loc)}`, 'bad'); return; }
   state.route = key; save.route = key; writeSave();
   if (!s.demand || !s.demand.rates) s.demand = nextDemand(s.demand);
@@ -6575,7 +6702,7 @@ function restoreTripView(res){
 
 /* ---------- Экраны ---------- */
 function render(){
-  applyTruck(ms());
+  fleetInit(ms()); applyTruck(ms());
   for (const [id, scr] of [['#scrGarage','garage'],['#scrGame','game'],['#scrTrip','trip'],['#scrCabinet','cabinet']]) $(id).hidden = state.screen !== scr;
   document.body.dataset.screen = state.screen;
   renderHud();
@@ -6655,6 +6782,27 @@ document.addEventListener('click', e => {
   if (a === 'adjGo'){ if (adjCtl) adjCtl.go(); return; }
   if (a === 'adjNo'){ if (adjCtl) adjCtl.no(); return; }
   if (a === 'bingePick'){ if (bingeCtl) bingeCtl.pick(b.dataset.c, b.dataset.id); return; }
+  if (a === 'fleetSel'){
+    const i = +b.dataset.i, s = ms(); if (i === s.cur) return;
+    fleetLoad(s, i); state.market = []; state.fleetBuy = false; writeSave(); Sfx.play('click');
+    toast(`Сцепка №${s.fleet[s.cur].id}: ${fleetBusy(s) ? `в рейсе до ${fmtDate(s.fleet[s.cur].busyUntil)}` : inCity(s.loc)}`); render(); return;
+  }
+  if (a === 'fleetWait'){
+    const s = ms(), t = fleetNext(s); if (!t) return;
+    const msgs = fleetAdvance(s, t), i = s.fleet.findIndex(f => f.busyUntil === t);
+    if (i >= 0) fleetLoad(s, i);
+    state.market = []; writeSave(); Sfx.play('click');
+    toast([`${fmtDate(s.date)}: сцепка №${s.fleet[s.cur].id} прибыла ${inCity(s.loc)}`].concat(msgs).join('. '), msgs.length ? 'bad' : ''); render(); return;
+  }
+  if (a === 'fleetHire'){
+    const r = hireExtra(ms()); if (!r){ toast('Не хватает денег', 'bad'); return; }
+    writeSave(); Sfx.play('cash'); toast(`В автопарк нанят водитель: ${r.name}`); render(); return;
+  }
+  if (a === 'fleetBuyToggle'){ state.fleetBuy = !state.fleetBuy; Sfx.play('click'); renderGarage(false); return; }
+  if (a === 'fleetBuy'){
+    const r = buyRig(ms(), b.dataset.id); if (!r){ toast('Не хватает денег или свободного водителя', 'bad'); return; }
+    state.fleetBuy = false; writeSave(); Sfx.play('cash'); toast(`Сцепка №${r.n} (${r.T.model}) на базе. Водитель — ${driverOf(r.drv).name}`); render(); return;
+  }
   if (a === 'shopTab'){ state.shopTab = b.dataset.tab; shopArmed = null; Sfx.play('click'); renderGarage(false); return; }
   if (a === 'buyTruck'){
     const id = b.dataset.id, s = ms();
@@ -6677,7 +6825,7 @@ document.addEventListener('click', e => {
     renderHud(); return;
   }
   if (a === 'driver'){
-    const id = b.dataset.id, s = ms(); if (s.driver === id || driverFired(s.crew, id)) return;
+    const id = b.dataset.id, s = ms(); if (s.driver === id || driverFired(s.crew, id) || FLEET_TAKEN.has(id)) return;
     s.driver = id; writeSave(); Sfx.play('click');
     toast(`Водитель: ${driverOf(id).name}`);
     if (state.screen === 'garage') renderGarage(false); else if (state.screen === 'game'){ renderStatus(curEval()); }
