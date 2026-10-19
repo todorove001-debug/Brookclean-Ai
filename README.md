@@ -1,1 +1,7 @@
 # Brookclean-Ai
+
+Игра «Brookclean Trucks» — автовоз: погрузка машин на двухъярусный автовоз, рейсы по России, автопарк до 10 сцепок.
+
+Вся игра — один файл `index.html`, сохранения хранятся в браузере (localStorage).
+
+Сайт: https://todorove001-debug.github.io/Brookclean-Ai/ (GitHub Pages, публикуется из корня ветки).
