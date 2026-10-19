@@ -2760,6 +2760,8 @@ function startGame(s, kind){
    Остальные сцепки — в s.fleet[i].data; при переключении активная складывается в свой слот, выбранная выкладывается в s */
 const FLEET_KEYS = ['rig', 'loc', 'driver', 'tune', 'tires', 'permit', 'lease', 'service'];
 function fleetInit(s){
+  // старые сохранения: сцепки «в рейсе до …» — сразу свободны
+  if (s && s.fleet) for (const f of s.fleet) if (f.busyUntil) f.busyUntil = 0;
   if (!s || !s.rig || s.fleet) return;
   s.fleet = [{ id: 1, busyUntil: 0, busyTo: null, data: {} }]; s.cur = 0;
 }
@@ -2772,11 +2774,12 @@ function fleetLoad(s, i){
 function fleetBusy(s, i){ const f = s.fleet && s.fleet[i == null ? s.cur : i]; return !!(f && f.busyUntil > s.date); }
 function fleetDriverOf(s, i){ return i === s.cur ? s.driver : s.fleet[i].data && s.fleet[i].data.driver; }
 function fleetTaken(s){ const out = new Set(); if (s && s.fleet) s.fleet.forEach((f, i) => { if (i !== s.cur){ const d = fleetDriverOf(s, i); if (d) out.add(d); } }); return out; }
-/* После рейса: в автопарке из нескольких сцепок дата не уходит вперёд — сцепка занята до прибытия, остальные можно отправлять сегодня */
+/* После рейса сцепка сразу свободна в городе назначения, ожидания нет: календарь уходит вперёд, как с одной сцепкой;
+   платежи по лизингу остальных сцепок за это время — тоже списываются */
 function fleetAfterTrip(s, res){
-  if (!s.fleet || s.fleet.length < 2) return;
-  const f = s.fleet[s.cur]; f.busyUntil = s.date; f.busyTo = res.to;
-  s.date = res.econ.date;
+  if (!s.fleet) return;
+  const f = s.fleet[s.cur]; f.busyUntil = 0; f.busyTo = null;
+  if (s.fleet.length > 1) fleetAdvance(s, s.date);
 }
 /* Ждать: календарь до ближайшего прибытия; платежи по лизингу всех сцепок; изъятая лизингом сцепка уходит из автопарка */
 function fleetAdvance(s, to){
