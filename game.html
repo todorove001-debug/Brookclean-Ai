@@ -1094,16 +1094,18 @@ const CONFIG = {
   limits: { height: 4000, width: 2900, length: 24990 },
   // погрешность измерения рамок АПВГК: у каждой рамки своя, 2–3 см; превышение в пределах погрешности не нарушение
   measure: { tolMin: 20, tolMax: 30 },
-  // Sitrak C7H MAX 4×2: база 3900, ССУ JOST 50# под шкворень 2″, высота ССУ 1150, снаряжённая масса 7,4 т; габариты C7H 6480×2490×3845; баки 860 + 400 л
-  truck: { model:'Sitrak C7H MAX 4×2', length: 6480, width: 2490, cabHeight: 3845, cabLength: 2300, wheelbase: 3900, frontOverhang: 1500,
+  // Sitrak C7H MAX 4×2: ССУ JOST 50# под шкворень 2″, высота ССУ 1150, снаряжённая масса 7,4 т; габариты C7H 6480×2490×3845; баки 860 + 400 л.
+  // Передний свес 1400 и база 3800 — по схеме автопоезда из спецразрешения Р050-00147-00/05802183
+  truck: { model:'Sitrak C7H MAX 4×2', plate:'К649СХ125', vin:'LZZ7CCWD3PC502043', length: 6480, width: 2490, cabHeight: 3845, cabLength: 2300, wheelbase: 3800, frontOverhang: 1400,
            fifthWheelHeight: 1150, fifthWheelAhead: 500, wheelR: 538, mass: 7400, ssu: 'JOST 50#', kingpin: '2″ (50,8 мм)' },
-  // Luxuda LZC9405BG: 17000×2550×3950, 2 оси SAF по 11,5 т, снаряжённая масса 11 580 кг, грузоподъёмность 20 000 кг, ССУ 1150
-  trailer: { model:'Luxuda LZC9405BG', length: 17000, kingpin: 650, kingpinToAxle1: 11610, axleBase: 1300, rampLen: 1200,
+  // Luxuda LZC9405BG: 17000×2550×3950, 2 оси SAF по 11,5 т, грузоподъёмность 20 000 кг, ССУ 1150.
+  // По спецразрешению: от задней оси тягача до первой оси прицепа 13 990, между осями прицепа 1800; автопоезд без груза 18 220 кг → прицеп 10 820
+  trailer: { model:'Luxuda LZC9405BG', plate:'АО132325', vin:'LA9925T26R1LZC532', length: 17000, kingpin: 650, kingpinToAxle1: 14490, axleBase: 1800, rampLen: 1200,
              upperFrontExt: 175, slideFront: 500, slideRear: 1000, lowerSlideFront: 500, lowerSlideRear: 1000,
              // в передних сходнях — провал под колесо 5 см
              slideWell: { depth: 50, len: 400 },
              width: 2550, deckWidth: 2550, postHeight: 3950, wheelR: 400,
-             mass: 11580, payload: 20000, axles: 2, axleRating: 11500 },
+             mass: 10820, payload: 20000, axles: 2, axleRating: 11500 },
   mass: { limit: 36000, tolerancePct: 2, fines: [[10,150000],[20,300000],[50,450000],[Infinity,600000]] },
   capacity: { lower: 4, upper: 5 },
   // начало места (передний бампер, мм от кромки прицепа), если место перед ним пустое — машина встаёт на своё место, а не подтягивается вперёд
@@ -1125,8 +1127,11 @@ const CONFIG = {
   adjust: { h: 1 },
   // выгрузка не по порядку: машину сверху снимает эвакуатор-манипулятор; снизу задние машины съезжают и заезжают обратно — простой автовоза, ч на машину
   unload: { towUpper: 5000, shuffleH: 0.75 },
-  // разрешение на перевозку крупногабаритного груза: многоразовое на 3 месяца, оформление и госпошлина — ориентировочно
-  permit: { price: 25000, months: 3, maxHeight: 4480, maxLength: 26500, maxWidth: 3000 },
+  // спецразрешение на крупногабаритное ТС — по выписке из реестра Р050-00147-00/05802183: поездок без ограничений, 3 месяца,
+  // габариты автопоезда 24,99 × 2,9 × 4,48 м, свес груза до 2,0 м, скорость до 60 км/ч, радиус поворота 12 м, сопровождение не требуется;
+  // заявлено: груз «автомобили» 22,0 × 2,7 × 3,58 м, 15,78 т, масса с грузом 34,0 т, нагрузки на оси 8 / 10 / 8 / 8 т. Цена оформления — ориентировочно
+  permit: { price: 25000, months: 3, maxHeight: 4480, maxLength: 24990, maxWidth: 2900, maxOverhang: 2000, speed: 60, turnRadius: 12000,
+            number: 'Р050-00147-00/05802183', mass: 34000, axleLoads: [8000, 10000, 8000, 8000] },
   // штраф собственнику по ст. 12.21.1 КоАП за превышение габаритов сверх погрешности рамки, см: до 10 — 150 тыс., 10–20 — 300, 20–50 — 450, больше — 600
   frameFines: [[10, 150000], [20, 300000], [50, 450000], [Infinity, 600000]],
   // обжалование штрафа с рамки: юрист и госпошлина, срок — 10 суток; шанс отмены зависит от величины превышения
@@ -1943,6 +1948,9 @@ function evaluate(lowerCars, upperCars, sec){
   const front = Math.min(G.xFront, ...all.map(p => p.x0));
   const total = rear - front;
   if (total > LIM.length + CONFIG.measure.tolMin) add(null, 'legal', 'length', `Длина автопоезда ${fmt(total)} мм — длиннее нормы на ${fmt(total - LIM.length)} мм`, total - LIM.length);
+  // свес груза за задний край автопоезда — по разрешению не больше 2 м
+  const tail = rear - G.rampEnd, maxTail = CONFIG.permit.maxOverhang;
+  if (tail > maxTail + CONFIG.measure.tolMin) add(null, 'legal', 'overhang', `Свес машин за аппарели ${fmt(tail)} мм — больше ${fmt(maxTail)} мм по разрешению`, tail - maxTail);
   const width = Math.max(CONFIG.trailer.width, CONFIG.truck.width, ...all.map(p => p.car.W));
   if (width > LIM.width + CONFIG.measure.tolMin) add(null, 'legal', 'width', `Ширина ${fmt(width)} мм — шире нормы на ${fmt(width - LIM.width)} мм`, width - LIM.width);
   const cargo = all.reduce((s,p) => s + p.car.mass, 0);
@@ -3575,6 +3583,7 @@ function tipText(ev){
       if (L.type === 'length') return 'Длинно получается. Задвиньте сходни или поставьте назад машину покороче.';
       if (L.type === 'mass') return 'Перегруз по массе. Снимите самую тяжёлую машину — джипы и пикапы весят больше всех.';
       if (L.type === 'width') return 'Слишком широко, такую машину не повезём.';
+      if (L.type === 'overhang') return `Машина торчит за аппарели больше чем на ${fmt(CONFIG.permit.maxOverhang / 1000)} м — так нельзя даже по разрешению. Задвиньте сходни или поставьте назад машину покороче.`;
     }
     if (ev.permitted && ev.permitted.length){
       const pm = ms().permit, end = ms().date + routeDays(state.route, driverOf(ms().driver).kmDay) * 86400000;
@@ -4131,14 +4140,19 @@ function rigSVG(sec, noDeck){
   }
   s += `<path class="sv-fender" d="M${G.axle1-620} -800 Q${G.axle1-520} -1020 ${G.axle1-200} -1020 L${G.axle2+200} -1020 Q${G.axle2+520} -1020 ${G.axle2+620} -800 L${G.axle2+620} -760 L${G.axle1-620} -760 Z"/>`;
   s += `<path d="M${G.axle1-560} -812 Q${G.axle1-480} -990 ${G.axle1-200} -990 L${G.axle2+200} -990 Q${G.axle2+480} -990 ${G.axle2+560} -812" stroke="#8A949D" stroke-width=".7" fill="none"/>`;
-  s += `<rect x="${G.axle2+560}" y="-800" width="48" height="640" rx="6" fill="#16191D"/><rect x="${G.axle2+566}" y="-330" width="36" height="120" fill="#F4F6F8" opacity=".85"/>`;
+  const flapX = G.axle2 + t.wheelR + 60, bumpX = Math.max(16680, flapX + 90);
+  s += `<rect x="${flapX}" y="-800" width="48" height="640" rx="6" fill="#16191D"/><rect x="${flapX+6}" y="-330" width="36" height="120" fill="#F4F6F8" opacity=".85"/>`;
   // ящик для инструмента и противооткатных упоров под рамой
-  s += `<rect x="15080" y="-745" width="980" height="370" rx="22" fill="url(#bt-alu)" stroke="#6E7883" stroke-width=".8"/>`;
-  s += `<path d="M15120 -712H16020M15120 -410H16020" stroke="#8E99A4" stroke-width=".7" fill="none"/>`;
-  for (const x of [15230, 15910]) s += `<rect x="${x - 34}" y="-600" width="68" height="50" rx="10" fill="#2B3138"/>`;
+  { const b0 = G.axle1 - 740 - 760, b1 = b0 + 760;
+    s += `<rect x="${b0}" y="-745" width="760" height="370" rx="22" fill="url(#bt-alu)" stroke="#6E7883" stroke-width=".8"/>`;
+    s += `<path d="M${b0 + 40} -712H${b1 - 40}M${b0 + 40} -410H${b1 - 40}" stroke="#8E99A4" stroke-width=".7" fill="none"/>`;
+    for (const x of [b0 + 130, b1 - 130]) s += `<rect x="${x - 34}" y="-600" width="68" height="50" rx="10" fill="#2B3138"/>`; }
   // задний отбойник, фонари: габарит, стоп, поворот, задний ход; вертикальная маркировка на задней стойке
-  s += `<rect class="sv-frame" x="16680" y="-520" width="360" height="70"/><path class="sv-line" d="M16760 -760V-520M16960 -760V-520" stroke-width="2.4"/>`;
-  s += `<path class="sv-tape" d="M16700 -508h300v40h-300z"/>`;
+  // оси по разрешению стоят у самого края рамы — отбойник висит за колёсами, под аппарелями
+  { const top = R0(-lowerFloor(bumpX + 360) + 80);
+    s += `<rect class="sv-frame" x="${bumpX}" y="-520" width="360" height="70"/><path class="sv-line" d="M${bumpX+80} ${top}V-520M${bumpX+280} ${top}V-520" stroke-width="2.4"/>`;
+    s += `<path class="sv-tape" d="M${bumpX+20} -508h300v40h-300z"/>`;
+    s += `<rect x="${bumpX+250}" y="-505" width="90" height="40" rx="8" fill="#C62E2E"/>`; }
   // стойки (фермы) и гидроцилиндры подъёма секций
   const lift = k => Math.max(sec[k].f, sec[k].r);
   s += tpostSVG(0, 230, LP[0][1], t.postHeight, false, '+7 924 0000 120');
@@ -4216,7 +4230,7 @@ function drawingSVG(ev, sec, opts){
     const dim = (x, y, txt, anchor='middle', size=280) => `<text class="sv-dim" x="${x}" y="${y}" font-size="${size}" text-anchor="${anchor}">${txt}</text>`;
     s += dim(1750, -1305 + 420, '1305');
     s += dim(8150, -580 + 420, '≈580');
-    s += dim(14600, -900 + 420, '≈900');
+    s += dim(R0((G.axle1 + G.axle2) / 2 - 80), -900 + 460, '≈900', 'middle', 240);
     s += dim(17900, -600 + 430, '600', 'middle', 240);
     for (const S of SECS){
       const v = sec[S.k], mid = (secA(S, sec) + secB(S, sec))/2, z = (v.f + v.r)/2;
@@ -4877,7 +4891,7 @@ function meter(label, v, max, unit){
 function passportHTML(){
   const t = CONFIG.trailer, tr = CONFIG.truck, d = CONFIG.deck, R = CONFIG.sectionRange, M = CONFIG.mass;
   const rows = [
-    ['Тягач', tr.model], ['Полуприцеп', t.model],
+    ['Тягач', `${tr.model} · ${tr.plate}`], ['Полуприцеп', `${t.model} · ${t.plate}`],
     ['Мест: верхний / нижний ярус', `${CAP.upper} / ${CAP.lower}`],
     ['Тягач: длина · база · высота', `${fmt(tr.length)} · ${fmt(tr.wheelbase)} · ${fmt(tr.cabHeight)}`],
     ['Седло ССУ: высота · перед задней осью', `${fmt(tr.fifthWheelHeight)} · ${tr.fifthWheelAhead}`],
@@ -4895,6 +4909,11 @@ function passportHTML(){
     ['Секции верхнего яруса по длине', `${fmt(SECS[0].b - SECS[0].a)} · ${fmt(SECS[1].b - SECS[1].a)} · ${fmt(SECS[2].b - SECS[2].a)}`],
     ['Высота секций / наклон / шаг', `${fmt(R.min)}–${fmt(R.max)} / до ${R.maxTilt} / ${R.step}`],
     ['Высота автопоезда: без разрешения / по разрешению', `${fmt(LIM.height)} / ${fmt(CONFIG.permit.maxHeight)}`],
+    ['Оси: свес · база тягача · до 1-й оси прицепа · между осями', `${fmt(tr.frontOverhang)} · ${fmt(tr.wheelbase)} · ${fmt(G.axle1 - G.rearAxle)} · ${fmt(t.axleBase)}`],
+    ['Спецразрешение', CONFIG.permit.number],
+    ['По разрешению: длина · ширина · высота', `${fmt(CONFIG.permit.maxLength)} · ${fmt(CONFIG.permit.maxWidth)} · ${fmt(CONFIG.permit.maxHeight)}`],
+    ['По разрешению: свес груза · радиус поворота · скорость', `до ${fmt(CONFIG.permit.maxOverhang)} · ${fmt(CONFIG.permit.turnRadius)} · ${CONFIG.permit.speed} км/ч`],
+    ['По разрешению: масса с грузом · нагрузки на оси, кг', `${fmt(CONFIG.permit.mass)} · ${CONFIG.permit.axleLoads.map(fmt).join(' / ')}`],
     ['Толщина настила · зазор крыша—настил', `${d.thickness} · ${d.clearance}`],
     ['Крыша между колеями: выше колеи до · зазор до днища верхней', `${d.roofIn} · ${d.bellyClear}`],
     ['Зазор бампер—бампер · нос—хвост по высоте', `${d.gap} · ${d.nestClearance}`],
@@ -4950,7 +4969,7 @@ function permitHTML(id, tripDays){
   const s = ms(), P = CONFIG.permit, pm = s.permit, ok = permitValid(pm, s.date), whole = permitValid(pm, s.date + (tripDays || 0) * 86400000), on = ok && whole;
   const label = !ok ? `Разрешение на негабарит на ${P.months} месяца — ${rub(P.price)}` : whole ? `Разрешение на негабарит — есть, до ${fmtDate(pm.until)}`
     : `Разрешение кончится ${fmtDate(pm.until)}, в пути — продлить на ${P.months} мес. за ${rub(P.price)}`;
-  const note = on ? `можно до ${fmt(P.maxHeight)} мм высоты и ${fmt(P.maxLength)} мм длины — рамки АПВГК за габарит не штрафуют`
+  const note = on ? `${P.number}: до ${fmt(P.maxHeight)} мм высоты, ${fmt(P.maxLength)} мм длины, ${fmt(P.maxWidth)} ширины, свес до ${fmt(P.maxOverhang / 1000)} м, не быстрее ${P.speed} км/ч — рамки АПВГК за габарит не штрафуют`
     : 'без него каждая рамка АПВГК на трассе штрафует за габарит больше нормы на 10 см';
   return `<label class="tog small permit ${on ? 'on' : ''} ${!ok ? 'off' : ''}" for="${id}"><input type="checkbox" id="${id}" data-permit="1" ${on ? 'checked disabled' : ''}><span class="tg-l">${label}</span><span class="tg-n">${note}</span></label>`;
 }
@@ -5026,7 +5045,7 @@ function renderRules(){
     `Расходы: дизель 88–90 ₽/л, летом ${E.consumption.summer} л/100 км, зимой 40–45; «Платон» ${c(E.platonPerKm)} ₽/км; водитель ${E.driverPerKm} ₽/км на руки; резина ${c(E.tires.perKm['лето'])}–${c(E.tires.perKm['зима'])} ₽/км и переобувка ${rub(E.tires.change)} дважды в год.`,
     `Налоги — в кабинете: УСН 6% (минус взносы 30%, но не больше половины налога) или АУСН 8% без взносов. НДФЛ 13% за водителя платится в обоих режимах.`,
     `Рамки АПВГК стоят по всей трассе и меряют с погрешностью ${CONFIG.measure.tolMin / 10}–${CONFIG.measure.tolMax / 10} см — у каждой рамки своя. Превышение сверх погрешности — штраф собственнику по ст. 12.21.1 КоАП на каждой рамке: до 10 см — 150 000 ₽, 10–20 см — 300 000 ₽, 20–50 см — 450 000 ₽, больше 50 см — 600 000 ₽. Перегруз по массе рамки тоже штрафуют.`,
-    `Без разрешения высота автопоезда — до ${fmt(LIM.height)} мм. Разрешение на негабарит — на ${CONFIG.permit.months} месяца за ${rub(CONFIG.permit.price)}: высота до ${fmt(CONFIG.permit.maxHeight)}, длина до ${fmt(CONFIG.permit.maxLength)} мм. Галочка — в гараже и в расчёте рейса.`,
+    `Без разрешения высота автопоезда — до ${fmt(LIM.height)} мм. Разрешение на негабарит — на ${CONFIG.permit.months} месяца за ${rub(CONFIG.permit.price)}, поездок без ограничений: высота до ${fmt(CONFIG.permit.maxHeight)}, длина до ${fmt(CONFIG.permit.maxLength)}, ширина до ${fmt(CONFIG.permit.maxWidth)} мм, свес груза до ${fmt(CONFIG.permit.maxOverhang / 1000)} м, скорость не выше ${CONFIG.permit.speed} км/ч, сопровождение не нужно. Галочка — в гараже и в расчёте рейса.`,
     `Если первая рамка на трассе оштрафовала за высоту, водитель встанет на стоянке и опустит секции — ${fmtH(CONFIG.adjust.h)} простоя, и следующие рамки уже не оштрафуют. Ниже, чем позволяют нижние машины, секции не опустить.`,
     `Штраф с рамки можно обжаловать в течение ${CONFIG.appeal.days} дней после рейса: юрист и пошлина — ${rub(CONFIG.appeal.cost)}, суд отменяет примерно каждый второй.`,
     `Выгрузка с хвоста. Если машина стоит не по порядку: снизу задние машины съезжают и заезжают обратно — простой автовоза ${fmtH(CONFIG.unload.shuffleH)} на машину; сверху её снимает эвакуатор-манипулятор — ${rub(CONFIG.unload.towUpper)} за машину.`
