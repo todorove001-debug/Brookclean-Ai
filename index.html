@@ -905,6 +905,12 @@ u.fine{background:var(--signal);border-radius:1px!important}
 .fl-card .fl-s,.fl-card .fl-d{font-size:13px;color:var(--ink-2);display:flex;gap:4px;align-items:center}
 .fl-card .fl-s svg{width:14px;height:14px}
 .shop{margin-top:16px}
+.lgx{margin-top:16px}
+.shop-card .sc-f.one{grid-template-columns:1fr}
+.lg-tag{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--surface-2);color:var(--ink);margin-top:3px;width:max-content}
+.lg-tag svg{width:13px;height:13px}
+.lg-brook{background:#FFE7B3;color:#7A4B00}.lg-korean{background:#DDE9FF;color:#1D4A9E}.lg-arm{background:#FFE0DA;color:#8E2A1B}
+.lg-kg{background:#F6D3E1;color:#7D1D47}.lg-vostok{background:#DDF3E4;color:#1F6B3A}.lg-olga{background:#ECE3FF;color:#4B2C8F}
 .shop-tabs{display:flex;gap:4px;background:var(--surface-2);border-radius:999px;padding:3px}
 .shop-tabs button{border:0;background:none;font:inherit;font-weight:600;padding:6px 14px;border-radius:999px;cursor:pointer;color:var(--ink-2)}
 .shop-tabs button.on{background:var(--ink);color:var(--bg)}
@@ -974,6 +980,7 @@ u.fine{background:var(--signal);border-radius:1px!important}
       <div class="garage-status" id="garageStatus"></div>
       <div class="rigrow" id="garageRigRow"><div class="panel rigpanel" id="garageRig"></div><div class="panel calpanel" id="garageCal"></div></div>
       <div class="permitbar" id="garagePermit"></div>
+      <div class="panel lgx" id="garageExchange"></div>
       <div class="panel shop" id="garageShop"></div>
       <div id="garagePlay">
         <h2 class="sec-h">Водитель</h2>
@@ -1257,6 +1264,24 @@ const CONFIG = {
     { id:'flip',   group:'save', name:'Откидная рамка номера',          price:25000,  platon:true, risky:true,
       about:'Номер прячется под шторку — рамки «Платона» его не видят, «Платон» не платим. Перед постом ДПС водитель должен успеть поднять рамку: не успел — в первый раз штраф 5 000 ₽, во второй водителя лишают прав.' }
   ],
+  // Биржа: логисты, через которых приходят заказы на машины. k — множитель ставки к рынку; fixed — одна ставка без рынка;
+  // nonpay — шанс, что за рейс не заплатят (вся партия этого логиста), recover — сколько удаётся выбить, idle — дни разборок (простой)
+  logists: [
+    { id:'brook', name:'Brookclean', w:3, k:[1.06, 1.12], dip:0.06, dipK:0.9, nonpay:0,
+      about:'Отличный логист: ставка всегда хорошая, просадки редко. Ревнивый: если узнает, что его постоянный перевозчик грузится у других, следующие 5 рейсов ставка на 20–30% ниже.' },
+    { id:'korean', name:'Саня Кореец', w:2, fixed:true, k:[1, 1], nonpay:0,
+      about:'Всегда держит одну ставку — рынок ему не указ. Если его постоянный перевозчик не приехал на погрузку, больше с ним не работает.' },
+    { id:'arm', name:'Армяне', w:2, k:[1.2, 1.32], nonpay:0.3, recover:[0.3, 0.7], idle:[2, 4],
+      about:'Высокие ставки, но часто не платят за перевозку: придётся разбираться с клиентами — простой, и всё выбить не выйдет.' },
+    { id:'kg', name:'Киргизы', w:2, k:[1.28, 1.45], nonpay:0.5, recover:[0, 0.5], idle:[3, 6],
+      about:'Ставки ещё выше, чем у армян, но платят ещё хуже: разборки дольше, вернуть удаётся меньше.' },
+    { id:'vostok', name:'Восток-Авто', w:3, k:[0.95, 1.05], nonpay:0.03, recover:[0.8, 1], idle:[1, 2],
+      about:'Обычный рыночный логист: ставка по рынку, платят почти всегда.' },
+    { id:'olga', name:'Ольга «ТрансЛайн»', w:2, k:[0.9, 0.96], nonpay:0,
+      about:'Ставка чуть ниже рынка, зато платит в день выгрузки и никогда не подводит.' }
+  ],
+  // Brookclean узнаёт о погрузке у других с этим шансом; штраф к ставке и сколько рейсов
+  brookJealous: { p: 0.7, k: [0.7, 0.8], trips: 5 },
   // Автопарк: до 10 сцепок. Новая сцепка = тягач из магазина + полуприцеп Luxuda (новый к новому тягачу, с пробегом — к б/у); появляется на базе
   fleet: { max: 10, trailer: { new: 4800000, used: 1600000 }, base: 'Владивосток' },
   // откидная рамка: шанс, что водитель не успеет поднять номер перед постом ДПС (0,2–2% поста); штраф за первый раз (ч. 2 ст. 12.2 КоАП); после лишения прав — сменщик
@@ -2532,6 +2557,61 @@ function newRig(kind, date){
   return { kind: used ? 'used' : 'new', odo: used ? U.odo : 0, engineKm: used ? U.odo : 0, sinceTO: used ? Math.round(rr(2500, 6000) / 100) * 100 : 0,
     failAt: rollFailAt(), lastTO: used ? null : date, born: date, overhauls: 0 };
 }
+/* ---------- Биржа: логисты ---------- */
+const LOGISTS = CONFIG.logists;
+/* Каждый заказ — от одного из логистов: своя ставка; Саня Кореец — одна ставка без рынка; кто перестал работать — заказов не даёт */
+function assignLogists(orders, key, s){
+  const L = lgState(s), pool = LOGISTS.filter(l => !(l.id === 'korean' && L.korBan)), w = {};
+  pool.forEach((l, i) => w[i] = l.w);
+  for (const o of orders){
+    const x = pool[+weighted(w)]; o.lg = x.id;
+    if (x.fixed){ o.price = Math.round(tariffAt(key, o.cls, o.km, null) * (1 + (o.urgentPct || 0) / 100) / 1000) * 1000; o.demandPct = 0; continue; }
+    let k = rr(x.k[0], x.k[1]);
+    if (x.dip && Math.random() < x.dip) k *= x.dipK;
+    if (x.id === 'brook' && L.brookPen > 0) k *= L.brookK;
+    o.price = Math.round(o.price * k / 1000) * 1000;
+  }
+  return orders;
+}
+function logistOf(id){ return LOGISTS.find(l => l.id === id) || null; }
+function lgState(s){ return s.lg = Object.assign({ regular: null, brookPen: 0, brookK: 1, korBan: false, log: [] }, s.lg || {}); }
+/* Неоплата решается на старте рейса (один раз): по каждому ненадёжному логисту — заплатят или нет, сколько выбьем и сколько дней разборок */
+function rollNonpay(){
+  const out = {};
+  for (const L of LOGISTS) if (L.nonpay && Math.random() < L.nonpay) out[L.id] = { share: rr(L.recover[0], L.recover[1]), days: Math.round(rr(L.idle[0], L.idle[1])) };
+  return out;
+}
+/* Итог по логистам за рейс: сколько машин у кого, кто не заплатил, простой на разборки */
+function logistSettle(st, plan, ev){
+  const count = {}, sum = {};
+  for (const p of ev.all || []) if (p.fits && p.car.lg){ count[p.car.lg] = (count[p.car.lg] || 0) + 1; sum[p.car.lg] = (sum[p.car.lg] || 0) + (p.car.price || 0); }
+  const list = [];
+  for (const id of Object.keys(sum)){ const np = plan.nopay && plan.nopay[id]; if (!np) continue;
+    const L = logistOf(id), loss = Math.round(sum[id] * (1 - np.share) / 1000) * 1000;
+    list.push({ id, name: L.name, sum: sum[id], loss, days: np.days, got: sum[id] - loss }); }
+  const idleDays = list.reduce((a, x) => Math.max(a, x.days), 0);
+  return { count, list, loss: list.reduce((a, x) => a + x.loss, 0), idleDays, idleCost: idleDays * CONFIG.binge.idleDay,
+    korOffered: (st.market || []).some(o => o.lg === 'korean') };
+}
+/* После рейса: постоянный перевозчик, ревность Brookclean, обида Сани Корейца */
+function logistAfterTrip(s, res){
+  if (res.empty || !res.lg) return;
+  const L = lgState(s), ids = Object.keys(res.lg.count), notes = res.lgNotes = [], J = CONFIG.brookJealous;
+  if (!ids.length) return;
+  if (L.brookPen > 0) L.brookPen--;
+  if (L.regular === 'brook' && ids.some(i => i !== 'brook') && Math.random() < J.p){
+    L.brookPen = J.trips; L.brookK = rr(J.k[0], J.k[1]);
+    notes.push(`Brookclean узнал, что вы грузились у других: следующие ${J.trips} рейсов ставка ниже на ${Math.round((1 - L.brookK) * 100)}%`);
+  }
+  if (L.regular === 'korean' && res.lg.korOffered && !ids.includes('korean') && !L.korBan){
+    L.korBan = true; notes.push('Саня Кореец ждал вас на погрузке — вы не приехали. Больше он с вами не работает');
+  }
+  const total = ids.reduce((a, i) => a + res.lg.count[i], 0), top = ids.sort((a, b) => res.lg.count[b] - res.lg.count[a])[0];
+  L.regular = res.lg.count[top] * 2 >= total ? top : null;
+  for (const n of res.lg.list) notes.push(`${n.name} не заплатили: выбили ${rub(n.got)} из ${rub(n.sum)}, разборки ${n.days} ${n.days === 1 ? 'день' : n.days < 5 ? 'дня' : 'дней'}`);
+  L.log = notes.map(t => ({ date: s.date, t })).concat(L.log || []).slice(0, 20);
+}
+
 /* ---------- Техника и тюнинг ---------- */
 const TRUCKS = CONFIG.shop.trucks, USED_TRUCKS = CONFIG.shop.used;
 function truckOf(rig){ return (rig && rig.spec) || TRUCKS[0]; }
@@ -2854,7 +2934,7 @@ function planTrip(st){
     const near = cities.reduce((a, c) => Math.abs(c.km - km) < Math.abs(a.km - km) ? c : a, cities[0]);
     binge = { km, days: Math.round(rr(B.days[0] - 0.49, B.days[1] + 0.49)), near: near.name, dist: Math.abs(near.km - km), choice: null, swap: null };
   }
-  return { key, econ, driver: drv.id, breaks, police, cams, offers, sly, rig: rp.after, fix: rp.fix, died: !!rp.died, binge };
+  return { key, econ, driver: drv.id, breaks, police, cams, offers, sly, rig: rp.after, fix: rp.fix, died: !!rp.died, binge, nopay: rollNonpay() };
 }
 /* Что везём в момент km: машины, которые ещё не выгрузили, и взятые попутки */
 function loadAt(st, plan, accepted, km){
@@ -3246,7 +3326,9 @@ function settleTrip(st, plan, accepted){
         text:`Приехали на ${u.arr}-й день при сроке ${u.dl} дн. — надбавка за ${whatAcc} ${rub(u.bonus)} сохранена.` });
   }
   events.sort((a, b) => a.km - b.km || (a.ord || 1) - (b.ord || 1));
-  const income = ev.income + pickupIncome;
+  // логисты: кто-то мог не заплатить — минус к доходу и простой на разборки
+  const lg = noCars ? null : logistSettle(st, plan, ev);
+  const income = ev.income + pickupIncome - (lg ? lg.loss : 0);
   const share = bg ? bg.km / D : 1, mix = k => share * drv[k] + (1 - share) * drv2[k];
   const liters = Math.round(D * econ.per100 / 100 * (noCars && !taken.length ? E.emptyFactor : 1) * mix('fuel') * fuelK(st));
   const fuel = Math.round(liters * econ.fuelPrice);
@@ -3259,11 +3341,11 @@ function settleTrip(st, plan, accepted){
   const tireNeed = econ.tireNeed || 'summer', tireChange = (st.tireSet && st.tireSet !== tireNeed) ? E.tires.change : 0;
   const maint = st.maint ? S.toCost : 0, fixCost = fix ? fix.cost : 0;
   // ТО перед рейсом — сутки в сервисе, ремонт после рейса дольше 6 ч — ещё сутки: на сроки доставки не влияет, но дату сдвигает
-  const extraDays = (st.maint ? 1 : 0) + (fix && fix.h > 6 ? 1 : 0);
+  const extraDays = (st.maint ? 1 : 0) + (fix && fix.h > 6 ? 1 : 0) + (lg ? lg.idleDays : 0);
   const fixed = days * CONFIG.dailyFixed;
   const ledger = ledgerFor(st.ledger, econ.date);
   const taxes = taxesFor(income - lateLoss, driver, days, st.regime || 'usn', ledger);
-  const costs = fuel + sly + platon + driver + taxes.total + tires + tireChange + maint + fixCost + fixed + policeCost + camFines + fines + towCost + repairs + lateLoss + bingeCost;
+  const costs = fuel + sly + platon + driver + taxes.total + tires + tireChange + maint + fixCost + fixed + policeCost + camFines + fines + towCost + repairs + lateLoss + bingeCost + (lg ? lg.idleCost : 0);
   const profit = income - costs;
   let stars = null;
   if (!empty){
@@ -3271,7 +3353,7 @@ function settleTrip(st, plan, accepted){
     else { const ref = 9 * tariffOf(key, 'jeep', st.rates), th = CONFIG.stars[st.mode]; stars = profit >= th[0]*ref ? 3 : profit >= th[1]*ref ? 2 : profit > 0 ? 1 : 0; }
   }
   const flipN = police.filter(p => p.flip).length, flipLost = police.some(p => p.flip === 'lost');
-  return { flipN, flipLost, route:key, from:R.from, to:R.to, empty, D, events, income, carIncome: ev.income, pickupIncome, pickups: taken.length, fuel, liters, sly, econ, platon, driver, driverId: drv.id,
+  return { lg, flipN, flipLost, route:key, from:R.from, to:R.to, empty, D, events, income, carIncome: ev.income, pickupIncome, pickups: taken.length, fuel, liters, sly, econ, platon, driver, driverId: drv.id,
     tires, tireChange, tireNeed, maint, fixCost, fix: fix || null, extraDays, rig: plan.rig ? Object.assign({}, plan.rig) : null, rigBefore: st.rig ? Object.assign({}, st.rig) : null,
     forcedN: breaks.filter(b => b.forced).length, died: !!plan.died, fixed, police: policeCost, policeN: police.length, cams: camFines, camsN: cams.length, fines, reshuffle: towCost, towN, shuffleN, shuffleH, repairs, lateLoss, delayH, days, norm,
     frames: frames.map(f => ({ km:f.km, road:f.road, place:f.place, fine:f.fine, permit:f.permit })), permitAll: frames.length > 0 && frames.every(f => f.permit),
@@ -3328,6 +3410,7 @@ function applyTrip(s, res){
   S.trips += res.empty ? 0 : 1; S.empty += res.empty ? 1 : 0; S.km += res.D; S.cars += res.count; S.income += res.income;
   S.profit += res.profit; S.fines += res.fines + res.police + (res.cams || 0); S.taxes += tx.total; S.pickups = (S.pickups || 0) + (res.pickups || 0); S.repairs = (S.repairs || 0) + (res.repairs || 0);
   if (res.sly){ s.known = Object.assign({}, s.known, { [res.driverId]: true }); }
+  logistAfterTrip(s, res);
   // откидная рамка: протоколы на водителя; второй — лишение прав, водитель больше не работает
   if (res.flipN){
     const crew = s.crew = Object.assign({}, s.crew || {}), c = crew[res.driverId] = Object.assign({}, crew[res.driverId]);
@@ -4825,6 +4908,8 @@ function renderGarage(full){
   if (!fresh && !over) $('#garageFleet').innerHTML = fleetHTML();
   $('#garagePermit').hidden = fresh || over;
   $('#garageShop').hidden = fresh || over;
+  $('#garageExchange').hidden = fresh || over;
+  if (!fresh && !over) $('#garageExchange').innerHTML = exchangeHTML();
   if (!fresh && !over) $('#garageShop').innerHTML = shopHTML();
   $('#garageStatus').hidden = fresh;
   if (fresh || over) return;
@@ -4950,6 +5035,23 @@ function fleetHTML(){
       <h4 class="shop-sub">Новые</h4><div class="shop-grid">${TRUCKS.map(T => row(T, false)).join('')}</div>
       <h4 class="shop-sub">С пробегом</h4><div class="shop-grid">${USED_TRUCKS.map(T => row(T, true)).join('')}</div>`;
   }
+  return h;
+}
+/* Биржа: логисты, их ставки и надёжность, отношения с вами */
+function exchangeHTML(){
+  const s = ms(), L = lgState(s);
+  const stat = l => l.id === 'korean' && L.korBan ? '<span class="pill bad">больше не работает с вами</span>'
+    : l.id === 'brook' && L.brookPen > 0 ? `<span class="pill warn">ставка −${Math.round((1 - L.brookK) * 100)}% ещё ${L.brookPen} ${plural(L.brookPen, 'рейс', 'рейса', 'рейсов')}</span>`
+    : L.regular === l.id ? '<span class="pill ok">вы его постоянный перевозчик</span>' : '';
+  const pc = v => Math.round(Math.abs(v - 1) * 100);
+  const rate = l => l.fixed ? 'одна ставка, без рынка' : l.k[0] >= 1 ? `+${pc(l.k[0])}–${pc(l.k[1])}% к рынку` : l.k[1] <= 1 ? `−${pc(l.k[1])}–${pc(l.k[0])}% к рынку` : `±${Math.max(pc(l.k[0]), pc(l.k[1]))}% к рынку`;
+  const pay = l => !l.nonpay ? 'платит всегда' : `не платит ≈ в ${Math.round(l.nonpay * 100)}% рейсов`;
+  let h = `<div class="panel-h"><h3>Биржа</h3><span class="small muted">заказы на погрузке приходят от этих логистов</span></div><div class="shop-grid">`;
+  h += LOGISTS.map(l => `<div class="shop-card ${L.regular === l.id ? 'mine' : ''} ${l.nonpay >= 0.3 ? 'risky' : ''}"><div class="sc-h"><b><span class="lg-tag lg-${l.id}">${ic('driver')}${esc(l.name)}</span></b></div>
+    <ul class="sc-f one"><li><span>Ставка</span><b class="${l.k[1] > 1.1 ? 'pos' : ''}">${rate(l)}</b></li><li><span>Оплата</span><b class="${l.nonpay >= 0.3 ? 'neg' : l.nonpay ? '' : 'pos'}">${pay(l)}</b></li></ul>
+    <p class="small">${esc(l.about)}</p>${stat(l)}</div>`).join('');
+  h += '</div>';
+  if ((L.log || []).length) h += `<details class="rg-log"><summary>Что было · ${L.log.length}</summary><ul>${L.log.slice(0, 10).map(e => `<li><span class="rl-d">${fmtDate(e.date)}</span><b>${esc(e.t)}</b></li>`).join('')}</ul></details>`;
   return h;
 }
 /* Магазин: техника (новые и б/у тягачи) и тюнинг */
@@ -5119,6 +5221,7 @@ function startRoute(key){
     maint: state.mode === 'easy' && toLeft(s.rig) < routeKm(key) });
   if (R.kind === 'empty'){ state.market = []; state.theme = 'Перегон порожняком'; startTrip(); return; }
   const mk = genMarket(state.mode, state.trip, key, s.demand, new Set(s.lastModels || []), s.lastTheme);
+  assignLogists(mk.orders, key, s);
   state.market = mk.orders; state.theme = mk.theme;
   s.lastModels = mk.orders.map(o => o.model); s.lastTheme = mk.theme; writeSave();
   if (state.autoFit) state.sec = autoFit([], state.sec.ext);
@@ -5381,7 +5484,7 @@ function renderMarket(){
       <span class="model">${esc(o.model)}</span><span class="price">${rub(o.price)}${o.demandPct ? `<small class="${o.demandPct > 0 ? 'up' : 'down'}">${o.demandPct > 0 ? '↑' : '↓'}${Math.abs(o.demandPct)}%</small>` : ''}</span>
       <span class="thumbw">${carThumbSVG(o)}</span>
       <span class="dims">${fmt(o.L)} × ${fmt(o.W)} × <b>${fmt(o.H)}</b> · ${fmt(o.mass)} кг</span>
-      <span class="dims2">база ${fmt(o.wb)} · свесы ${fmt(o.fo)} / ${fmt(o.ro)}</span>
+      <span class="dims2">база ${fmt(o.wb)} · свесы ${fmt(o.fo)} / ${fmt(o.ro)}</span>${o.lg ? `<span class="lg-tag lg-${o.lg}">${ic('driver')}${esc(logistOf(o.lg).name)}</span>` : ''}
       <span class="dest">${ic('pin')}${esc(o.dest)} · ${fmt(o.km)} км</span>
       ${tier?`<span class="inload">В автовозе · ${where}</span>`:''}
     </button>`;
@@ -6443,6 +6546,7 @@ function commitTrip(res){
   const s = ms();
   const before = s.best[0];
   applyTrip(s, res);
+  if (res.lgNotes && res.lgNotes.length) setTimeout(() => toast(res.lgNotes.join('. '), 'bad'), RM ? 0 : 1800);
   res.isRecord = !res.empty && res.profit > 0 && s.best[0] === res.profit && res.profit !== before;
   state.balance = s.balance; save.updatedAt = Date.now();
   writeSave(); syncCloud();
@@ -6503,6 +6607,8 @@ function showResult(res){
   if (res.repairs) rows.push(['Ремонт и эвакуация в пути', res.repairs, 'neg', '−']);
   if (res.fixCost) rows.push([`Ремонт после рейса: ${res.fix.title.toLowerCase()}`, res.fixCost, 'neg', '−']);
   if (res.lateLoss) rows.push(['Опоздание: срочные без надбавки', res.lateLoss, 'neg', '−']);
+  if (res.lg) for (const n of res.lg.list) rows.push([`${n.name} не заплатили: выбили ${rub(n.got)} из ${rub(n.sum)}`, n.loss, 'neg', '−']);
+  if (res.lg && res.lg.idleCost) rows.push([`Разборки с клиентами: простой ${res.lg.idleDays} ${plural(res.lg.idleDays, 'сутки', 'суток', 'суток')}`, res.lg.idleCost, 'neg', '−']);
   if (res.fines) rows.push([`Штрафы с рамок АПВГК: ${res.events.filter(e => e.kind === 'frame' || (e.kind === 'post' && e.amount < 0)).length}`, res.fines, 'neg', '−']);
   if (res.reshuffle) rows.push([res.towN ? `Эвакуатор: ${res.towN} ${plural(res.towN, 'машина', 'машины', 'машин')} сверху не по порядку` : 'Перестановки при выгрузке', res.reshuffle, 'neg', '−']);
   const t = rows.map(([a, , cls, p], i) => `<tr><td>${a}</td><td class="${cls}" data-cu="${i}">${p}0 ₽</td></tr>`).join('') +
