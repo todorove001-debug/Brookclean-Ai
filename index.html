@@ -906,6 +906,18 @@ u.fine{background:var(--signal);border-radius:1px!important}
 .fl-card .fl-s svg{width:14px;height:14px}
 .shop{margin-top:16px}
 .lgx{margin-top:16px}
+.authgate{position:fixed;inset:0;z-index:200;background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(6px);display:grid;place-items:center;padding:16px;overflow:auto}
+body.gated{overflow:hidden}
+.gate-card{width:min(400px,100%);background:var(--surface);border:2px solid var(--line);border-radius:var(--r-lg);box-shadow:0 10px 40px rgba(0,0,0,.18);padding:22px;display:grid;gap:12px}
+.gate-card h2{margin:0;font-size:22px}
+.gate-logo{display:flex;align-items:center;gap:8px;color:var(--ink-2)}.gate-logo svg{width:28px;height:28px}
+.gate-card label{display:grid;gap:4px;font-weight:600;font-size:14px}
+.gate-card input{font:inherit;padding:10px 12px;border:2px solid var(--line);border-radius:var(--r);background:var(--bg);color:var(--ink)}
+.gate-card input:focus{outline:none;border-color:var(--amber)}
+.gate-tabs{display:flex;gap:4px;background:var(--surface-2);border-radius:999px;padding:3px}
+.gate-tabs button{flex:1;border:0;background:none;font:inherit;font-weight:600;padding:7px 10px;border-radius:999px;cursor:pointer;color:var(--ink-2)}
+.gate-tabs button.on{background:var(--ink);color:var(--bg)}
+.gate-msg{margin:0;font-size:14px}.gate-msg.neg{color:var(--signal)}
 .lease-calc{display:flex;flex-direction:column;gap:1px;font-size:12.5px;background:var(--surface-2);border-radius:var(--r-sm);padding:6px 8px;width:100%}
 .lease-calc b{display:flex;gap:5px;align-items:center;font-size:13px}.lease-calc svg{width:14px;height:14px}.lease-calc span{color:var(--ink-2)}
 .lgwin{border:2px solid var(--line);border-radius:var(--r-lg);background:var(--surface);padding:10px 12px;margin:0 0 10px}
@@ -1112,6 +1124,7 @@ u.fine{background:var(--signal);border-radius:1px!important}
   </nav>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
+<div class="authgate" id="authGate" hidden role="dialog" aria-modal="true" aria-labelledby="gateTitle"></div>
 <!-- Общие градиенты для всех чертежей: светотень кузова, стёкла, металл, шины, тени -->
 <svg id="btDefs" width="0" height="0" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true" focusable="false"><defs>
   <linearGradient id="bt-carShade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".42"/><stop offset=".2" stop-color="#fff" stop-opacity=".1"/><stop offset=".46" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#000" stop-opacity=".04"/><stop offset=".8" stop-color="#000" stop-opacity=".16"/><stop offset="1" stop-color="#000" stop-opacity=".4"/></linearGradient>
@@ -3505,7 +3518,11 @@ if (IS_BROWSER) (function(){
 
 /* Вход по Email и Telegram: укажите адрес своего сервера (см. server/README.md) и имя бота — тогда кнопки входа заработают.
    Пока поля пустые, прогресс хранится в браузере и переносится кодом из кабинета. */
-const AUTH = { api: '', telegramBot: '' };
+/* Аккаунты: на сайте игры (brookcleangame.online) перед началом нужен вход по логину и паролю; сервер — папка server/ на хостинге.
+   В других местах (например, в предпросмотре) игра работает без аккаунта. window.BT_API / BT_AUTH_REQUIRED — для проверки на своём сервере */
+const ON_SITE = typeof location !== 'undefined' && /(^|\.)brookcleangame\.online$|\.github\.io$/.test(location.hostname);
+const AUTH = { api: (typeof window !== 'undefined' && window.BT_API) || (ON_SITE ? 'https://api.brookcleangame.online/index.php' : ''),
+  required: (typeof window !== 'undefined' && window.BT_AUTH_REQUIRED) || ON_SITE, telegramBot: '' };
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -6779,9 +6796,11 @@ function renderCabinet(){
       <p class="small muted">Пока прогресс хранится в этом браузере. Чтобы перенести его на другое устройство, скопируйте код сохранения ниже.</p>`;
   } else if (save.auth){
     const u = save.auth.user || {};
-    auth += `<p>${u.email ? ic('mail') + esc(u.email) : u.username ? ic('tg') + '@' + esc(u.username) : ic('tg') + esc(u.name || 'Telegram')}</p>
+    auth += `<p>${u.login ? ic('driver') + 'Логин: <b>' + esc(u.login) + '</b>' : u.email ? ic('mail') + esc(u.email) : u.username ? ic('tg') + '@' + esc(u.username) : ic('tg') + esc(u.name || 'Telegram')}</p>
       <p class="small muted">Прогресс сохраняется на сервере после каждого рейса.</p>
       <div class="authbtns"><button class="btn" type="button" data-action="pull">Загрузить с сервера</button><button class="btn danger" type="button" data-action="logout">Выйти</button></div>`;
+  } else if (AUTH.required){
+    auth += `<p class="small">Войдите по логину и паролю — прогресс будет храниться на сервере.</p><div class="authbtns"><button class="btn primary" type="button" data-action="gateOpen">${ic('driver')}Войти или создать аккаунт</button></div>`;
   } else {
     auth += authStep === 'code'
       ? `<form class="authform" id="codeForm"><label for="authCode">Код из письма на ${esc(authEmail)}<input id="authCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="8" required></label><button class="btn primary" type="submit" ${authBusy ? 'disabled' : ''}>Войти</button><button class="linkbtn" type="button" data-action="authBack">Другая почта</button></form>`
@@ -6874,7 +6893,50 @@ function mountTelegram(){
   sc.setAttribute('data-onauth', 'onTelegramAuth(user)'); sc.setAttribute('data-request-access', 'write');
   box.appendChild(sc);
 }
+/* Экран входа перед игрой: логин и пароль, вход или создание аккаунта */
+let gateTab = 'login', gateMsg = '', gateBusy = false, gateOffline = false;
+function needGate(){ return !!(AUTH.api && AUTH.required && !save.auth && !gateOffline); }
+function renderGate(){
+  const el = $('#authGate'); if (!el) return;
+  el.hidden = !needGate(); document.body.classList.toggle('gated', !el.hidden);
+  if (el.hidden){ el.innerHTML = ''; return; }
+  const reg = gateTab === 'register', down = /недоступен/.test(gateMsg);
+  el.innerHTML = `<form class="gate-card" id="gateForm" novalidate>
+    <div class="gate-logo">${ic('truck', 'big')}<b>Brookclean Trucks</b></div>
+    <h2 id="gateTitle">${reg ? 'Создать аккаунт' : 'Вход в игру'}</h2>
+    <div class="gate-tabs" role="tablist"><button type="button" role="tab" aria-selected="${!reg}" class="${!reg ? 'on' : ''}" data-action="gateTab" data-t="login">Вход</button><button type="button" role="tab" aria-selected="${reg}" class="${reg ? 'on' : ''}" data-action="gateTab" data-t="register">Регистрация</button></div>
+    <label for="gLogin">Логин<input id="gLogin" name="login" autocomplete="username" required minlength="3" maxlength="32" pattern="[A-Za-z0-9_.\-]{3,32}" placeholder="латиницей, 3–32 символа"></label>
+    <label for="gPass">Пароль<input id="gPass" name="password" type="password" autocomplete="${reg ? 'new-password' : 'current-password'}" required minlength="6" maxlength="100" placeholder="от 6 символов"></label>
+    ${reg ? `<label for="gPass2">Пароль ещё раз<input id="gPass2" name="password2" type="password" autocomplete="new-password" required minlength="6" maxlength="100"></label>` : ''}
+    ${gateMsg ? `<p class="gate-msg ${down ? '' : 'neg'}">${esc(gateMsg)}</p>` : ''}
+    <button class="btn primary big" type="submit" ${gateBusy ? 'disabled' : ''}>${gateBusy ? 'Подождите…' : reg ? 'Создать аккаунт и играть' : 'Войти'}</button>
+    <p class="small muted">${reg ? 'Прогресс будет храниться на сервере: войдите с любого устройства и продолжайте.' : 'Нет аккаунта? Откройте вкладку «Регистрация».'}</p>
+    ${down ? `<button class="linkbtn" type="button" data-action="gateOffline">Играть без аккаунта — прогресс останется только в этом браузере</button>` : ''}
+  </form>`;
+  const f = $('#gateForm'); f.addEventListener('submit', gateSubmit);
+  setTimeout(() => { const i = $('#gLogin'); if (i && !gateBusy) i.focus(); }, 0);
+}
+async function gateSubmit(ev){
+  ev.preventDefault(); if (gateBusy) return;
+  const reg = gateTab === 'register', login = ($('#gLogin').value || '').trim(), pass = $('#gPass').value || '';
+  if (!/^[A-Za-z0-9_.\-]{3,32}$/.test(login)){ gateMsg = 'Логин: 3–32 символа — латинские буквы, цифры, точка, дефис, подчёркивание'; renderGate(); return; }
+  if (pass.length < 6){ gateMsg = 'Пароль — от 6 символов'; renderGate(); $('#gLogin').value = login; return; }
+  if (reg && pass !== $('#gPass2').value){ gateMsg = 'Пароли не совпадают'; renderGate(); $('#gLogin').value = login; return; }
+  gateBusy = true; gateMsg = ''; renderGate(); $('#gLogin').value = login;
+  try {
+    const d = await api(reg ? '/auth/register' : '/auth/login', { method:'POST', body: JSON.stringify({ login, password: pass }) });
+    gateBusy = false; gateMsg = ''; gateTab = 'login';
+    save.profile = save.profile || {}; if (!save.profile.name) save.profile.name = login;
+    onLogin(d); if (d.new) setTimeout(() => toast(`Аккаунт ${login} создан`), 900);
+    renderGate(); render();
+  } catch(e){
+    gateBusy = false;
+    gateMsg = e instanceof TypeError ? 'Сервер аккаунтов недоступен. Проверьте интернет и попробуйте ещё раз.' : e.message;
+    renderGate(); const i = $('#gLogin'); if (i) i.value = login;
+  }
+}
 function initAuth(){
+  renderGate();
   if (!AUTH.api) return;
   const tw = window.Telegram && window.Telegram.WebApp;
   if (!save.auth && tw && tw.initData) api('/auth/telegram-webapp', { method:'POST', body: JSON.stringify({ initData: tw.initData }) }).then(onLogin).catch(() => {});
@@ -7055,7 +7117,10 @@ document.addEventListener('click', e => {
     if (resetArmed !== m){ resetArmed = m; renderCabinet(); setTimeout(() => { if (resetArmed === m){ resetArmed = null; if (state.screen === 'cabinet') renderCabinet(); } }, 4000); return; }
     resetArmed = null; save[m] = freshMode(); writeSave(); state.market = []; state.tripResult = null; toast('Прогресс режима сброшен'); render(); return;
   }
-  if (a === 'logout'){ save.auth = null; writeSave(); toast('Вы вышли'); renderCabinet(); return; }
+  if (a === 'logout'){ if (save.auth) api('/auth/logout', { method:'POST' }).catch(() => {}); save.auth = null; gateTab = 'login'; gateMsg = ''; writeSave(); toast('Вы вышли'); renderCabinet(); renderGate(); return; }
+  if (a === 'gateTab'){ gateTab = b.dataset.t; gateMsg = ''; renderGate(); return; }
+  if (a === 'gateOffline'){ gateOffline = true; gateMsg = ''; renderGate(); toast('Играете без аккаунта — прогресс сохраняется в этом браузере'); return; }
+  if (a === 'gateOpen'){ gateOffline = false; gateTab = 'login'; renderGate(); if (!needGate()) toast('Вход доступен на сайте игры'); return; }
   if (a === 'pull'){ pullCloud(false); return; }
   if (a === 'authBack'){ authStep = 'email'; authMsg = ''; renderCabinet(); return; }
   if (state.screen !== 'game') return;
