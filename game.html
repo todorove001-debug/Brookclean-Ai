@@ -896,6 +896,23 @@ u.fine{background:var(--signal);border-radius:1px!important}
 .bg-opt ul li::before{content:'· ';color:var(--ink-3)}
 .bg-none{margin:0;font-size:13px;color:var(--ink-3)}
 @media (max-width:520px){ .bg-opt ul{margin-left:0} .bg-h{grid-template-columns:30px 1fr} .bg-sum{grid-column:2;grid-row:auto} .bg-h .drv-av,.bg-h .drv-av svg{width:30px;height:30px} }
+.shop{margin-top:16px}
+.shop-tabs{display:flex;gap:4px;background:var(--surface-2);border-radius:999px;padding:3px}
+.shop-tabs button{border:0;background:none;font:inherit;font-weight:600;padding:6px 14px;border-radius:999px;cursor:pointer;color:var(--ink-2)}
+.shop-tabs button.on{background:var(--ink);color:var(--bg)}
+.shop-sub{margin:14px 0 4px;font-size:15px}
+.shop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-top:8px}
+.shop-card{border:2px solid var(--line);border-radius:var(--r-lg);background:var(--surface);padding:12px 14px;display:flex;flex-direction:column;gap:7px;align-items:flex-start}
+.shop-card.mine{border-color:var(--ok)}
+.shop-card.risky{border-style:dashed}
+.shop-card .sc-h{display:flex;justify-content:space-between;gap:8px;width:100%;align-items:flex-start}
+.shop-card .sc-p{font-family:var(--f-display);font-size:20px;font-weight:700}
+.shop-card .sc-p em{display:block;font-style:normal;font-family:var(--f-body);font-size:12px;font-weight:500;color:var(--ink-2)}
+.shop-card .sc-f{list-style:none;margin:0;padding:0;width:100%;display:grid;grid-template-columns:1fr 1fr;gap:2px 12px;font-size:13px}
+.shop-card .sc-f li{display:flex;justify-content:space-between;gap:6px}
+.shop-card .sc-f span{color:var(--ink-2)}
+.shop-card .pos{color:var(--ok)}.shop-card .neg{color:var(--signal)}
+.shop-card .small{margin:0}
 .drv.fired,.drv-mini.fired{opacity:.85;border-style:dashed;cursor:default}
 .drv.fired{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
 .drv.fired .drv-av,.drv-mini.fired .drv-av{filter:grayscale(1);opacity:.6}
@@ -948,6 +965,7 @@ u.fine{background:var(--signal);border-radius:1px!important}
       <div class="garage-status" id="garageStatus"></div>
       <div class="rigrow" id="garageRigRow"><div class="panel rigpanel" id="garageRig"></div><div class="panel calpanel" id="garageCal"></div></div>
       <div class="permitbar" id="garagePermit"></div>
+      <div class="panel shop" id="garageShop"></div>
       <div id="garagePlay">
         <h2 class="sec-h">Водитель</h2>
         <div class="drivers" id="driverPick" role="radiogroup" aria-label="Водитель"></div>
@@ -1185,6 +1203,53 @@ const CONFIG = {
       about:'Быстрее среднего и аккуратен с машиной. Дорогу знает, стоянки знает, заправки — особенно.' }
   ],
   slyCost: 10000,
+  // Магазин техники: тягачи 4×2 под автовоз (полуприцеп Luxuda остаётся). fuel — множитель расхода, breaks — множитель поломок,
+  // mass — снаряжённая масса тягача, кг. Цены 2026 года — ориентировочно; европейские марки — параллельный импорт
+  shop: {
+    trucks: [
+      { id:'sitrak',  brand:'SITRAK',  model:'Sitrak C7H MAX 4×2',   year:2026, hp:540, price:12500000, fuel:1.00, breaks:1.00, mass:7400,
+        about:'Как в стартовой сцепке: надёжный китаец, сервис есть во всех крупных городах.' },
+      { id:'kamaz',   brand:'КАМАЗ',   model:'КАМАЗ 54901 4×2',      year:2026, hp:530, price:13900000, fuel:1.05, breaks:1.12, mass:8100,
+        about:'Запчасти и сервис — в любом райцентре, но мотор прожорливее и мелочь отваливается чаще.' },
+      { id:'shacman', brand:'SHACMAN', model:'Shacman X6000 4×2',    year:2026, hp:550, price:11800000, fuel:1.03, breaks:1.05, mass:7700,
+        about:'Самый дешёвый из новых. Мощный, но тяжелее Sitrak — на машины остаётся меньше массы.' },
+      { id:'faw',     brand:'FAW',     model:'FAW J7 4×2',           year:2026, hp:560, price:12600000, fuel:0.97, breaks:0.95, mass:7500,
+        about:'Мотор и коробка из Китая, но сборка аккуратная: экономичнее и надёжнее Sitrak.' },
+      { id:'daf',     brand:'DAF',     model:'DAF XG 480 4×2',       year:2026, hp:480, price:17900000, fuel:0.90, breaks:0.80, mass:7300,
+        about:'Параллельный импорт. Лёгкий, экономичный, ломается редко — но дорогой, и запчасти ждать.' },
+      { id:'volvo',   brand:'VOLVO',   model:'Volvo FH 500 4×2',     year:2026, hp:500, price:19500000, fuel:0.88, breaks:0.75, mass:7400,
+        about:'Параллельный импорт. Лучший расход и надёжность, водитель доволен — самый дорогой.' }
+    ],
+    used: [
+      { id:'u-scania', brand:'SCANIA',   model:'Scania R450 4×2',          year:2016, odo:910000,  engineKm:910000, hp:450, price:4900000, fuel:0.92, breaks:1.15, mass:7200,
+        about:'Экономичный, но мотор подходит к капремонту — закладывайте 1,2 млн.' },
+      { id:'u-volvo',  brand:'VOLVO',    model:'Volvo FH 460 4×2',         year:2017, odo:820000,  engineKm:820000, hp:460, price:5400000, fuel:0.93, breaks:1.10, mass:7300,
+        about:'Ухоженный, одна рука. Пробег большой, капремонт мотора впереди.' },
+      { id:'u-merc',   brand:'MERCEDES', model:'Mercedes-Benz Actros 1845', year:2018, odo:700000, engineKm:700000, hp:450, price:6200000, fuel:0.90, breaks:1.05, mass:7350,
+        about:'Самый свежий из б/у: экономичный и тихий, но электрика капризная.' },
+      { id:'u-man',    brand:'MAN',      model:'MAN TGX 18.440 4×2',       year:2015, odo:1050000, engineKm:250000, hp:440, price:3600000, fuel:0.96, breaks:1.30, mass:7400,
+        about:'Мотор после капремонта 250 тыс. км назад, остальное — уставшее: подвеска, кабина, электрика.' },
+      { id:'u-kamaz',  brand:'КАМАЗ',    model:'КАМАЗ 5490 4×2',           year:2019, odo:650000,  engineKm:650000, hp:400, price:3200000, fuel:1.07, breaks:1.30, mass:7900,
+        about:'Самый дешёвый: проще и тяжелее остальных, расход выше, по мелочи ломается почти каждый рейс.' }
+    ],
+    // скупщик берёт тягач за долю цены покупки: чем больше пробег с покупки, тем дешевле
+    tradeIn: { share: 0.7, perKm: 1 / 1500000, min: 0.3 },
+    // стартовая сцепка: доля тягача в цене (б/у) и цена нового Sitrak после выкупа лизинга
+    startPaid: { used: 2600000, lease: 12500000 }
+  },
+  // Тюнинг тягача. look — для красоты; save — снижает расходы. fuel — изменение расхода дизеля; platon — «Платон» не платим
+  tuning: [
+    { id:'led',    group:'look', name:'Светодиодные фары',              price:85000,  about:'Яркий холодный свет и полоса ходовых огней.' },
+    { id:'bars',   group:'look', name:'Дуги на крышу с прожекторами',   price:65000,  about:'Хромированная дуга над козырьком и четыре LED-прожектора.' },
+    { id:'visors', group:'look', name:'Ветровики на окна',              price:12000,  about:'Дымчатые дефлекторы над стёклами дверей: можно ехать с приоткрытым окном в дождь.' },
+    { id:'rims',   group:'look', name:'Хромированные диски',            price:180000, about:'Полированные диски на все колёса тягача.' },
+    { id:'chip',   group:'save', name:'Прошивка двигателя и коробки',   price:90000,  fuel:-0.06, about:'Перепрошивка мотора и АКПП: передачи переключаются раньше, расход дизеля −6%.' },
+    { id:'adblue', group:'save', name:'Отключение мочевины (AdBlue)',   price:60000,  fuel:-0.03, about:'Эмулятор вместо системы SCR: не покупаем мочевину, расход −3%.' },
+    { id:'flip',   group:'save', name:'Откидная рамка номера',          price:25000,  platon:true, risky:true,
+      about:'Номер прячется под шторку — рамки «Платона» его не видят, «Платон» не платим. Перед постом ДПС водитель должен успеть поднять рамку: не успел — в первый раз штраф 5 000 ₽, во второй водителя лишают прав.' }
+  ],
+  // откидная рамка: шанс, что водитель не успеет поднять номер перед постом ДПС; штраф за первый раз (ч. 2 ст. 12.2 КоАП); после лишения прав — сменщик
+  flip: { miss: { timur:0.12, gosha:0.28, palych:0.08, stas:0.15, boss:0.12 }, fine: 5000, fineH: 1, swapKm: 500, swapH: 8 },
   // Ставки из Владивостока за машину (кроссовер; кей-кар, седан и джип — в той же пропорции, что в tariffs): резко взлетают и резко падают.
   // jumpP — вероятность скачка к другому краю диапазона за рейс, иначе дрейф ±drift
   rates: { range: { msk: [160000, 230000], nsk: [110000, 170000], krd: [160000, 250000] }, jumpP: 0.32, drift: 0.12 },
@@ -2309,7 +2374,7 @@ function genBreakdowns(key, D, mode, rp, mult){
 /* Остановки ДПС: с «проездным» — быстро и за 500–1000 ₽; без него — долгая проверка и штраф за мелочи. Изредка попадается рейд собственной безопасности. */
 const POLICE_NITS = ['грязный номер прицепа','не горит фонарь','нет знака «Длинномер»','трещина на лобовом стекле','просрочена аптечка','водитель не пристёгнут'];
 function policeStops(D, empty){ const P = CONFIG.economy.police; return P.per1000 * D / 1000 * (empty ? P.empty.stops : 1); }
-function genPolice(key, D, bribe, taken, empty){
+function genPolice(key, D, bribe, taken, empty, flip){
   const P = CONFIG.economy.police, E = P.empty, cities = routeCities(key), out = [];
   const cap = Math.round(rr(P.maxStops[0], P.maxStops[1]));
   const n = Math.min(cap, poisson(policeStops(D, empty)));
@@ -2337,7 +2402,21 @@ function genPolice(key, D, bribe, taken, empty){
       e = { title: fined ? 'ДПС: штраф за мелочь' : 'ДПС: проверка', cost, hours: min / 60,
             text: fined ? `Проверяли ${min} мин. Нашли: ${rnd(POLICE_NITS)} — штраф ${rub(cost)}.` : `Проверили документы и крепление машин, ${min} мин. Претензий нет.` };
     }
-    out.push(Object.assign(e, { km, kind:'police', bribe: !!bribe && !e.wave, empty: !!empty, type: e.cost ? 'fine' : 'ok', amount: -e.cost }));
+    // откидная рамка: водитель не успел поднять номер перед постом — первый раз штраф, второй — лишение прав и сменщик
+    if (flip && !flip.lost && Math.random() < flip.miss){
+      const F = CONFIG.flip;
+      if (flip.prior + flip.n >= 1){
+        const tr = bingeTravel(F.swapKm), cost = F.fine + tr.cost + CONFIG.binge.swapFee, h = tr.h + F.swapH;
+        e = { title:'ДПС: водителя лишили прав', cost, hours: h, flip:'lost',
+              text:`Инспектор увидел номер под откидной рамкой — уже второй раз. Водителя лишили прав, автовоз на штрафстоянку не забрали, но ждали сменщика ${fmtH(h)}: штраф, билет и срочный выезд — ${rub(cost)}.` };
+        flip.lost = true;
+      } else {
+        e = { title:'ДПС: номер под откидной рамкой', cost: F.fine, hours: F.fineH, flip:'fine',
+              text:`Водитель не успел поднять рамку — инспектор увидел закрытый номер. Штраф ${rub(F.fine)} и протокол: в следующий раз лишат прав.` };
+      }
+      flip.n++;
+    }
+    out.push(Object.assign(e, { km, kind:'police', bribe: !!bribe && !e.wave && !e.flip, empty: !!empty, type: e.cost ? 'fine' : 'ok', amount: -e.cost }));
   }
   return out;
 }
@@ -2435,6 +2514,52 @@ function newRig(kind, date){
   return { kind: used ? 'used' : 'new', odo: used ? U.odo : 0, engineKm: used ? U.odo : 0, sinceTO: used ? Math.round(rr(2500, 6000) / 100) * 100 : 0,
     failAt: rollFailAt(), lastTO: used ? null : date, born: date, overhauls: 0 };
 }
+/* ---------- Техника и тюнинг ---------- */
+const TRUCKS = CONFIG.shop.trucks, USED_TRUCKS = CONFIG.shop.used;
+function truckOf(rig){ return (rig && rig.spec) || TRUCKS[0]; }
+function tuneOf(s){ return new Set((s && s.tune) || []); }
+function tuneFuel(tune){ return 1 + CONFIG.tuning.filter(t => tune.has(t.id)).reduce((a, t) => a + (t.fuel || 0), 0); }
+/* Расход дизеля: тягач и прошивки; «Платон» — не платим под откидной рамкой */
+function fuelK(st){ return truckOf(st && st.rig).fuel * tuneFuel(new Set((st && st.tune) || [])); }
+function platonOn(st){ return !((st && st.tune) || []).includes('flip'); }
+/* Сколько даст скупщик за текущий тягач; в лизинге продать нельзя */
+function tradeIn(s){
+  const r = s.rig, T = CONFIG.shop.tradeIn, P = CONFIG.shop.startPaid;
+  if (!r || (s.lease && !s.lease.done)) return null;
+  const paid = r.paid || (r.kind === 'used' && !r.spec ? P.used : P.lease), km = Math.max(0, r.odo - (r.odo0 != null ? r.odo0 : (r.spec ? 0 : r.kind === 'used' ? CONFIG.start.used.odo : 0)));
+  return Math.round(paid * T.share * clamp(1 - km * T.perKm, T.min, 1) / 10000) * 10000;
+}
+function shopItem(id){ return TRUCKS.find(t => t.id === id) || USED_TRUCKS.find(t => t.id === id) || null; }
+/* Покупка тягача: старый — скупщику, тюнинг уходит вместе с ним */
+function buyTruck(s, id){
+  const T = shopItem(id), ti = tradeIn(s);
+  if (!T || ti == null) return null;
+  const used = USED_TRUCKS.includes(T), net = T.price - ti;
+  if (s.balance < net) return null;
+  const old = truckOf(s.rig);
+  s.balance -= net; s.stats.capex = (s.stats.capex || 0) + net;
+  const spec = { id:T.id, brand:T.brand, model:T.model, year:T.year, hp:T.hp, fuel:T.fuel, breaks:T.breaks, mass:T.mass };
+  s.rig = { kind: used ? 'used' : 'new', odo: used ? T.odo : 0, engineKm: used ? T.engineKm : 0, sinceTO: used ? Math.round(rr(2500, 6000) / 100) * 100 : 0,
+    failAt: rollFailAt(), lastTO: used ? null : s.date, born: s.date, overhauls: 0, spec, paid: T.price, odo0: used ? T.odo : 0 };
+  s.tune = [];
+  serviceLog(s, { kind:'start', title:`Купили ${T.model}${used ? `, ${T.year}, ${fmt(T.odo)} км` : ''}; ${old.model} — скупщику за ${rub(ti)}`, cost: net });
+  applyTruck(s);
+  return { T, ti, net };
+}
+function buyTune(s, id){
+  const t = CONFIG.tuning.find(x => x.id === id), have = tuneOf(s);
+  if (!t || have.has(id) || !s.rig || s.balance < t.price) return null;
+  s.balance -= t.price; s.tune = [...have, id]; s.stats.tuning = (s.stats.tuning || 0) + t.price;
+  serviceLog(s, { kind:'tune', title:`Тюнинг: ${t.name}`, cost: t.price });
+  return t;
+}
+function removeTune(s, id){ s.tune = [...tuneOf(s)].filter(x => x !== id); }
+/* Масса и марка тягача — в общие параметры автопоезда (чертёж, масса, паспорт) */
+function applyTruck(s){
+  const T = truckOf(s && s.rig);
+  CONFIG.truck.model = T.model; CONFIG.truck.mass = T.mass; CONFIG.truck.brand = T.brand;
+}
+
 /* Износ: новая сцепка до 500 тыс. км почти не ломается, дальше за 300 тыс. км доходит до уровня сцепки с пробегом */
 function rigWear(rig){
   const S = CONFIG.service, F = S.wear.fresh, U = S.wear.used;
@@ -2626,8 +2751,9 @@ function planTrip(st){
   const key = st.route || 'nsk', D = routeKm(key), drv = driverOf(st.driver);
   const econ = st.econ || econFor(Date.now());
   const rp = rigPlan(st.rig || null, D, !!st.maint);
-  const breaks = genBreakdowns(key, D, st.mode, rp, drv.breaks);
-  const police = genPolice(key, D, st.bribe !== false, breaks.map(b => b.km).concat([CONFIG.checkpointKm]), noCarsPost(routeOf(key).kind === 'empty', st));
+  const breaks = genBreakdowns(key, D, st.mode, rp, drv.breaks * truckOf(st.rig).breaks);
+  const flip = (st.tune || []).includes('flip') ? { miss: CONFIG.flip.miss[drv.id] || 0.12, prior: (st.crew && st.crew[drv.id] && st.crew[drv.id].flips) || 0, n: 0, lost: false } : null;
+  const police = genPolice(key, D, st.bribe !== false, breaks.map(b => b.km).concat([CONFIG.checkpointKm]), noCarsPost(routeOf(key).kind === 'empty', st), flip);
   const cams = genCams(key, D, drv, breaks.concat(police).map(e => e.km));
   const offers = genOffers(key);
   const sly = drv.sly ? { km: Math.round(D * rr(0.45, 0.75)), cost: CONFIG.slyCost, liters: Math.round(CONFIG.slyCost / econ.fuelPrice) } : null;
@@ -3034,10 +3160,10 @@ function settleTrip(st, plan, accepted){
   events.sort((a, b) => a.km - b.km || (a.ord || 1) - (b.ord || 1));
   const income = ev.income + pickupIncome;
   const share = bg ? bg.km / D : 1, mix = k => share * drv[k] + (1 - share) * drv2[k];
-  const liters = Math.round(D * econ.per100 / 100 * (noCars && !taken.length ? E.emptyFactor : 1) * mix('fuel'));
+  const liters = Math.round(D * econ.per100 / 100 * (noCars && !taken.length ? E.emptyFactor : 1) * mix('fuel') * fuelK(st));
   const fuel = Math.round(liters * econ.fuelPrice);
   const sly = slyOn ? plan.sly.cost : 0;
-  const platon = Math.round(D * E.platonPerKm);
+  const platon = platonOn(st) ? Math.round(D * E.platonPerKm) : 0;
   // зарплата: руководитель запойному не платит ничего; при подмене — каждому за свои километры
   const driver = bc === 'boss' ? 0 : bc === 'swap' ? Math.round(bg.km * drv.pay + (D - bg.km) * drv2.pay) : Math.round(D * drv.pay);
   const tires = Math.round(D * E.tires.perKm[econ.season] * mix('wear'));
@@ -3056,7 +3182,8 @@ function settleTrip(st, plan, accepted){
     if (R.back) stars = profit >= 0 ? 3 : profit >= -0.15 * (costs - lateLoss) ? 2 : ev.count ? 1 : 0;
     else { const ref = 9 * tariffOf(key, 'jeep', st.rates), th = CONFIG.stars[st.mode]; stars = profit >= th[0]*ref ? 3 : profit >= th[1]*ref ? 2 : profit > 0 ? 1 : 0; }
   }
-  return { route:key, from:R.from, to:R.to, empty, D, events, income, carIncome: ev.income, pickupIncome, pickups: taken.length, fuel, liters, sly, econ, platon, driver, driverId: drv.id,
+  const flipN = police.filter(p => p.flip).length, flipLost = police.some(p => p.flip === 'lost');
+  return { flipN, flipLost, route:key, from:R.from, to:R.to, empty, D, events, income, carIncome: ev.income, pickupIncome, pickups: taken.length, fuel, liters, sly, econ, platon, driver, driverId: drv.id,
     tires, tireChange, tireNeed, maint, fixCost, fix: fix || null, extraDays, rig: plan.rig ? Object.assign({}, plan.rig) : null, rigBefore: st.rig ? Object.assign({}, st.rig) : null,
     forcedN: breaks.filter(b => b.forced).length, died: !!plan.died, fixed, police: policeCost, policeN: police.length, cams: camFines, camsN: cams.length, fines, reshuffle: towCost, towN, shuffleN, shuffleH, repairs, lateLoss, delayH, days, norm,
     frames: frames.map(f => ({ km:f.km, road:f.road, place:f.place, fine:f.fine, permit:f.permit })), permitAll: frames.length > 0 && frames.every(f => f.permit),
@@ -3070,8 +3197,8 @@ function simulateTrip(st){ const plan = planTrip(st); return settleTrip(st, plan
 function estimateCosts(st, income){
   const key = st.route, R = routeOf(key), D = routeKm(key), E = CONFIG.economy, econ = st.econ || econFor(Date.now()), empty = noCarsPost(R.kind === 'empty', st), drv = driverOf(st.driver);
   const days = routeDays(key, drv.kmDay);
-  const fuel = D * econ.per100 / 100 * (empty ? E.emptyFactor : 1) * drv.fuel * econ.fuelPrice;
-  const platon = D * E.platonPerKm, driver = D * drv.pay, tires = D * E.tires.perKm[econ.season] * drv.wear;
+  const fuel = D * econ.per100 / 100 * (empty ? E.emptyFactor : 1) * drv.fuel * fuelK(st) * econ.fuelPrice;
+  const platon = platonOn(st) ? D * E.platonPerKm : 0, driver = D * drv.pay, tires = D * E.tires.perKm[econ.season] * drv.wear;
   const tireChange = (st.tireSet && st.tireSet !== econ.tireNeed) ? E.tires.change : 0;
   const maint = st.maint ? CONFIG.service.toCost : 0;
   const fixed = days * CONFIG.dailyFixed;
@@ -3113,6 +3240,12 @@ function applyTrip(s, res){
   S.trips += res.empty ? 0 : 1; S.empty += res.empty ? 1 : 0; S.km += res.D; S.cars += res.count; S.income += res.income;
   S.profit += res.profit; S.fines += res.fines + res.police + (res.cams || 0); S.taxes += tx.total; S.pickups = (S.pickups || 0) + (res.pickups || 0); S.repairs = (S.repairs || 0) + (res.repairs || 0);
   if (res.sly){ s.known = Object.assign({}, s.known, { [res.driverId]: true }); }
+  // откидная рамка: протоколы на водителя; второй — лишение прав, водитель больше не работает
+  if (res.flipN){
+    const crew = s.crew = Object.assign({}, s.crew || {}), c = crew[res.driverId] = Object.assign({}, crew[res.driverId]);
+    c.flips = (c.flips || 0) + res.flipN; S.flipFines = (S.flipFines || 0) + res.flipN;
+    if (res.flipLost){ c.fired = s.date; c.firedName = driverOf(res.driverId).name; c.firedWhy = 'lic'; if (s.driver === res.driverId){ const f = freeDrivers(crew, res.driverId); s.driver = f[0] || s.driver; } }
+  }
   if (res.binge){
     const B = res.binge, crew = s.crew = Object.assign({}, s.crew || {}), c = crew[B.driver] = Object.assign({}, crew[B.driver]);
     c.binges = (c.binges || 0) + 1;
@@ -3712,12 +3845,14 @@ function wheelSVG(cx, cz, r, big, alloy){
     for (let i = 0; i < n; i++){ const a = i / n * Math.PI * 2, b = a + Math.PI / n * 0.95, m = (a + b) / 2 + (i % 2 ? 0.03 : -0.03); t += `M${pt(r * .99, a)}L${pt(r * .99, b)}L${pt(r * .9, m + 0.04)}L${pt(r * .9, m - 0.04)}Z`; }
     s += `<path class="sv-tread" d="${t}"/><circle class="sv-wall" ${C} r="${R0(r * .82)}" stroke-width=".7"/><circle class="sv-wall" ${C} r="${R0(r * .7)}" stroke-width=".5"/>`;
   }
-  s += `<circle ${C} r="${R0(r * .62)}" fill="url(#${alloy ? 'bt-rimT' : 'bt-rimS'})" stroke="#6F7983" stroke-width=".8"/><circle ${C} r="${R0(r * .55)}" fill="none" stroke="${alloy ? '#F4F6F8' : '#8E98A1'}" stroke-width="${alloy ? 1.4 : .8}"/>`;
+  // alloy === 'chrome' — полированные диски из тюнинга
+  s += `<circle ${C} r="${R0(r * .62)}" fill="url(#${alloy === 'chrome' ? 'bt-rimC' : alloy ? 'bt-rimT' : 'bt-rimS'})" stroke="${alloy === 'chrome' ? '#9AA4AE' : '#6F7983'}" stroke-width="${alloy === 'chrome' ? 1.2 : .8}"/><circle ${C} r="${R0(r * .55)}" fill="none" stroke="${alloy ? '#F4F6F8' : '#8E98A1'}" stroke-width="${alloy ? 1.4 : .8}"/>`;
   if (big){
     let h = '';
     for (let i = 0; i < 10; i++){ const a = (i + .5) / 10 * Math.PI * 2, rr = r * .46, w = r * .07; h += `M${R0(cx + Math.cos(a) * rr - w)} ${R0(y + Math.sin(a) * rr)}a${R0(w)} ${R0(w * 1.25)} 0 1 0 ${R0(2 * w)} 0a${R0(w)} ${R0(w * 1.25)} 0 1 0 ${-R0(2 * w)} 0z`; }
     s += `<path class="sv-hole" d="${h}"/>`;
   }
+  if (alloy === 'chrome') s += `<circle ${C} r="${R0(r * .6)}" fill="none" stroke="#FFFFFF" stroke-width="2.2" opacity=".9"/><path d="M${pt(r * .5, -2.6)}A${R0(r * .5)} ${R0(r * .5)} 0 0 1 ${pt(r * .5, -1.2)}" stroke="#FFFFFF" stroke-width="2.6" fill="none" stroke-linecap="round"/>`;
   s += `<circle ${C} r="${R0(r * .36)}" fill="${alloy ? '#E9EDF1' : '#A9B2BA'}" stroke="#7D8892" stroke-width=".7"/>`;
   let d = '';
   for (let i = 0; i < nuts; i++){ const a = i / nuts * Math.PI * 2; d += `M${R0(cx + Math.cos(a)*r*0.3)} ${R0(y + Math.sin(a)*r*0.3)}h1`; }
@@ -4005,8 +4140,9 @@ function qrSVG(x0, zTop, size){
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) if (on(i, j)) d += `M${R0(x0 + i * m)} ${R0(-(zTop - j * m))}h${R0(m + 0.6)}v${R0(m + 0.6)}h${-R0(m + 0.6)}z`;
   return (qrCache[key] = `<rect x="${R0(x0 - m)}" y="${R0(-(zTop + m))}" width="${R0(size + 2 * m)}" height="${R0(size + 2 * m)}" fill="#FFFFFF"/><path d="${d}" fill="${LV.black}"/>`);
 }
+function tuneNow(){ const m = ms(); return tuneOf(m); }
 function tractorSVG(){
-  const tr = CONFIG.truck, xF = G.xFront, cr = G.cabRear, fa = G.frontAxle, ra = G.rearAxle, kp = CONFIG.trailer.kingpin, fw = tr.fifthWheelHeight, top = tr.cabHeight;
+  const tn = tuneNow(), tr = CONFIG.truck, xF = G.xFront, cr = G.cabRear, fa = G.frontAxle, ra = G.rearAxle, kp = CONFIG.trailer.kingpin, fw = tr.fifthWheelHeight, top = tr.cabHeight;
   const X = u => xF + u, L = cr - xF;
   const P = pts => pts.map(([u, z]) => `${R0(X(u))},${R0(-z)}`).join(' ');
   const poly = (pts, fill, extra) => `<polygon points="${P(pts)}" fill="${fill}"${extra || ''}/>`;
@@ -4072,6 +4208,8 @@ function tractorSVG(){
   s += txt(640, 1520, 'BROOK', 210, LV.lime, 560, ` stroke="${LV.limeD}" stroke-width=".6"`) + txt(1235, 1520, 'CLEAN', 210, LV.black, 600);
   s += txt(470, 1392, 'BROOKCLEAN-TRUCKS.RU', 82, LV.black, 820);
   s += txt(800, 3168, 'АВТОВОЗЫ ПО РОССИИ', 140, LV.black, 1470);
+  // марка тягача на обтекателе спальника
+  s += txt(1620, 3420, esc(tr.brand || 'SITRAK'), 120, LV.black, null, ' letter-spacing="30"');
   // объём кабины: крыша и верх светлее, низ темнее — поверх ливреи
   s += `<path d="${cabD}" fill="url(#bt-cabShade)" stroke="none"/>`;
   // ---- окна, дверь, детали ----
@@ -4093,6 +4231,12 @@ function tractorSVG(){
   s += `<rect x="${R0(X(5))}" y="-1122" width="252" height="190" rx="36" fill="#161B20" stroke="#4A535C" stroke-width=".8"/>`;
   for (const u of [68, 152]) s += `<circle cx="${R0(X(u))}" cy="-1015" r="44" fill="url(#bt-lens)" stroke="#59636D" stroke-width=".6"/><circle cx="${R0(X(u))}" cy="-1015" r="16" fill="#FFFFFF" opacity=".9"/>`;
   s += `<path d="M${R0(X(30))} -1094h195" stroke="#F4F7FA" stroke-width="2.2" stroke-linecap="round" fill="none"/><rect x="${R0(X(204))}" y="-1062" width="42" height="92" rx="10" fill="#F29A1E"/>`;
+  // тюнинг: светодиодные фары — холодный свет, яркая полоса ходовых огней и луч
+  if (tn.has('led')){
+    s += `<polygon points="${R0(X(0))},-1070 ${R0(X(-700))},-1180 ${R0(X(-700))},-850 ${R0(X(0))},-960" fill="#DDF1FF" opacity=".35"/>`;
+    for (const u of [68, 152]) s += `<circle cx="${R0(X(u))}" cy="-1015" r="30" fill="#EAF7FF"/><circle cx="${R0(X(u))}" cy="-1015" r="44" fill="none" stroke="#7FD3FF" stroke-width="1.4"/>`;
+    s += `<path d="M${R0(X(30))} -1094h195" stroke="#9BE2FF" stroke-width="3.4" stroke-linecap="round" fill="none"/>`;
+  }
   s += `<path d="M${xF} -1150 H${X(620)} V-450" fill="none" stroke="#B5BDC5" stroke-width=".8"/>`;
   // противотуманка и буксирная проушина в бампере, нижняя ступень
   s += `<rect x="${R0(X(40))}" y="-760" width="170" height="120" rx="26" fill="#161B20"/><circle cx="${R0(X(125))}" cy="-700" r="42" fill="url(#bt-lens)" stroke="#59636D" stroke-width=".6"/>`;
@@ -4118,13 +4262,22 @@ function tractorSVG(){
     s += `<rect x="${R0(X(u) - 75)}" y="-3745" width="150" height="40" fill="#2B3138"/><rect x="${R0(X(u) - 60)}" y="-3890" width="120" height="150" rx="30" fill="#F5A623"/><rect x="${R0(X(u) - 40)}" y="-3870" width="35" height="105" rx="12" fill="#FFD27A"/>`;
   }
   s += `<path d="M${R0(X(1950))} -3705 L${R0(X(1880))} -3930" stroke="${LV.black}" stroke-width=".9" fill="none"/>`;
+  // тюнинг: дуга на крыше с прожекторами — между маячками, в габарит кабины по высоте (до 4 м)
+  if (tn.has('bars')){
+    const bar = `M${R0(X(470))} -3560 Q${R0(X(500))} -3905 ${R0(X(720))} -3910 H${R0(X(1480))} Q${R0(X(1600))} -3905 ${R0(X(1610))} -3705`;
+    s += `<path d="${bar}" stroke="url(#bt-alu)" stroke-width="2.8" fill="none"/><path d="${bar}" stroke="#E9EDF1" stroke-width=".8" fill="none"/>`;
+    for (const u of [800, 960, 1120]) s += `<rect x="${R0(X(u))}" y="-3990" width="120" height="80" rx="20" fill="#161B20"/><circle cx="${R0(X(u + 60))}" cy="-3950" r="26" fill="url(#bt-lens)"/><circle cx="${R0(X(u + 60))}" cy="-3950" r="10" fill="#FFFFFF"/>`;
+  }
+  // тюнинг: ветровики над стёклами дверей
+  if (tn.has('visors')) s += poly([[525, 2985], [1490, 2985], [1490, 3065], [610, 3065]], '#1B2026', ' opacity=".78"') + poly([[1635, 2985], [1845, 2985], [1845, 3055], [1635, 3055]], '#1B2026', ' opacity=".78"');
   // седло и шланги
   s += `<rect class="sv-frame" x="${kp-380}" y="${-(fw-60)}" width="760" height="${fw-60-880}"/>`;
   s += `<rect class="sv-ssu" x="${kp-450}" y="${-fw}" width="900" height="60"/>`;
   s += `<path class="sv-hose-r" d="M${cr+220} -2100 C ${cr+900} -1700, -500 -2100, 0 -1560" stroke-width="1.6"/>`;
   s += `<path class="sv-hose-y" d="M${cr+240} -1900 C ${cr+1000} -1500, -450 -1900, 0 -1480" stroke-width="1.6"/>`;
   s += `<path class="sv-hose-k" d="M${cr+260} -1700 C ${cr+1100} -1350, -400 -1700, 0 -1400" stroke-width="1.2"/>`;
-  s += wheelSVG(fa, tr.wheelR, tr.wheelR, true, true) + wheelSVG(ra, tr.wheelR, tr.wheelR, true, true);
+  const rim = tn.has('rims') ? 'chrome' : true;
+  s += wheelSVG(fa, tr.wheelR, tr.wheelR, true, rim) + wheelSVG(ra, tr.wheelR, tr.wheelR, true, rim);
   return s;
 }
 /* Тягач Sitrak C7H MAX сбоку: высокая крыша, козырёк, дверь, зеркала, ступени, баки, крылья; полуприцеп Luxuda с фермами стоек и гидроцилиндрами */
@@ -4492,7 +4645,7 @@ function stCtx(over){
   const s = ms();
   return Object.assign({ route: state.route, mode: state.mode, econ: state.econ || econFor(s.date), tireSet: s.tires, regime: s.regime, ledger: s.ledger,
     maint: state.maint, bribe: save.bribe !== false, driver: s.driver || 'timur', slyKnown: slyVisible(s.driver || 'timur'), permit: s.permit || null, rig: s.rig || null,
-    rates: (s.demand && s.demand.rates) || null, crew: s.crew || {} }, over || {});
+    rates: (s.demand && s.demand.rates) || null, crew: s.crew || {}, tune: s.tune || [] }, over || {});
 }
 /* Карточки водителей */
 function driverCards(compact){
@@ -4502,9 +4655,9 @@ function driverCards(compact){
     const crew = (s.crew || {})[d.id] || {}, dd = driverOf(d.id), av = drvAvatar(d.id);
     if (crew.fired){
       const H = CONFIG.binge.hireCost, can = s.balance >= H;
-      const body = `<span class="drv-av">${av}</span><span class="drv-h"><b>${esc(crew.firedName || dd.name)}</b><em>уволен за запой</em></span>`;
+      const body = `<span class="drv-av">${av}</span><span class="drv-h"><b>${esc(crew.firedName || dd.name)}</b><em>${crew.firedWhy === 'lic' ? 'лишён прав' : 'уволен за запой'}</em></span>`;
       return compact ? `<span class="drv-mini fired">${body}</span>`
-        : `<div class="drv fired"><span class="drv-top">${body}</span><span class="drv-facts">Высадили в лесу без денег ${fmtDate(crew.fired)}. На его место можно взять нового водителя по объявлению: медкомиссия и оформление — ${rub(H)}.</span>
+        : `<div class="drv fired"><span class="drv-top">${body}</span><span class="drv-facts">${crew.firedWhy === 'lic' ? `Лишили прав ${fmtDate(crew.fired)} за номер под откидной рамкой.` : `Высадили в лесу без денег ${fmtDate(crew.fired)}.`} На его место можно взять нового водителя по объявлению: медкомиссия и оформление — ${rub(H)}.</span>
           <button class="btn sm ${can ? 'primary' : ''}" type="button" data-action="hire" data-id="${d.id}" ${can ? '' : 'disabled'}>${ic('plus')}Нанять нового · ${rub(H)}</button></div>`;
     }
     const on = d.id === cur, days = k0 ? routeDays(k0, d.kmDay) : 0, fuelPct = Math.round((d.fuel - 1) * 100);
@@ -4575,6 +4728,8 @@ function renderGarage(full){
   $('#garageRigRow').hidden = fresh || over;
   $('#garagePlay').hidden = fresh || over;
   $('#garagePermit').hidden = fresh || over;
+  $('#garageShop').hidden = fresh || over;
+  if (!fresh && !over) $('#garageShop').innerHTML = shopHTML();
   $('#garageStatus').hidden = fresh;
   if (fresh || over) return;
   $('#garageRig').innerHTML = rigHTML();
@@ -4648,16 +4803,16 @@ function leaseHTML(){
   else h += `<p class="small muted">Платёж спишется из кассы ${C.payDay}-го, если денег хватает. Если нет — долг и пеня ${pct(C.peni)} в день, через ${Math.round(C.seizeDays / 30)} месяца неоплаты сцепку заберут.</p>`;
   return h + '</div>';
 }
-const SVC_K = { to:['oil', 'ТО'], fix:['wrench', 'Ремонт'], fail:['wrench', 'Отказ'], overhaul:['wrench', 'Капремонт'], start:['key', 'Старт'] };
+const SVC_K = { tune:['wrench', 'Тюнинг'], to:['oil', 'ТО'], fix:['wrench', 'Ремонт'], fail:['wrench', 'Отказ'], overhaul:['wrench', 'Капремонт'], start:['key', 'Старт'] };
 function rigHTML(){
   const s = ms(), r = s.rig, S = CONFIG.service, O = S.overhaul, L = s.lease, U = CONFIG.start.used;
   const over = toOverdue(r), left = toLeft(r);
   const bar = (label, v, max, cls, note) => `<div class="rg-bar ${cls}"><div class="rg-bl"><span>${label}</span><b>${note}</b></div><i><b style="width:${clamp(v / max * 100, 2, 100).toFixed(1)}%"></b></i></div>`;
   const tag = r.kind === 'used' ? 'своя, с пробегом' : L && !L.done ? 'в лизинге' : 'своя';
-  const years = r.kind === 'used' ? `${U.truckYear} + Luxuda ${U.trailerYear}` : `${CONFIG.start.lease.year} + Luxuda ${CONFIG.start.lease.year}`;
+  const T = truckOf(r), years = r.spec ? `${T.year} + Luxuda ${r.kind === 'used' && !L ? U.trailerYear : CONFIG.start.lease.year}` : r.kind === 'used' ? `${U.truckYear} + Luxuda ${U.trailerYear}` : `${CONFIG.start.lease.year} + Luxuda ${CONFIG.start.lease.year}`;
   const log = (s.service || []).slice(0, 12);
   return `<div class="panel-h"><h3>Сцепка</h3><span class="pill ${r.kind === 'used' ? 'warn' : 'ok'}">${tag}</span></div>
-    <div class="rg-top"><div class="rg-odo">${ic('gauge')}<b>${fmt(r.odo)}</b><span>км</span></div><div class="rg-m">Sitrak C7H MAX ${years}</div></div>
+    <div class="rg-top"><div class="rg-odo">${ic('gauge')}<b>${fmt(r.odo)}</b><span>км</span></div><div class="rg-m">${esc(T.model.replace(/ 4×2$/, ''))} ${years}</div></div>
     ${bar('ТО', Math.min(r.sinceTO, S.toKm), S.toKm, over ? 'bad' : left < S.tripKm ? 'warn' : '', over ? `просрочено на ${fmt(over)} км` : `через ${fmt(left)} км`)}
     ${bar('Ресурс мотора', r.engineKm, O.km, r.engineKm >= O.km - 50000 ? 'bad' : r.engineKm >= O.from ? 'warn' : '', `${fmt(r.engineKm)} из ${fmt(O.km)} км`)}
     <p class="small rg-t">${rigStateText(r)}</p>
@@ -4668,6 +4823,46 @@ function rigHTML(){
       return `<li class="${e.kind}"><span class="rl-d">${fmtDate(e.date)}</span>${ic(k[0])}<b>${esc(e.title || k[1])}</b><span class="rl-o">${fmt(e.odo || 0)} км</span>${e.cost ? `<span class="rl-c">−${rub(e.cost)}</span>` : ''}</li>`; }).join('')}</ul></details>` : ''}`;
 }
 let ohArmed = false;
+/* Магазин: техника (новые и б/у тягачи) и тюнинг */
+let shopArmed = null;
+function shopHTML(){
+  const s = ms(), tab = state.shopTab || 'trucks', cur = truckOf(s.rig), ti = tradeIn(s), have = tuneOf(s);
+  const pctTxt = v => `${v > 1 ? '+' : v < 1 ? '−' : '±'}${Math.round(Math.abs(v - 1) * 100)}%`;
+  const tabs = `<div class="shop-tabs" role="tablist">${[['trucks', 'Техника'], ['tune', 'Тюнинг']].map(([k, n]) =>
+    `<button type="button" role="tab" class="${tab === k ? 'on' : ''}" aria-selected="${tab === k}" data-action="shopTab" data-tab="${k}">${n}</button>`).join('')}</div>`;
+  let h = `<div class="panel-h"><h3>Магазин</h3>${tabs}</div>`;
+  if (tab === 'trucks'){
+    h += `<p class="small muted">Сейчас: <b>${esc(cur.model)}</b>. ${ti == null ? 'Тягач в лизинге — продать его можно только после выкупа.' : `Скупщик заберёт его за <b>${mln(ti)}</b> в счёт нового. Тюнинг уходит вместе со старым тягачом.`} Полуприцеп Luxuda остаётся.</p>`;
+    const card = (T, used) => {
+      const mine = cur.id === T.id && !!s.rig.spec, net = ti == null ? null : T.price - ti, can = net != null && s.balance >= net && !mine, armed = shopArmed === T.id;
+      const massTxt = T.mass - CONFIG.shop.trucks[0].mass;
+      return `<div class="shop-card ${mine ? 'mine' : ''}"><div class="sc-h"><b>${esc(T.model)}</b><span class="pill ${used ? 'warn' : 'ok'}">${used ? `б/у · ${T.year}` : 'новый'}</span></div>
+        <div class="sc-p">${mln(T.price)}${net != null && !mine ? `<em>доплата ${net >= 0 ? mln(net) : '+' + mln(-net) + ' в кассу'}</em>` : ''}</div>
+        <ul class="sc-f"><li><span>Мощность</span><b>${T.hp} л.с.</b></li><li><span>Расход</span><b class="${T.fuel < 1 ? 'pos' : T.fuel > 1 ? 'neg' : ''}">${pctTxt(T.fuel)}</b></li>
+          <li><span>Поломки</span><b class="${T.breaks < 1 ? 'pos' : T.breaks > 1 ? 'neg' : ''}">${pctTxt(T.breaks)}</b></li><li><span>Масса</span><b class="${massTxt > 0 ? 'neg' : massTxt < 0 ? 'pos' : ''}">${fmt(T.mass)} кг</b></li>
+          ${used ? `<li><span>Пробег</span><b>${fmt(T.odo)} км</b></li><li><span>Мотор</span><b>${fmt(T.engineKm)} км</b></li>` : ''}</ul>
+        <p class="small">${esc(T.about)}</p>
+        ${mine ? '<span class="pill ok">ваш тягач</span>' : `<button class="btn sm ${can ? 'primary' : ''}" type="button" data-action="buyTruck" data-id="${T.id}" ${can ? '' : 'disabled'}>${ic('coin')}${armed ? `Точно? −${mln(Math.max(0, net))}` : 'Купить'}</button>`}</div>`;
+    };
+    h += `<h4 class="shop-sub">Новые тягачи</h4><div class="shop-grid">${TRUCKS.map(T => card(T, false)).join('')}</div>`;
+    h += `<h4 class="shop-sub">С пробегом</h4><p class="small muted">Дешевле, но после рейса почти всегда что-нибудь просят, а мотор ближе к капремонту (${fmt(CONFIG.service.overhaul.km)} км).</p><div class="shop-grid">${USED_TRUCKS.map(T => card(T, true)).join('')}</div>`;
+  } else {
+    const group = (g, title, note) => `<h4 class="shop-sub">${title}</h4><p class="small muted">${note}</p><div class="shop-grid">${CONFIG.tuning.filter(t => t.group === g).map(t => {
+      const on = have.has(t.id), can = !on && s.balance >= t.price;
+      const eff = t.fuel ? `<span class="pill ok">расход ${Math.round(t.fuel * 100)}%</span>` : t.platon ? `<span class="pill ok">«Платон» 0 ₽</span>` : '';
+      return `<div class="shop-card ${on ? 'mine' : ''} ${t.risky ? 'risky' : ''}"><div class="sc-h"><b>${esc(t.name)}</b>${eff}</div><div class="sc-p">${rub(t.price)}</div>
+        <p class="small">${esc(t.about)}</p>
+        ${on ? `<span class="toolrow left"><span class="pill ok">установлено</span>${t.risky ? `<button class="btn sm" type="button" data-action="removeTune" data-id="${t.id}">Снять</button>` : ''}</span>`
+          : `<button class="btn sm ${can ? 'primary' : ''}" type="button" data-action="buyTune" data-id="${t.id}" ${can ? '' : 'disabled'}>${ic('wrench')}Установить</button>`}</div>`; }).join('')}</div>`;
+    h += group('look', 'Аксессуары — для красоты', 'Видно на тягаче в гараже, на погрузке и в рейсе.');
+    h += group('save', 'Снижение расходов', 'Экономия дизеля и «Платона». Откидная рамка — риск: следите, кто за рулём.');
+    if (have.has('flip')){
+      const d = driverOf(s.driver || 'timur'), miss = CONFIG.flip.miss[d.id] || 0.12, c = ((s.crew || {})[d.id] || {}).flips || 0;
+      h += `<p class="small permit-note">${ic('shield')}<span>${esc(d.name)} не успевает поднять рамку примерно на ${Math.round(miss * 100)}% постов ДПС. ${c ? 'Протокол уже есть — следующий раз лишат прав.' : 'Протоколов пока нет.'}</span></p>`;
+    }
+  }
+  return h;
+}
 function gameOverHTML(){
   const s = ms(), g = s.gameOver, st = s.stats;
   return `<div class="gameover"><div class="go-ic">${ic('key')}</div><div class="go-t"><p class="eyebrow">Игра окончена · ${fmtDate(g.date)}</p><h2>Лизинговая компания забрала сцепку</h2>
@@ -4978,7 +5173,7 @@ function prepHTML(ev){
   }
   h += row(`Дизель ${ec.fuelPrice.toFixed(2).replace('.', ',')} ₽/л · ${Math.round(ec.per100 * drv.fuel * 10) / 10} л/100 км`.replace(/(\d)\.(\d)/, '$1,$2'), est.fuel);
   if (est.sly) h += row(`«Хитрый жук» ${drv.name} сливает топливо`, est.sly, 'warn');
-  h += row(`«Платон» ${c(E.platonPerKm)} ₽/км`, est.platon);
+  h += row(est.platon ? `«Платон» ${c(E.platonPerKm)} ₽/км` : '«Платон» — номер под откидной рамкой', est.platon);
   h += row(`Водитель ${drv.name}: ${drv.pay} ₽/км на руки`, est.driver);
   h += row(`Постоянные расходы: ${est.days} дн. × ${rub(CONFIG.dailyFixed)}`, est.fixed);
   h += row(`Резина ${ec.tireNeed === 'winter' ? 'зимняя' : 'летняя'}: износ ${c(Math.round(E.tires.perKm[ec.season] * drv.wear * 100) / 100)} ₽/км`, est.tires);
@@ -5839,6 +6034,8 @@ function startTrip(){
       Radio.push(lines, true);
     } else if (e.kind === 'police'){
       if (e.wave) Radio.push([[dk, 'ДПС тормознул, глянул — пустой. Махнул палкой: проезжай.']], true);
+      else if (e.flip === 'lost') Radio.push([[dk, 'Сергеевна… рамку не успел поднять. Второй раз — прав лишили.'], ['vera', `Ну приехали. Высылаю сменщика, ${fmtH(e.hours)} простоя. Говорила же — снимите эту рамку.`]], true);
+      else if (e.flip) Radio.push([[dk, `Не успел поднять рамку — инспектор увидел закрытый номер. Штраф ${rub(e.cost)}, протокол.`], ['vera', 'Второй раз — и прав лишат. Внимательнее на постах!']], true);
       else if (e.caught) Radio.push([[dk, 'Сергеевна, тут рейд. «Проездной» не прокатил…'], ['vera', `Ох. Штраф ${rub(e.cost)} и сутки простоя. Больше так не рискуем?`]], true);
       else if (e.bribe) Radio.push([[dk, `ДПС тормознул. Оставил «проездной» ${rub(e.cost)}, отпустили сразу.`]], true);
       else if (e.cost) Radio.push([[dk, `ДПС проверял ${Math.round(e.hours * 60)} минут. Придрался: ${e.text.split('Нашли: ')[1].split(' — ')[0]}. Штраф ${rub(e.cost)}.`]], true);
@@ -5933,7 +6130,8 @@ function startTrip(){
     if (e.kind === 'police'){
       if (!quiet){
         polT = 2.8; Sfx.play('siren'); Sfx.play('brake', 0.6); Music.duck(true); setTimeout(() => Music.duck(false), RM ? 0 : 2600);
-        stamp(e.cost ? 'bad' : 'ok', e.caught ? 'РЕЙД УСБ' : 'ДПС', e.cost ? `−${rub(e.cost)} · ${e.bribe ? (e.caught ? 'сутки разбирательств' : '«проездной»') : 'штраф за мелочь'}` : `проверка ${Math.round(e.hours * 60)} мин`);
+        if (e.flip) stamp('bad', e.flip === 'lost' ? 'ЛИШЕНИЕ ПРАВ' : 'НОМЕР ПОД РАМКОЙ', `−${rub(e.cost)} · ${e.flip === 'lost' ? 'сменщик в пути' : 'штраф и протокол'}`);
+        else stamp(e.cost ? 'bad' : 'ok', e.caught ? 'РЕЙД УСБ' : 'ДПС', e.cost ? `−${rub(e.cost)} · ${e.bribe ? (e.caught ? 'сутки разбирательств' : '«проездной»') : 'штраф за мелочь'}` : `проверка ${Math.round(e.hours * 60)} мин`);
         if (e.cost) chip('−' + rub(e.cost), true, 0);
         pauseUntil = performance.now() + (RM ? 0 : 2800);
       }
@@ -6118,7 +6316,7 @@ function showResult(res){
   if (res.pickupIncome) rows.push([`Попутные грузы: ${res.pickups}`, res.pickupIncome, 'pos', '']);
   rows.push([`Дизель: ${fmt(res.liters)} л по ${ec.fuelPrice.toFixed(2).replace('.', ',')} ₽${res.empty ? ' (порожний ход)' : ''}`, res.fuel, 'neg', '−']);
   if (res.sly) rows.push([res.slyReveal ? `Перерасход топлива — ${drv.name} сливает солярку` : state.mode === 'easy' || (ms().known || {})[res.driverId] ? `«Хитрый жук» ${drv.name}: слитое топливо` : 'Перерасход топлива', res.sly, 'neg', '−']);
-  rows.push([`«Платон»: ${c(E.platonPerKm)} ₽/км`, res.platon, 'neg', '−']);
+  rows.push([res.platon ? `«Платон»: ${c(E.platonPerKm)} ₽/км` : '«Платон»: номер под откидной рамкой', res.platon, 'neg', '−']);
   const BG = res.binge;
   if (BG && BG.choice === 'boss') rows.push([`Зарплата водителя: ${BG.driverName} уволен, не платим (было бы ${rub(res.driverFull)})`, 0, 'neg', '']);
   else if (BG && BG.choice === 'swap') rows.push([`Водители: ${BG.driverName} — за ${fmt(BG.km)} км, ${BG.swapName} — за ${fmt(res.D - BG.km)} км`, res.driver, 'neg', '−']);
@@ -6377,6 +6575,7 @@ function restoreTripView(res){
 
 /* ---------- Экраны ---------- */
 function render(){
+  applyTruck(ms());
   for (const [id, scr] of [['#scrGarage','garage'],['#scrGame','game'],['#scrTrip','trip'],['#scrCabinet','cabinet']]) $(id).hidden = state.screen !== scr;
   document.body.dataset.screen = state.screen;
   renderHud();
@@ -6456,6 +6655,20 @@ document.addEventListener('click', e => {
   if (a === 'adjGo'){ if (adjCtl) adjCtl.go(); return; }
   if (a === 'adjNo'){ if (adjCtl) adjCtl.no(); return; }
   if (a === 'bingePick'){ if (bingeCtl) bingeCtl.pick(b.dataset.c, b.dataset.id); return; }
+  if (a === 'shopTab'){ state.shopTab = b.dataset.tab; shopArmed = null; Sfx.play('click'); renderGarage(false); return; }
+  if (a === 'buyTruck'){
+    const id = b.dataset.id, s = ms();
+    if (shopArmed !== id){ shopArmed = id; Sfx.play('click'); renderGarage(false); return; }
+    shopArmed = null;
+    const r = buyTruck(s, id); if (!r){ toast('Не хватает денег', 'bad'); renderGarage(false); return; }
+    writeSave(); Sfx.play('cash'); toast(`Новый тягач: ${r.T.model}. Доплата ${mln(Math.max(0, r.net))}`);
+    renderGarage(false); renderHud(); return;
+  }
+  if (a === 'buyTune'){
+    const t = buyTune(ms(), b.dataset.id); if (!t){ toast('Не хватает денег', 'bad'); return; }
+    writeSave(); Sfx.play('cash'); toast(`Установили: ${t.name}`); renderGarage(false); renderHud(); return;
+  }
+  if (a === 'removeTune'){ removeTune(ms(), b.dataset.id); writeSave(); Sfx.play('click'); toast('Откидную рамку сняли — «Платон» снова платим'); renderGarage(false); return; }
   if (a === 'hire'){
     const id = b.dataset.id, s = ms(); if (s.balance < CONFIG.binge.hireCost) return;
     const name = hireDriver(s, id); s.driver = s.driver && !driverFired(s.crew, s.driver) ? s.driver : id; writeSave(); Sfx.play('cash');
