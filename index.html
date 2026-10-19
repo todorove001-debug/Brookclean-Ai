@@ -906,6 +906,8 @@ u.fine{background:var(--signal);border-radius:1px!important}
 .fl-card .fl-s svg{width:14px;height:14px}
 .shop{margin-top:16px}
 .lgx{margin-top:16px}
+.lease-calc{display:flex;flex-direction:column;gap:1px;font-size:12.5px;background:var(--surface-2);border-radius:var(--r-sm);padding:6px 8px;width:100%}
+.lease-calc b{display:flex;gap:5px;align-items:center;font-size:13px}.lease-calc svg{width:14px;height:14px}.lease-calc span{color:var(--ink-2)}
 .lgwin{border:2px solid var(--line);border-radius:var(--r-lg);background:var(--surface);padding:10px 12px;margin:0 0 10px}
 .lgw-h{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
 .lgw-h b{display:flex;gap:6px;align-items:center}.lgw-h svg{width:16px;height:16px}
@@ -1294,6 +1296,8 @@ const CONFIG = {
   brookJealous: { p: 0.7, k: [0.7, 0.8], trips: 5 },
   // Автопарк: до 10 сцепок. Новая сцепка = тягач из магазина + полуприцеп Luxuda (новый к новому тягачу, с пробегом — к б/у); появляется на базе
   fleet: { max: 10, trailer: { new: 4800000, used: 1600000 }, base: 'Владивосток' },
+  // Лизинг сцепок автопарка: аванс — доля цены, срок, удорожание (годовая ставка, платёж аннуитетом); платёж 10-го, пеня и изъятие — как в стартовом лизинге
+  leasing: { new: { advance: 0.2, months: 48, rate: 0.16 }, used: { advance: 0.3, months: 36, rate: 0.22 } },
   // откидная рамка: шанс, что водитель не успеет поднять номер перед постом ДПС (0,2–2% поста); штраф за первый раз (ч. 2 ст. 12.2 КоАП); после лишения прав — сменщик
   flip: { miss: { timur:0.006, gosha:0.02, palych:0.002, stas:0.01, boss:0.006 }, fine: 5000, fineH: 1, swapKm: 500, swapH: 8 },
   // Ставки из Владивостока за машину (кроссовер; кей-кар, седан и джип — в той же пропорции, что в tariffs): резко взлетают и резко падают.
@@ -2791,20 +2795,30 @@ function fleetDrop(s, i){
   s.cur = -1; const j = 0, d = s.fleet[j].data || {}; s.cur = j; for (const k of FLEET_KEYS) s[k] = d[k] !== undefined ? d[k] : null;
 }
 function fleetNext(s){ const t = (s.fleet || []).map(f => f.busyUntil).filter(t => t > s.date); return t.length ? Math.min(...t) : null; }
-/* Новая сцепка: тягач из магазина + полуприцеп; нужен свободный водитель */
-function buyRig(s, id){
+/* Лизинг: аванс, платёж аннуитетом, итого и переплата */
+function leaseCalc(price, used){
+  const C = CONFIG.leasing[used ? 'used' : 'new'], advance = Math.round(price * C.advance / 10000) * 10000, body = price - advance, i = C.rate / 12;
+  const payment = Math.round(body * i / (1 - Math.pow(1 + i, -C.months)) / 1000) * 1000, total = advance + payment * C.months;
+  return { advance, payment, months: C.months, rate: C.rate, total, over: total - price };
+}
+function newLease(s, payment, months){
+  return { start: s.date, payment, months, count: 0, paid: 0, unpaid: [], peni: 0, peniPaid: 0, peniAt: s.date, next: nextPayDate(s.date), done: false, seized: null, log: [] };
+}
+/* Новая сцепка: тягач из магазина + полуприцеп; нужен свободный водитель. lease — в лизинг: сейчас только аванс */
+function buyRig(s, id, lease){
   const T = shopItem(id), F = CONFIG.fleet;
   if (!T || !s.fleet || s.fleet.length >= F.max) return null;
-  const used = USED_TRUCKS.includes(T), price = T.price + (used ? F.trailer.used : F.trailer.new), drv = freeDrivers(s.crew, s.driver)[0];
+  const used = USED_TRUCKS.includes(T), full = T.price + (used ? F.trailer.used : F.trailer.new), drv = freeDrivers(s.crew, s.driver)[0];
+  const LC = lease ? leaseCalc(full, used) : null, price = LC ? LC.advance : full;
   if (!drv || s.balance < price) return null;
   s.balance -= price; s.stats.capex = (s.stats.capex || 0) + price;
   const spec = { id:T.id, brand:T.brand, model:T.model, year:T.year, hp:T.hp, fuel:T.fuel, breaks:T.breaks, mass:T.mass };
   const rig = { kind: used ? 'used' : 'new', odo: used ? T.odo : 0, engineKm: used ? T.engineKm : 0, sinceTO: used ? Math.round(rr(2500, 6000) / 100) * 100 : 0,
     failAt: rollFailAt(), lastTO: used ? null : s.date, born: s.date, overhauls: 0, spec, paid: T.price, odo0: used ? T.odo : 0 };
   const n = Math.max(...s.fleet.map(f => f.id)) + 1;
-  s.fleet.push({ id: n, busyUntil: 0, busyTo: null, data: { rig, loc: F.base, driver: drv, tune: [], tires: s.tires, permit: null, lease: null,
-    service: [{ date: s.date, odo: rig.odo, kind:'start', title:`Купили сцепку №${n}: ${T.model} + Luxuda${used ? ' с пробегом' : ''}`, cost: price }] } });
-  return { T, price, n, drv };
+  s.fleet.push({ id: n, busyUntil: 0, busyTo: null, data: { rig, loc: F.base, driver: drv, tune: [], tires: s.tires, permit: null, lease: LC ? newLease(s, LC.payment, LC.months) : null,
+    service: [{ date: s.date, odo: rig.odo, kind:'start', title: LC ? `Сцепка №${n} в лизинг: ${T.model} + Luxuda${used ? ' с пробегом' : ''}, аванс ${rub(LC.advance)}, ${rub(LC.payment)} × ${LC.months} мес.` : `Купили сцепку №${n}: ${T.model} + Luxuda${used ? ' с пробегом' : ''}`, cost: price }] } });
+  return { T, price, n, drv, lease: LC };
 }
 /* Водитель в автопарк: новый id, характер — случайный из четырёх */
 function hireExtra(s){
@@ -5040,11 +5054,13 @@ function fleetHTML(){
   if (fleetBusy(s)) h += `<p class="small permit-note">${ic('truck')}<span>Сцепка №${s.fleet[s.cur].id} в рейсе — выберите свободную сцепку или нажмите «Ждать»: календарь перейдёт к ближайшему прибытию.</span></p>`;
   if (state.fleetBuy && n < F.max){
     const row = (T, used) => {
-      const price = T.price + (used ? F.trailer.used : F.trailer.new), can = free.length && s.balance >= price;
+      const price = T.price + (used ? F.trailer.used : F.trailer.new), can = free.length && s.balance >= price, LC = leaseCalc(price, used), canL = free.length && s.balance >= LC.advance;
       return `<div class="shop-card"><div class="sc-h"><b>${esc(T.model)}</b><span class="pill ${used ? 'warn' : 'ok'}">${used ? `б/у · ${T.year}` : 'новый'}</span></div>
         <div class="sc-p">${mln(price)}<em>тягач ${mln(T.price)} + Luxuda ${used ? 'с пробегом' : 'новый'} ${mln(used ? F.trailer.used : F.trailer.new)}</em></div>
         <ul class="sc-f"><li><span>Расход</span><b>${T.fuel < 1 ? '−' : T.fuel > 1 ? '+' : '±'}${Math.round(Math.abs(T.fuel - 1) * 100)}%</b></li><li><span>Поломки</span><b>${T.breaks < 1 ? '−' : T.breaks > 1 ? '+' : '±'}${Math.round(Math.abs(T.breaks - 1) * 100)}%</b></li>${used ? `<li><span>Пробег</span><b>${fmt(T.odo)} км</b></li>` : ''}</ul>
-        <button class="btn sm ${can ? 'primary' : ''}" type="button" data-action="fleetBuy" data-id="${T.id}" ${can ? '' : 'disabled'}>${ic('coin')}Купить</button></div>`;
+        <div class="lease-calc"><b>${ic('key')}Лизинг: аванс ${mln(LC.advance)}</b><span>${rub(LC.payment)} в месяц × ${LC.months} мес. · ${Math.round(LC.rate * 100)}% годовых</span><span>Итого ${mln(LC.total)}, переплата ${mln(LC.over)}</span></div>
+        <span class="toolrow left"><button class="btn sm ${can ? 'primary' : ''}" type="button" data-action="fleetBuy" data-id="${T.id}" ${can ? '' : 'disabled'}>${ic('coin')}Купить</button>
+        <button class="btn sm ${!can && canL ? 'primary' : ''}" type="button" data-action="fleetLease" data-id="${T.id}" ${canL ? '' : 'disabled'}>${ic('key')}В лизинг</button></span></div>`;
     };
     h += `<p class="small muted">Новая сцепка встаёт на базе ${inCity(F.base)}. ${free.length ? `Поедет свободный водитель: ${esc(driverOf(free[0]).name)}.` : '<b>Нет свободного водителя — сначала наймите.</b>'}</p>
       <h4 class="shop-sub">Новые</h4><div class="shop-grid">${TRUCKS.map(T => row(T, false)).join('')}</div>
@@ -6975,9 +6991,9 @@ document.addEventListener('click', e => {
     writeSave(); Sfx.play('cash'); toast(`В автопарк нанят водитель: ${r.name}`); render(); return;
   }
   if (a === 'fleetBuyToggle'){ state.fleetBuy = !state.fleetBuy; Sfx.play('click'); renderGarage(false); return; }
-  if (a === 'fleetBuy'){
-    const r = buyRig(ms(), b.dataset.id); if (!r){ toast('Не хватает денег или свободного водителя', 'bad'); return; }
-    state.fleetBuy = false; writeSave(); Sfx.play('cash'); toast(`Сцепка №${r.n} (${r.T.model}) на базе. Водитель — ${driverOf(r.drv).name}`); render(); return;
+  if (a === 'fleetBuy' || a === 'fleetLease'){
+    const r = buyRig(ms(), b.dataset.id, a === 'fleetLease'); if (!r){ toast('Не хватает денег или свободного водителя', 'bad'); return; }
+    state.fleetBuy = false; writeSave(); Sfx.play('cash'); toast(`Сцепка №${r.n} (${r.T.model}) на базе${r.lease ? `, в лизинг: аванс ${mln(r.lease.advance)}, платёж ${rub(r.lease.payment)} 10-го числа` : ''}. Водитель — ${driverOf(r.drv).name}`); render(); return;
   }
   if (a === 'shopTab'){ state.shopTab = b.dataset.tab; shopArmed = null; Sfx.play('click'); renderGarage(false); return; }
   if (a === 'buyTruck'){
