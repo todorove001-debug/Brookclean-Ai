@@ -2284,9 +2284,12 @@ const THEMES = {
   ]
 };
 function poolOf(key){ const p = routeOf(key).pool || 'vl'; return CATALOG.filter(c => c.org === p || c.org === 'both'); }
+// Владивосток → Москва и Владивосток → Краснодар: машины только от Урала (Екатеринбург) и дальше
+const FROM_URAL = { msk: 'Екатеринбург', krd: 'Екатеринбург' };
 function destWeights(key){
   const cities = routeCities(key), last = cities[cities.length-1].name, w = {};
-  for (const c of cities.slice(1)) if (DEST_W[c.name] || c.name === last) w[c.name] = c.name === last ? 5 : DEST_W[c.name];
+  const ural = FROM_URAL[key] && cities.find(c => c.name === FROM_URAL[key]), minKm = ural ? ural.km : 0;
+  for (const c of cities.slice(1)) if ((DEST_W[c.name] || c.name === last) && c.km >= minKm) w[c.name] = c.name === last ? 5 : DEST_W[c.name];
   return w;
 }
 function makeOrder(base, mode, key, demand, destForce){
