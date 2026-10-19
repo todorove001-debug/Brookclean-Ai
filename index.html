@@ -1259,8 +1259,8 @@ const CONFIG = {
   ],
   // Автопарк: до 10 сцепок. Новая сцепка = тягач из магазина + полуприцеп Luxuda (новый к новому тягачу, с пробегом — к б/у); появляется на базе
   fleet: { max: 10, trailer: { new: 4800000, used: 1600000 }, base: 'Владивосток' },
-  // откидная рамка: шанс, что водитель не успеет поднять номер перед постом ДПС; штраф за первый раз (ч. 2 ст. 12.2 КоАП); после лишения прав — сменщик
-  flip: { miss: { timur:0.12, gosha:0.28, palych:0.08, stas:0.15, boss:0.12 }, fine: 5000, fineH: 1, swapKm: 500, swapH: 8 },
+  // откидная рамка: шанс, что водитель не успеет поднять номер перед постом ДПС (0,2–2% поста); штраф за первый раз (ч. 2 ст. 12.2 КоАП); после лишения прав — сменщик
+  flip: { miss: { timur:0.006, gosha:0.02, palych:0.002, stas:0.01, boss:0.006 }, fine: 5000, fineH: 1, swapKm: 500, swapH: 8 },
   // Ставки из Владивостока за машину (кроссовер; кей-кар, седан и джип — в той же пропорции, что в tariffs): резко взлетают и резко падают.
   // jumpP — вероятность скачка к другому краю диапазона за рейс, иначе дрейф ±drift
   rates: { range: { msk: [160000, 230000], nsk: [110000, 170000], krd: [160000, 250000] }, jumpP: 0.32, drift: 0.12 },
@@ -2472,10 +2472,11 @@ function frameFine(cm){ for (const [up, f] of CONFIG.frameFines) if (cm <= up) r
 function frameTol(f){ const M = CONFIG.measure; return M.tolMin + Math.round(((Math.sin(f.km * 12.9898 + f.road.length * 78.233) * 43758.5453) % 1 + 1) % 1 * (M.tolMax - M.tolMin)); }
 function appealChance(cm){ for (const [up, c] of CONFIG.appeal.chance) if (cm <= up) return c; return 0.3; }
 /* Что насчитает каждая рамка на маршруте */
-function frameCheck(st, key, ev, noCars){
+/* ext — разрешение, оформленное в дороге: действует на рамках после км ext.km */
+function frameCheck(st, key, ev, noCars, ext){
   const mFine = noCars ? 0 : massFine(ev.mass), massPct = Math.max(0, (ev.mass / CONFIG.mass.limit - 1) * 100);
   return routeFrames(key).map(f => {
-    const permit = permitValid(st.permit, dateAtKm(st, f.km)), over = noCars ? [] : overOf(ev, permit), top = over[0], tol = frameTol(f);
+    const permit = permitValid(st.permit, dateAtKm(st, f.km)) || !!(ext && f.km > ext.km), over = noCars ? [] : overOf(ev, permit), top = over[0], tol = frameTol(f);
     // превышение считается за вычетом погрешности рамки
     const eff = top ? top.over - tol : 0, cm = eff > 0 ? Math.ceil(eff / 10) : 0, dimF = cm > 0 ? frameFine(cm) : 0, byDim = dimF >= mFine;
     const fine = Math.max(dimF, mFine), tolTxt = String(tol / 10).replace('.', ',');
@@ -2837,7 +2838,7 @@ function planTrip(st){
   const econ = st.econ || econFor(Date.now());
   const rp = rigPlan(st.rig || null, D, !!st.maint);
   const breaks = genBreakdowns(key, D, st.mode, rp, drv.breaks * truckOf(st.rig).breaks);
-  const flip = (st.tune || []).includes('flip') ? { miss: CONFIG.flip.miss[drv.id] || 0.12, prior: (st.crew && st.crew[drv.id] && st.crew[drv.id].flips) || 0, n: 0, lost: false } : null;
+  const flip = (st.tune || []).includes('flip') ? { miss: CONFIG.flip.miss[drv.base || drv.id] || 0.006, prior: (st.crew && st.crew[drv.id] && st.crew[drv.id].flips) || 0, n: 0, lost: false } : null;
   const police = genPolice(key, D, st.bribe !== false, breaks.map(b => b.km).concat([CONFIG.checkpointKm]), noCarsPost(routeOf(key).kind === 'empty', st), flip);
   const cams = genCams(key, D, drv, breaks.concat(police).map(e => e.km));
   const offers = genOffers(key);
@@ -3120,12 +3121,14 @@ function settleTrip(st, plan, accepted){
   const events = []; let fines = 0;
   // рамки АПВГК по всей трассе: каждая меряет габариты и массу; без разрешения превышение больше 10 см — штраф по тарифу.
   // Если после рамки перестроили секции — дальше рамки меряют уже новую высоту
-  let frames = frameCheck(st, key, ev0, noCars);
-  if (adj){ const f2 = frameCheck(st, key, ev, noCars); frames = frames.map((f, i) => f.km > adj.km ? f2[i] : f); }
+  let frames = frameCheck(st, key, ev0, noCars, plan.permitExt);
+  if (adj){ const f2 = frameCheck(st, key, ev, noCars, plan.permitExt); frames = frames.map((f, i) => f.km > adj.km ? f2[i] : f); }
+  // окно «опустить секции» — на первой рамке, которая оштрафовала за высоту (на любом маршруте, и в обратную сторону)
+  const fFirst = frames.find(f => f.fine && f.hFine);
   for (const f of frames) if (f.fine){
     fines += f.fine;
     events.push({ id:'fr' + f.i, km:f.km, kind:'frame', type:'fine', title:'Рамка АПВГК — штраф', road:f.road, place:f.place, cm:f.cm, massPct:f.massPct, fine:f.fine, chance:f.chance, permit:f.permit,
-      first: f.i === 0, limH: f.limH, top: f.top, hFine: f.hFine,
+      first: f === fFirst, limH: f.limH, top: f.top, hFine: f.hFine,
       amount:-f.fine, text:`${f.road}, ${f.place}: ${f.what}. Штраф ${rub(f.fine)} по ст. 12.21.1 КоАП — постановление придёт собственнику.` });
   }
   const f0 = frames[0];
@@ -4983,8 +4986,8 @@ function shopHTML(){
     h += group('look', 'Аксессуары — для красоты', 'Видно на тягаче в гараже, на погрузке и в рейсе.');
     h += group('save', 'Снижение расходов', 'Экономия дизеля и «Платона». Откидная рамка — риск: следите, кто за рулём.');
     if (have.has('flip')){
-      const d = driverOf(s.driver || 'timur'), miss = CONFIG.flip.miss[d.id] || 0.12, c = ((s.crew || {})[d.id] || {}).flips || 0;
-      h += `<p class="small permit-note">${ic('shield')}<span>${esc(d.name)} не успевает поднять рамку примерно на ${Math.round(miss * 100)}% постов ДПС. ${c ? 'Протокол уже есть — следующий раз лишат прав.' : 'Протоколов пока нет.'}</span></p>`;
+      const d = driverOf(s.driver || 'timur'), miss = CONFIG.flip.miss[d.base || d.id] || 0.006, c = ((s.crew || {})[d.id] || {}).flips || 0;
+      h += `<p class="small permit-note">${ic('shield')}<span>${esc(d.name)} не успевает поднять рамку примерно на ${String(Math.round(miss * 1000) / 10).replace('.', ',')}% постов ДПС. ${c ? 'Протокол уже есть — следующий раз лишат прав.' : 'Протоколов пока нет.'}</span></p>`;
     }
   }
   return h;
@@ -5337,6 +5340,7 @@ function renderStatus(ev){
   const easy = state.mode==='easy';
   const open = $$('#statusPanel details').map(d => d.open);
   let h = `<div class="panel-h"><h3>${easy?'Габариты и деньги':'Контроль и деньги'}</h3>`;
+  const swapNote = state.swapStart ? `<p class="small permit-note">${ic('hour')}<span>Автовоз вернулся на базу: переставьте машины. Идёт простой — каждая минута перестановки = час игрового времени (${rub(Math.round(CONFIG.binge.idleDay / 24))} за час).</span></p>` : '';
   const vis = ev.issues.filter(issueVisible);
   if (easy){
     h += ev.count === 0 ? `<span class="pill warn">Пусто</span>` : vis.length ? `<span class="pill bad">Нарушений: ${vis.length}</span>` : `<span class="pill ok">Можно ехать</span>`;
@@ -5353,7 +5357,7 @@ function renderStatus(ev){
   if (vis.length) h += `<ul class="issues">${vis.map(i=>`<li class="${i.kind}">${esc(i.text)}</li>`).join('')}</ul>`;
   h += prepHTML(ev);
   h += passportHTML() + couplingHTML();
-  $('#statusPanel').innerHTML = h;
+  $('#statusPanel').innerHTML = swapNote + h;
   $$('#statusPanel details').forEach((d, i) => { if (open[i]) d.open = true; });
 }
 function renderMarket(){
@@ -5957,6 +5961,13 @@ function showOffer(o, chk, cb){
   else if (window.innerWidth < 1000) el.scrollIntoView({ behavior: RM ? 'auto' : 'smooth', block: 'nearest' });
 }
 function startTrip(){
+  // после возврата на базу: время перестановки машин — простой, минута = час игрового времени
+  if (state.swapStart){
+    const s = ms(), h = Math.max(1, Math.ceil((Date.now() - state.swapStart) / 60000)), idle = Math.round(h * CONFIG.binge.idleDay / 24);
+    s.date += h * 3600000; s.balance -= idle; s.stats.backtrack = (s.stats.backtrack || 0) + idle;
+    state.swapStart = null; state.econ = econFor(s.date); writeSave();
+    toast(`Перестановка машин: ${h} ${plural(h, 'час', 'часа', 'часов')} простоя, −${rub(idle)}`);
+  }
   if (!ms().rig || ms().gameOver){ toast('Сначала выберите сцепку в гараже', 'bad'); state.market = []; state.screen = 'garage'; render(); return; }
   if (driverFired(ms().crew, ms().driver)){ const f = freeDrivers(ms().crew); if (f.length){ ms().driver = f[0]; writeSave(); toast(`${driverOf(f[0]).name} поедет вместо уволенного`); } else { toast('Все водители уволены — наймите нового в гараже', 'bad'); return; } }
   const ctx = Object.assign({}, state, stCtx());
@@ -6060,7 +6071,10 @@ function startTrip(){
       <div class="adj-sum">Высота <b class="${!chk.ok || over > 0 ? 'neg' : 'pos'}">${fmt(chk.top)} мм</b> · ${status}</div>
       <div class="adj-rows">${rows}</div>
       <div class="of-a"><button class="btn primary big" type="button" data-action="adjGo" ${!chk.ok || !changed ? 'disabled' : ''}>${ic('check')}Опустить и ехать</button>
-        <button class="btn big" type="button" data-action="adjAuto">${ic('down')}Подобрать</button><button class="btn big" type="button" data-action="adjNo">Ехать как есть</button></div>`;
+        <button class="btn big" type="button" data-action="adjAuto">${ic('down')}Подобрать</button><button class="btn big" type="button" data-action="adjNo">Ехать как есть</button></div>
+      <div class="of-a">${!e.permit ? `<button class="btn big ${ev0.maxTop <= CONFIG.permit.maxHeight ? 'primary' : ''}" type="button" data-action="adjPermit">${ic('shield')}${ms().permit ? 'Продлить' : 'Оформить'} разрешение онлайн · ${rub(CONFIG.permit.price)}</button>` : ''}
+        <button class="btn big" type="button" data-action="adjBack">${ic('arrowL')}Вернуться на базу и переставить машины</button></div>
+      <span class="of-w">${!e.permit ? `Разрешение на негабарит ${ms().permit ? 'кончилось в дороге' : 'не оформлено'}: оформить можно с телефона, дальше рамки меряют по нему — до ${fmt(CONFIG.permit.maxHeight)} мм. ` : ''}Если опустить этаж не получается — назад ${toCity(routeOf(key).from)} (${fmt(e.km)} км), там переставить или заменить машину. Каждая минута перестановки — час простоя автовоза.</span>`;
   };
   const closeAdjust = () => { const el = $('#offerBox'); adjCtl = null; if (el){ el.hidden = true; el.innerHTML = ''; el.classList.remove('adj'); } };
   /* Секции опускаются гидравликой вместе с машинами, потом рисунок перестраивается под новую высоту */
@@ -6093,6 +6107,29 @@ function startTrip(){
         setTimeout(() => stamp(ok ? 'ok top' : 'bad top', 'СЕКЦИИ ОПУЩЕНЫ', `${fmt(from)} → ${fmt(evB.maxTop)} мм · стоянка ${fmtH(CONFIG.adjust.h)}`), RM ? 0 : dur);
         Radio.push([[dk, `Опустил секции, теперь ${fmt(evB.maxTop)} мм. Поехали дальше.`], ['vera', ok ? 'Первый штраф всё равно придёт — после рейса обжалуем. Дальше рамки пройдём чисто.' : `Всё ещё выше ${fmt(c.lim)} — следующие рамки тоже оштрафуют.`]], true);
         pauseUntil = performance.now() + (RM ? 0 : dur + 1200);
+      },
+      // разрешение в дороге: дальше рамки меряют по нему; если и так выше — окно остаётся, чтобы опустить секции
+      permit: () => {
+        const s = ms(), P = CONFIG.permit, pm = buyPermit(s);
+        plan.permitExt = { km: e.km }; e.permit = true; adjCtl.lim = P.maxHeight;
+        writeSave(); renderHud(); Sfx.play('cash'); resettle();
+        Radio.push([[dk, 'Сергеевна, разрешение кончилось — продлите, пожалуйста.'], ['vera', `Оформила онлайн, ${rub(P.price)}. Действует до ${fmtDate(pm.until)}. Этот штраф уже придёт, дальше рамки — по разрешению.`]], true);
+        if (ev0.maxTop <= P.maxHeight){ closeAdjust(); stamp('ok top', 'РАЗРЕШЕНИЕ ПРОДЛЕНО', `до ${fmtDate(pm.until)} · −${rub(P.price)}`); pauseUntil = performance.now() + (RM ? 0 : 1600); }
+        else adjRender();
+      },
+      // этаж не опустить: автовоз идёт назад на базу, там игрок переставляет машины; время перестановки — простой (минута = час)
+      back: () => {
+        const s = ms(), km = e.km, E = CONFIG.economy, econ = plan.econ, k2 = 2 * km;
+        const fuel = Math.round(k2 * econ.per100 / 100 * drv.fuel * fuelK(ctx) * econ.fuelPrice), pay = Math.round(k2 * drv.pay), platon = platonOn(ctx) ? Math.round(k2 * E.platonPerKm) : 0;
+        const days = k2 / (drv.kmDay || E.kmPerDay), cost = fuel + pay + platon + e.fine;
+        s.balance -= cost; s.stats.fines = (s.stats.fines || 0) + e.fine; s.stats.backtrack = (s.stats.backtrack || 0) + cost - e.fine;
+        s.date += Math.round(days * DAY);
+        if (s.rig){ s.rig.odo += k2; s.rig.engineKm += k2; s.rig.sinceTO += k2; }
+        serviceLog(s, { kind:'fix', title:`Возврат на базу ${fmtH(days * 24)}: ${fmt(k2)} км, штраф рамки ${rub(e.fine)}`, cost });
+        closeAdjust(); hideOffer(); stopTripAnim(); Radio.reset();
+        state.tripResult = null; state.swapStart = Date.now(); state.econ = econFor(s.date); state.screen = 'game';
+        writeSave(); Sfx.play('click'); render();
+        toast(`Автовоз вернулся ${toCity(routeOf(key).from)}: ${fmt(k2)} км, ${fmtH(days * 24)} в пути, −${rub(cost)} (дизель, водитель, «Платон», штраф). Переставьте машины — каждая минута = час простоя`, 'bad');
       },
       no: () => {
         closeAdjust(); Sfx.play('click');
@@ -6781,6 +6818,8 @@ document.addEventListener('click', e => {
   if (a === 'adjAuto'){ if (adjCtl) adjCtl.auto(); return; }
   if (a === 'adjGo'){ if (adjCtl) adjCtl.go(); return; }
   if (a === 'adjNo'){ if (adjCtl) adjCtl.no(); return; }
+  if (a === 'adjPermit'){ if (adjCtl) adjCtl.permit(); return; }
+  if (a === 'adjBack'){ if (adjCtl) adjCtl.back(); return; }
   if (a === 'bingePick'){ if (bingeCtl) bingeCtl.pick(b.dataset.c, b.dataset.id); return; }
   if (a === 'fleetSel'){
     const i = +b.dataset.i, s = ms(); if (i === s.cur) return;
