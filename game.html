@@ -1099,8 +1099,11 @@ const CONFIG = {
   truck: { model:'Sitrak C7H MAX 4×2', plate:'К649СХ125', vin:'LZZ7CCWD3PC502043', length: 6480, width: 2490, cabHeight: 3845, cabLength: 2300, wheelbase: 3800, frontOverhang: 1400,
            fifthWheelHeight: 1150, fifthWheelAhead: 500, wheelR: 538, mass: 7400, ssu: 'JOST 50#', kingpin: '2″ (50,8 мм)' },
   // Luxuda LZC9405BG: 17000×2550×3950, 2 оси SAF по 11,5 т, грузоподъёмность 20 000 кг, ССУ 1150.
-  // По спецразрешению: от задней оси тягача до первой оси прицепа 13 990, между осями прицепа 1800; автопоезд без груза 18 220 кг → прицеп 10 820
-  trailer: { model:'Luxuda LZC9405BG', plate:'АО132325', vin:'LA9925T26R1LZC532', length: 17000, kingpin: 650, kingpinToAxle1: 14490, axleBase: 1800, rampLen: 1200,
+  // Оси прицепа — по фото автовоза: тандем под задней стойкой, между осями 1800 (по спецразрешению); автопоезд без груза 18 220 кг → прицеп 10 820.
+  // В схеме спецразрешения до первой оси прицепа 13 990 от задней оси тягача — на фото ≈10,7 м, ставим как на фото
+  trailer: { model:'Luxuda LZC9405BG', plate:'АО132325', vin:'LA9925T26R1LZC532', length: 17000, kingpin: 650, kingpinToAxle1: 11185, axleBase: 1800, rampLen: 1200,
+             // задняя стойка верхнего яруса — над осями; ярус за ней выходит назад консолью
+             rearPost: [12620, 12850],
              upperFrontExt: 175, slideFront: 500, slideRear: 1000, lowerSlideFront: 500, lowerSlideRear: 1000,
              // в передних сходнях низа — провал под колесо 5 см; на передних сходнях верха машина ложится на 10 см
              slideWell: { depth: 50, len: 400 }, upperSlideWell: { depth: 100, len: 400 },
@@ -1112,10 +1115,10 @@ const CONFIG = {
   slotStart: { lower: [null, 4200, 9000, 13700], upper: [null, 3400, 8300, 12900, 13600] },
   // нижний ярус: гусак 1305, колодец ≈580, над осями ≈900; аппарели в конце идут вниз круче — до 600 мм; задние сходни продолжают уклон
   lowerProfile: [[0,1305],[3550,1305],[5000,580],[11300,580],[12300,900],[17000,900],[18200,600]],
-  // верхний ярус — две части: передняя над кабиной (передняя и средняя стойки) и задняя от средней стойки до задней —
-  // её поднимают и наклоняют гидравликой на средней и задней стойках
+  // верхний ярус — две части: передняя над кабиной (передняя и средняя стойки) и задняя от средней стойки до конца прицепа.
+  // Заднюю поднимают и наклоняют гидравликой на средней стойке (f) и на задней стойке над осями (r, в точке pb); за задней стойкой — консоль
   sections: [ {k:'F', a:-175, b:4219, name:'Передняя', over:'над Н1'},
-              {k:'R', a:4519, b:17000, name:'Задняя', over:'над Н2–Н4', tilt:true} ],
+              {k:'R', a:4519, b:17000, pb:12735, name:'Задняя', over:'над Н2–Н4', tilt:true} ],
   // Провалы под колёса на обоих ярусах: центры по чертежу (под колёсами штатной схемы на 8 машин), глубина и длина — ориентировочно
   wells: { depth: 100, len: 800, lower: [2900, 7800, 10100, 15100], upper: [2700, 7700, 9950, 14950], snap: 1000 },
   sectionRange: { min: 2400, max: 3800, step: 10, start: 3000, maxTilt: 800, levelTol: 50 },
@@ -1683,13 +1686,16 @@ function lowerFloor(x, sec){
 }
 function lowerSurface(x, sec){ const f = lowerFloor(x, sec); return f == null ? null : f - wellDrop('lower', x, sec); }
 function supportLower(x, sec){ const [a, b] = lowerSpan(sec), m = CONFIG.deck.wheelMargin; return (x < a + m || x > b - m) ? null : lowerSurface(x, sec); }
+/* Высота части яруса по краям. У задней части f и r — высоты на средней и задней стойке, конец консоли — по продолжению наклона */
+function secEnds(S, v){ return S.pb ? { f: v.f, r: Math.round(lerp(v.f, v.r, (S.b - S.a) / (S.pb - S.a))) } : v; }
 function deckPanel(x, sec){
   for (const S of SECS){
     const a = secA(S, sec), b = secB(S, sec);
     if (x < a || x > b) continue;
-    if (x < S.a) return sec[S.k].f;                                    // передние сходни — вровень с настилом
-    if (x > S.b) return sec[S.k].r;                                    // задние сходни
-    return lerp(sec[S.k].f, sec[S.k].r, (x - S.a) / (S.b - S.a));
+    const v = secEnds(S, sec[S.k]);
+    if (x < S.a) return v.f;                                           // передние сходни — вровень с настилом
+    if (x > S.b) return v.r;                                           // задние сходни
+    return lerp(v.f, v.r, (x - S.a) / (S.b - S.a));
   }
   return null;
 }
@@ -2006,12 +2012,13 @@ function autoFit(lowerCars, ext, upperCars){
   for (const S of SECS){ const [f, r] = fitSec(S, req); sec[S.k] = {f, r}; }
   return sec;
 }
-/* Высота части яруса под нужды машин снизу: передняя — ровно; задняя на двух стойках — с наклоном, минимальная по средней высоте */
+/* Высота части яруса под нужды машин снизу: передняя — ровно; задняя на двух стойках — с наклоном, минимальная по средней высоте.
+   Точки за задней стойкой (консоль) — по продолжению наклона */
 function fitSec(S, req){
   const R = CONFIG.sectionRange, up = v => clamp(Math.ceil(v / R.step - 1e-9) * R.step, R.min, R.max), flat = up(req[S.k]);
   let best = [flat, flat, 2 * flat];
   if (!S.tilt || !req.pts) return best;
-  const P = req.pts[S.k].map(([x, n]) => [clamp((x - S.a) / (S.b - S.a), 0, 1), n]);
+  const pb = S.pb || S.b, P = req.pts[S.k].map(([x, n]) => [clamp((x - S.a) / (pb - S.a), 0, (S.b - S.a) / (pb - S.a)), n]);
   for (let f = R.min; f <= R.max; f += R.step){
     let r = Math.max(R.min, f - R.maxTilt), ok = true;
     for (const [t, n] of P){
@@ -3955,7 +3962,7 @@ function upperDeckSVG(sec){
   const T = CONFIG.deck.thickness;
   let s = '';
   for (let i=0;i<SECS.length;i++){
-    const S = SECS[i], v = sec[S.k], a = secA(S, sec), b = secB(S, sec);
+    const S = SECS[i], v = secEnds(S, sec[S.k]), a = secA(S, sec), b = secB(S, sec);
     // каждая секция — своя группа: в рейсе её поднимают гидравликой под попутный груз
     s += `<g class="dk" data-k="${S.k}">`;
     s += `<polygon class="sv-beam" points="${S.a},${-(v.f-T)} ${S.b},${-(v.r-T)} ${S.b},${-(v.r-T-170)} ${S.a},${-(v.f-T-170)}"/>`;
@@ -4171,7 +4178,7 @@ function rigSVG(sec, noDeck){
   const flapX = G.axle2 + t.wheelR + 60, bumpX = Math.max(16680, flapX + 90);
   s += `<rect x="${flapX}" y="-800" width="48" height="640" rx="6" fill="#16191D"/><rect x="${flapX+6}" y="-330" width="36" height="120" fill="#F4F6F8" opacity=".85"/>`;
   // ящик для инструмента и противооткатных упоров под рамой
-  { const b0 = G.axle1 - 740 - 760, b1 = b0 + 760;
+  { const b0 = Math.max(flapX + 900, 15200), b1 = b0 + 760;
     s += `<rect x="${b0}" y="-745" width="760" height="370" rx="22" fill="url(#bt-alu)" stroke="#6E7883" stroke-width=".8"/>`;
     s += `<path d="M${b0 + 40} -712H${b1 - 40}M${b0 + 40} -410H${b1 - 40}" stroke="#8E99A4" stroke-width=".7" fill="none"/>`;
     for (const x of [b0 + 130, b1 - 130]) s += `<rect x="${x - 34}" y="-600" width="68" height="50" rx="10" fill="#2B3138"/>`; }
@@ -4182,15 +4189,17 @@ function rigSVG(sec, noDeck){
     s += `<path class="sv-tape" d="M${bumpX+20} -508h300v40h-300z"/>`;
     s += `<rect x="${bumpX+250}" y="-505" width="90" height="40" rx="8" fill="#C62E2E"/>`; }
   // стойки (фермы) и гидроцилиндры подъёма секций
-  const lift = k => Math.max(sec[k].f, sec[k].r);
   s += tpostSVG(0, 230, LP[0][1], t.postHeight, false, '+7 924 0000 120');
   // средняя стойка: на ней передний край задней части яруса (и задний край передней)
-  s += tpostSVG(SECS[0].b, SECS[1].a, lowerFloor((SECS[0].b + SECS[1].a)/2) || 900, Math.min(t.postHeight, Math.max(lift('F'), lift('R')) + 250), true, 'АВТО ПОД ЗАКАЗ');
-  s += tpostSVG(16770, 17000, 900, t.postHeight, false);
-  let rungs = ''; for (let h = 1300; h < 3800; h += 350) rungs += `M16770 ${-h}h230`;
-  s += `<path class="sv-line" d="${rungs}" stroke-width=".7"/>`;
-  s += `<rect x="16880" y="-1250" width="140" height="290" rx="22" fill="#20262C"/><rect x="16895" y="-1235" width="110" height="70" rx="12" fill="#F29A1E"/><rect class="sv-lampr" x="16895" y="-1160" width="110" height="110" rx="14"/><rect x="16895" y="-1045" width="110" height="70" rx="12" fill="#F4F6F8"/>`;
-  { let vt = ''; for (let z = 1300; z + 300 < 3800; z += 640) vt += `M16968 ${-z}h32v${-380}h-32z`; s += `<path class="sv-tape" d="${vt}"/>`; }
+  s += tpostSVG(SECS[0].b, SECS[1].a, lowerFloor((SECS[0].b + SECS[1].a)/2) || 900, Math.min(t.postHeight, Math.max(sec.F.r, sec.R.f) + 250), true, 'АВТО ПОД ЗАКАЗ');
+  // задняя стойка — над осями, на ней гидроцилиндр задней части верхнего яруса; лестница и маркировка
+  { const [p0, p1] = t.rearPost, z0 = lowerFloor((p0 + p1) / 2) || 900, z1 = sec.R.r + 250;
+    s += tpostSVG(p0, p1, z0, z1, true);
+    let rungs = ''; for (let h = z0 + 350; h < z1 - 150; h += 350) rungs += `M${p0} ${-h}h${p1 - p0}`;
+    s += `<path class="sv-line" d="${rungs}" stroke-width=".7"/>`;
+    let vt = ''; for (let z = z0 + 250; z + 300 < z1 - 100; z += 640) vt += `M${p1 - 32} ${-z}h32v${-380}h-32z`; s += `<path class="sv-tape" d="${vt}"/>`; }
+  // задние фонари — на кронштейне в конце рамы: поворот, стоп, задний ход
+  s += `<rect x="16860" y="-1060" width="140" height="290" rx="22" fill="#20262C"/><rect x="16875" y="-1045" width="110" height="70" rx="12" fill="#F29A1E"/><rect class="sv-lampr" x="16875" y="-970" width="110" height="110" rx="14"/><rect x="16875" y="-855" width="110" height="70" rx="12" fill="#F4F6F8"/>`;
   for (const ax of [G.axle1, G.axle2]) s += wheelSVG(ax, t.wheelR, t.wheelR, true);
   if (!noDeck) s += upperDeckSVG(sec);
   return s;
@@ -4258,15 +4267,15 @@ function drawingSVG(ev, sec, opts){
     const dim = (x, y, txt, anchor='middle', size=280) => `<text class="sv-dim" x="${x}" y="${y}" font-size="${size}" text-anchor="${anchor}">${txt}</text>`;
     s += dim(1750, -1305 + 420, '1305');
     s += dim(8150, -580 + 420, '≈580');
-    s += dim(R0((G.axle1 + G.axle2) / 2 - 80), -900 + 460, '≈900', 'middle', 240);
+    s += dim(R0(G.axle2 + 1000), -900 + 420, '≈900');
     s += dim(17900, -600 + 430, '600', 'middle', 240);
     for (const S of SECS){
-      const v = sec[S.k], mid = (secA(S, sec) + secB(S, sec))/2, z = (v.f + v.r)/2;
+      const v = secEnds(S, sec[S.k]), mid = (secA(S, sec) + secB(S, sec))/2, z = (v.f + v.r)/2;
       s += `<text class="sv-dimw" x="${R0(mid)}" y="${R0(-z + 335)}" font-size="270" text-anchor="middle">${v.f === v.r ? fmt(v.f) : `${fmt(v.f)}→${fmt(v.r)}`}</text>`;
     }
     const ex = sec.ext || {};
     if (ex.front) s += dim(secA(SECS[0], sec) + 250, -sec.F.f - 140, '+500', 'middle', 230);
-    if (ex.rear) s += dim(secB(SEC_LAST(), sec) - 500, -sec.R.r - 140, '+1000', 'middle', 230);
+    if (ex.rear) s += dim(secB(SEC_LAST(), sec) - 500, -secEnds(SEC_LAST(), sec.R).r - 140, '+1000', 'middle', 230);
     if (ex.lowerFront) s += dim(-250, -1305 + 380, '+500', 'middle', 230);
     if (ex.lowerRear) s += dim(G.rampEnd + 500, -480 + 380, '+1000', 'middle', 230);
     s += `<circle class="sv-callout" cx="${t.kingpin}" cy="${-tr.fifthWheelHeight}" r="760" stroke-width="1" stroke-dasharray="4 3"/>`;
