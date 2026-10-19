@@ -1280,7 +1280,7 @@ const CONFIG = {
   // nonpay — шанс, что за рейс не заплатят (вся партия этого логиста), recover — сколько удаётся выбить, idle — дни разборок (простой)
   logists: [
     { id:'brook', name:'Brookclean', w:3, k:[1.06, 1.12], dip:0.06, dipK:0.9, nonpay:0,
-      about:'Отличный логист: ставка всегда хорошая, просадки редко. Ревнивый: если узнает, что его постоянный перевозчик грузится у других, следующие 5 рейсов ставка на 20–30% ниже.' },
+      about:'Отличный логист: ставка всегда хорошая, просадки редко. Ревнивый: если узнает, что его постоянный перевозчик грузится у других, когда у него самого хватало машин на полную загрузку, следующие 5 рейсов ставка на 20–30% ниже. Если машин у него не было или не хватало — догрузка у других не в счёт.' },
     { id:'korean', name:'Саня Кореец', w:2, fixed:true, k:[1, 1], nonpay:0,
       about:'Всегда держит одну ставку — рынок ему не указ. Если его постоянный перевозчик не приехал на погрузку, больше с ним не работает.' },
     { id:'arm', name:'Армяне', w:2, k:[1.2, 1.32], nonpay:0.3, recover:[0.3, 0.7], idle:[2, 4],
@@ -2612,8 +2612,9 @@ function logistSettle(st, plan, ev){
     const L = logistOf(id), loss = Math.round(sum[id] * (1 - np.share) / 1000) * 1000;
     list.push({ id, name: L.name, sum: sum[id], loss, days: np.days, got: sum[id] - loss }); }
   const idleDays = list.reduce((a, x) => Math.max(a, x.days), 0);
-  return { count, list, loss: list.reduce((a, x) => a + x.loss, 0), idleDays, idleCost: idleDays * CONFIG.binge.idleDay,
-    korOffered: (st.market || []).some(o => o.lg === 'korean') };
+  const offered = {}; for (const o of st.market || []) if (o.lg) offered[o.lg] = (offered[o.lg] || 0) + 1;
+  return { count, offered, list, loss: list.reduce((a, x) => a + x.loss, 0), idleDays, idleCost: idleDays * CONFIG.binge.idleDay,
+    korOffered: !!offered.korean };
 }
 /* После рейса: постоянный перевозчик, ревность Brookclean, обида Сани Корейца */
 function logistAfterTrip(s, res){
@@ -2621,7 +2622,9 @@ function logistAfterTrip(s, res){
   const L = lgState(s), ids = Object.keys(res.lg.count), notes = res.lgNotes = [], J = CONFIG.brookJealous;
   if (!ids.length) return;
   if (L.brookPen > 0) L.brookPen--;
-  if (L.regular === 'brook' && ids.some(i => i !== 'brook') && Math.random() < J.p){
+  // ревнует, только если у него было достаточно машин, чтобы загрузиться целиком у него: не было машин или не хватало — догрузка у других не в счёт
+  const loaded = ids.reduce((a, i) => a + res.lg.count[i], 0), brookHad = (res.lg.offered || {}).brook || 0;
+  if (L.regular === 'brook' && ids.some(i => i !== 'brook') && brookHad >= loaded && Math.random() < J.p){
     L.brookPen = J.trips; L.brookK = rr(J.k[0], J.k[1]);
     notes.push(`Brookclean узнал, что вы грузились у других: следующие ${J.trips} рейсов ставка ниже на ${Math.round((1 - L.brookK) * 100)}%`);
   }
