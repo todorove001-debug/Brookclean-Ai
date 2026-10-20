@@ -906,6 +906,19 @@ u.fine{background:var(--signal);border-radius:1px!important}
 .fl-card .fl-s svg{width:14px;height:14px}
 .shop{margin-top:16px}
 .lgx{margin-top:16px}
+.quest{margin-top:16px}
+.q-row{display:flex;align-items:center;gap:12px;justify-content:space-between;border:2px solid var(--line);border-radius:var(--r);padding:8px 12px;margin-top:8px;background:var(--surface)}
+.q-row.done{border-color:var(--ok)}.q-row.claimed{opacity:.6}
+.q-t{display:grid;gap:2px;flex:1;min-width:0}
+.q-bar{display:block;height:6px;border-radius:99px;background:var(--surface-2);overflow:hidden;margin-top:3px}.q-bar b{display:block;height:100%;background:var(--amber);border-radius:99px}
+.q-row.done .q-bar b{background:var(--ok)}
+.ach-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;margin-top:10px}
+.ach{display:grid;gap:3px;border:2px dashed var(--line);border-radius:var(--r);padding:10px 12px;opacity:.7}
+.ach.got{border-style:solid;border-color:var(--amber);opacity:1;background:var(--surface)}
+.ach-ic svg{width:22px;height:22px}.ach.got .ach-ic{color:var(--amber-deep)}
+.ach .pos{color:var(--ok)}
+.lb-by{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+.ptable.lb tr.me td{font-weight:700;background:var(--amber-soft)}
 .authgate{position:fixed;inset:0;z-index:200;background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(6px);display:grid;place-items:center;padding:16px;overflow:auto}
 body.gated{overflow:hidden}
 .gate-card{width:min(400px,100%);background:var(--surface);border:2px solid var(--line);border-radius:var(--r-lg);box-shadow:0 10px 40px rgba(0,0,0,.18);padding:22px;display:grid;gap:12px}
@@ -1003,6 +1016,7 @@ body.gated{overflow:hidden}
       <div class="garage-status" id="garageStatus"></div>
       <div class="rigrow" id="garageRigRow"><div class="panel rigpanel" id="garageRig"></div><div class="panel calpanel" id="garageCal"></div></div>
       <div class="permitbar" id="garagePermit"></div>
+      <div class="panel quest" id="garageQuests"></div>
       <div class="panel lgx" id="garageExchange"></div>
       <div class="panel shop" id="garageShop"></div>
       <div id="garagePlay">
@@ -2589,6 +2603,102 @@ function newRig(kind, date){
   return { kind: used ? 'used' : 'new', odo: used ? U.odo : 0, engineKm: used ? U.odo : 0, sinceTO: used ? Math.round(rr(2500, 6000) / 100) * 100 : 0,
     failAt: rollFailAt(), lastTO: used ? null : date, born: date, overhauls: 0 };
 }
+/* ---------- Задания дня и недели, достижения ----------
+   Задания одинаковые у всех игроков: набор выбирается по реальной дате (день и ISO-неделя), прогресс копится после рейсов,
+   награду забирают кнопкой. Достижения открываются сами и сразу дают награду в кассу */
+const pl = (n, a, b, c) => { const m = Math.abs(n) % 100, k = m % 10; return m > 10 && m < 20 ? c : k === 1 ? a : k >= 2 && k <= 4 ? b : c; };
+const rubS = n => Math.round(n).toLocaleString('ru-RU') + ' ₽';
+function seedRand(str){ let h = 2166136261; for (const ch of str) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return () => { h = Math.imul(h ^ (h >>> 15), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); return ((h ^= h >>> 16) >>> 0) / 4294967296; }; }
+function dayKey(t){ const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+function weekKey(t){ const d = new Date(t); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7); const w1 = new Date(d.getFullYear(), 0, 4);
+  return `${d.getFullYear()}-W${String(1 + Math.round(((d - w1) / 864e5 - 3 + (w1.getDay() + 6) % 7) / 7)).padStart(2, '0')}`; }
+/* Шаблоны заданий: k — что считаем, n — цель [день, неделя], rw — награда [день, неделя] */
+const QUESTS = [
+  { k:'trips',  n:[[1, 2], [5, 8]],  rw:[[120000, 200000], [900000, 1400000]], t: n => `Сделайте ${n} ${pl(n, 'рейс', 'рейса', 'рейсов')} с машинами` },
+  { k:'cars',   n:[[6, 9], [30, 45]], rw:[[150000, 220000], [1000000, 1500000]], t: n => `Довезите ${n} ${pl(n, 'машину', 'машины', 'машин')}` },
+  { k:'profit', n:[[300000, 600000], [1000000, 1500000]], rw:[[200000, 300000], [1200000, 1800000]], t: n => `Закройте рейс с прибылью от ${rubS(n)}`, once: true },
+  { k:'profitSum', n:[[0, 0], [3000000, 5000000]], rw:[[0, 0], [1500000, 2200000]], t: n => `Заработайте за неделю ${rubS(n)} прибыли`, week: true },
+  { k:'clean',  n:[[1, 1], [3, 4]],  rw:[[150000, 200000], [1000000, 1300000]], t: n => n === 1 ? 'Рейс без штрафов: ни рамок АПВГК, ни ДПС, ни камер' : `${n} ${pl(n, 'рейс', 'рейса', 'рейсов')} без штрафов рамок, ДПС и камер` },
+  { k:'full',   n:[[1, 1], [3, 4]],  rw:[[200000, 250000], [1200000, 1500000]], t: n => n === 1 ? 'Погрузите полный автовоз — 9 машин' : `${n} ${pl(n, 'рейс', 'рейса', 'рейсов')} с полным автовозом — 9 машин` },
+  { k:'stars',  n:[[1, 1], [3, 4]],  rw:[[150000, 220000], [1000000, 1400000]], t: n => n === 1 ? 'Рейс на три звезды' : `${n} ${pl(n, 'рейс', 'рейса', 'рейсов')} на три звезды` },
+  { k:'jeep',   n:[[2, 3], [10, 15]], rw:[[150000, 200000], [900000, 1300000]], t: n => `Довезите ${n} ${pl(n, 'джип', 'джипа', 'джипов')} или ${pl(n, 'автобус', 'автобуса', 'автобусов')}` },
+  { k:'km',     n:[[5000, 9000], [30000, 45000]], rw:[[120000, 180000], [900000, 1300000]], t: n => `Проедьте ${n.toLocaleString('ru-RU')} км` },
+  { k:'msk',    n:[[1, 1], [2, 3]],  rw:[[180000, 250000], [1100000, 1500000]], t: n => n === 1 ? 'Довезите машины в Москву' : `${n} ${pl(n, 'рейс', 'рейса', 'рейсов')} с машинами в Москву` }
+];
+function makeQuests(key, week){
+  const r = seedRand('bt-q-' + key), i = week ? 1 : 0, pool = QUESTS.filter(q => q.n[i][1] > 0 && (!q.week || week)), out = [];
+  while (out.length < 3 && pool.length){
+    const q = pool.splice(Math.floor(r() * pool.length), 1)[0], [a, b] = q.n[i], [ra, rb] = q.rw[i];
+    const step = a >= 100000 ? 100000 : a >= 1000 ? 1000 : 1, n = Math.round((a + r() * (b - a)) / step) * step;
+    out.push({ k: q.k, n, rw: Math.round((ra + r() * (rb - ra)) / 10000) * 10000, prog: 0, claimed: false });
+  }
+  return out;
+}
+/* Набор заданий на сегодня и на эту неделю; при смене дня/недели — новые */
+function questsNow(s, now){
+  const Q = s.quests = s.quests || {}, d = dayKey(now), w = weekKey(now);
+  if (Q.day !== d){ Q.day = d; Q.daily = makeQuests(d, false); }
+  if (Q.week !== w){ Q.week = w; Q.weekly = makeQuests(w, true); }
+  return Q;
+}
+function questStep(q, res){
+  if (res.empty) return 0;
+  const clean = !res.fines && !res.flipN && !res.cams && !(res.events || []).some(e => e.kind === 'police' && e.cost && !e.bribe);
+  switch (q.k){
+    case 'trips': return 1;
+    case 'cars': return res.count || 0;
+    case 'profit': return res.profit >= q.n ? q.n : 0;
+    case 'profitSum': return Math.max(0, res.profit);
+    case 'clean': return clean ? 1 : 0;
+    case 'full': return res.count >= 9 ? 1 : 0;
+    case 'stars': return res.stars === 3 ? 1 : 0;
+    case 'jeep': return (res.classes || {}).jeep || 0;
+    case 'km': return res.D || 0;
+    case 'msk': return res.to === 'Москва' ? 1 : 0;
+  }
+  return 0;
+}
+function questAfterTrip(s, res, now){
+  const Q = questsNow(s, now), done = [];
+  for (const q of Q.daily.concat(Q.weekly)){ if (q.prog >= q.n) continue; q.prog = Math.min(q.n, q.prog + questStep(q, res)); if (q.prog >= q.n) done.push(q); }
+  return done;
+}
+function questText(q){ const T = QUESTS.find(x => x.k === q.k); return T ? T.t(q.n) : q.k; }
+function claimQuest(s, list, i){
+  const q = (s.quests || {})[list] && s.quests[list][i];
+  if (!q || q.claimed || q.prog < q.n) return null;
+  q.claimed = true; s.balance += q.rw; s.stats.quests = (s.stats.quests || 0) + q.rw; return q;
+}
+/* Достижения: проверка после рейса и при покупках; награда сразу в кассу */
+const ACHIEVEMENTS = [
+  { id:'first',    ic:'truck', name:'Первый рейс', d:'Довезти первую партию машин', rw:100000, ok:(s, r) => s.stats.trips >= 1 },
+  { id:'trips10',  ic:'road',  name:'Дальнобойщик', d:'10 рейсов с машинами', rw:500000, ok:s => s.stats.trips >= 10 },
+  { id:'trips50',  ic:'road',  name:'Ветеран трассы', d:'50 рейсов с машинами', rw:2000000, ok:s => s.stats.trips >= 50 },
+  { id:'full',     ic:'load',  name:'Под завязку', d:'Погрузить 9 машин в один рейс', rw:300000, ok:(s, r) => r && r.count >= 9 },
+  { id:'profit1m', ic:'coin',  name:'Миллионный рейс', d:'Прибыль за один рейс от 1 млн ₽', rw:500000, ok:(s, r) => r && r.profit >= 1000000 },
+  { id:'rich10',   ic:'coin',  name:'Миллионер', d:'10 млн ₽ в кассе', rw:1000000, ok:s => s.balance >= 10000000 },
+  { id:'rich50',   ic:'coin',  name:'Транспортный магнат', d:'50 млн ₽ в кассе', rw:3000000, ok:s => s.balance >= 50000000 },
+  { id:'clean10',  ic:'shield', name:'Чистая история', d:'10 рейсов подряд без штрафов рамок АПВГК', rw:1000000, ok:s => (s.ach.cleanRun || 0) >= 10 },
+  { id:'permit',   ic:'shield', name:'Всё по закону', d:'Оформить разрешение на негабарит', rw:100000, ok:s => (s.stats.permits || 0) > 0 },
+  { id:'fleet3',   ic:'truck', name:'Свой автопарк', d:'3 сцепки в автопарке', rw:1000000, ok:s => (s.fleet || []).length >= 3 },
+  { id:'fleet10',  ic:'truck', name:'Логистическая компания', d:'10 сцепок в автопарке', rw:5000000, ok:s => (s.fleet || []).length >= 10 },
+  { id:'km100k',   ic:'road',  name:'Сто тысяч', d:'Проехать 100 000 км', rw:1500000, ok:s => s.stats.km >= 100000 },
+  { id:'moscow',   ic:'pin',   name:'Через всю страну', d:'Довезти машины из Владивостока в Москву', rw:300000, ok:(s, r) => r && !r.empty && r.from === 'Владивосток' && r.to === 'Москва' },
+  { id:'south',    ic:'pin',   name:'На юг', d:'Довезти машины из Владивостока в Краснодар', rw:300000, ok:(s, r) => r && !r.empty && r.from === 'Владивосток' && r.to === 'Краснодар' },
+  { id:'regular',  ic:'driver', name:'Свой человек', d:'Стать постоянным перевозчиком у логиста', rw:200000, ok:s => !!(s.lg && s.lg.regular) },
+  { id:'flip10',   ic:'flip',  name:'Ловкость рук', d:'10 рейсов с откидной рамкой без единого протокола', rw:700000, ok:s => (s.ach.flipRun || 0) >= 10 },
+  { id:'tuned',    ic:'wrench', name:'Красавец', d:'Поставить весь тюнинг для красоты', rw:300000, ok:s => ['led', 'bars', 'visors', 'rims'].every(t => (s.tune || []).includes(t)) }
+];
+function achCheck(s, res){
+  const A = s.ach = Object.assign({ got: {}, cleanRun: 0, flipRun: 0 }, s.ach || {}), out = [];
+  if (res && !res.empty){
+    A.cleanRun = res.fines ? 0 : (A.cleanRun || 0) + 1;
+    if ((s.tune || []).includes('flip')) A.flipRun = res.flipN ? 0 : (A.flipRun || 0) + 1;
+  }
+  for (const a of ACHIEVEMENTS) if (!A.got[a.id] && a.ok(s, res)){ A.got[a.id] = s.date; s.balance += a.rw; s.stats.achRw = (s.stats.achRw || 0) + a.rw; out.push(a); }
+  return out;
+}
+
 /* ---------- Биржа: логисты ---------- */
 const LOGISTS = CONFIG.logists;
 /* Каждый заказ — от одного из логистов: своя ставка; Саня Кореец — одна ставка без рынка; кто перестал работать — заказов не даёт */
@@ -3404,7 +3514,8 @@ function settleTrip(st, plan, accepted){
     else { const ref = 9 * tariffOf(key, 'jeep', st.rates), th = CONFIG.stars[st.mode]; stars = profit >= th[0]*ref ? 3 : profit >= th[1]*ref ? 2 : profit > 0 ? 1 : 0; }
   }
   const flipN = police.filter(p => p.flip).length, flipLost = police.some(p => p.flip === 'lost');
-  return { lg, flipN, flipLost, route:key, from:R.from, to:R.to, empty, D, events, income, carIncome: ev.income, pickupIncome, pickups: taken.length, fuel, liters, sly, econ, platon, driver, driverId: drv.id,
+  const classes = {}; for (const p of ev.all || []) if (p.fits) classes[p.car.cls] = (classes[p.car.cls] || 0) + 1;
+  return { classes, lg, flipN, flipLost, route:key, from:R.from, to:R.to, empty, D, events, income, carIncome: ev.income, pickupIncome, pickups: taken.length, fuel, liters, sly, econ, platon, driver, driverId: drv.id,
     tires, tireChange, tireNeed, maint, fixCost, fix: fix || null, extraDays, rig: plan.rig ? Object.assign({}, plan.rig) : null, rigBefore: st.rig ? Object.assign({}, st.rig) : null,
     forcedN: breaks.filter(b => b.forced).length, died: !!plan.died, fixed, police: policeCost, policeN: police.length, cams: camFines, camsN: cams.length, fines, reshuffle: towCost, towN, shuffleN, shuffleH, repairs, lateLoss, delayH, days, norm,
     frames: frames.map(f => ({ km:f.km, road:f.road, place:f.place, fine:f.fine, permit:f.permit })), permitAll: frames.length > 0 && frames.every(f => f.permit),
@@ -3462,6 +3573,7 @@ function applyTrip(s, res){
   S.profit += res.profit; S.fines += res.fines + res.police + (res.cams || 0); S.taxes += tx.total; S.pickups = (S.pickups || 0) + (res.pickups || 0); S.repairs = (S.repairs || 0) + (res.repairs || 0);
   if (res.sly){ s.known = Object.assign({}, s.known, { [res.driverId]: true }); }
   logistAfterTrip(s, res);
+  res.questDone = questAfterTrip(s, res, Date.now());
   // откидная рамка: протоколы на водителя; второй — лишение прав, водитель больше не работает
   if (res.flipN){
     const crew = s.crew = Object.assign({}, s.crew || {}), c = crew[res.driverId] = Object.assign({}, crew[res.driverId]);
@@ -3480,6 +3592,7 @@ function applyTrip(s, res){
   // лизинг: платежи 10-го числа, которые прошли за рейс, — из кассы после рейса
   res.leaseLog = leaseTick(s, s.date);
   fleetAfterTrip(s, res);
+  res.achNew = achCheck(s, res);
   return s;
 }
 
@@ -4969,6 +5082,12 @@ function renderGarage(full){
   $('#garagePermit').hidden = fresh || over;
   $('#garageShop').hidden = fresh || over;
   $('#garageExchange').hidden = fresh || over;
+  $('#garageQuests').hidden = fresh || over;
+  if (!fresh && !over){
+    // достижения за покупки (автопарк, тюнинг, разрешение) — проверяем и в гараже
+    const got = achCheck(s, null); if (got.length){ writeSave(); renderHud(); setTimeout(() => achToast(got), 300); }
+    $('#garageQuests').innerHTML = questsHTML();
+  }
   if (!fresh && !over) $('#garageExchange').innerHTML = exchangeHTML();
   if (!fresh && !over) $('#garageShop').innerHTML = shopHTML();
   $('#garageStatus').hidden = fresh;
@@ -5098,6 +5217,60 @@ function fleetHTML(){
       <h4 class="shop-sub">С пробегом</h4><div class="shop-grid">${USED_TRUCKS.map(T => row(T, true)).join('')}</div>`;
   }
   return h;
+}
+/* Задания дня и недели, достижения, рейтинг игроков */
+let lbCache = null, lbBusy = false;
+function achToast(list){ if (list.length) toast(`★ Достижение: ${list.map(a => `«${a.name}» +${rub(a.rw)}`).join(', ')}`); Sfx.play('cash'); }
+function questsHTML(){
+  const s = ms(), tab = state.qTab || 'quests', now = Date.now(), Q = questsNow(s, now), A = s.ach || { got: {} };
+  const gotN = ACHIEVEMENTS.filter(a => A.got && A.got[a.id]).length;
+  const ready = Q.daily.concat(Q.weekly).filter(q => q.prog >= q.n && !q.claimed).length;
+  const tabs = `<div class="shop-tabs" role="tablist">${[['quests', `Задания${ready ? ` · ${ready}` : ''}`], ['ach', `Достижения ${gotN}/${ACHIEVEMENTS.length}`], ['lb', 'Рейтинг']].map(([k, n]) =>
+    `<button type="button" role="tab" class="${tab === k ? 'on' : ''}" aria-selected="${tab === k}" data-action="qTab" data-tab="${k}">${n}</button>`).join('')}</div>`;
+  let h = `<div class="panel-h"><h3>Задания и рейтинг</h3>${tabs}</div>`;
+  if (tab === 'quests'){
+    const endDay = new Date(now); endDay.setHours(24, 0, 0, 0);
+    const left = t => { const m = Math.max(0, Math.round((t - now) / 60000)), d = Math.floor(m / 1440), hh = Math.floor(m % 1440 / 60); return d ? `${d} дн. ${hh} ч` : `${hh} ч ${m % 60} мин`; };
+    const endWeek = new Date(endDay); endWeek.setDate(endWeek.getDate() + (7 - (new Date(now).getDay() + 6) % 7) - 1);
+    const row = (q, list, i) => { const pct = Math.round(Math.min(1, q.prog / q.n) * 100), done = q.prog >= q.n, num = v => q.n >= 1000 ? fmt(v) : v;
+      return `<div class="q-row ${q.claimed ? 'claimed' : done ? 'done' : ''}"><div class="q-t"><b>${esc(questText(q))}</b><span class="small muted">${num(q.prog)} из ${num(q.n)} · награда ${rub(q.rw)}</span>
+        <i class="q-bar"><b style="width:${pct}%"></b></i></div>${q.claimed ? `<span class="pill ok">получено</span>` : done ? `<button class="btn sm primary" type="button" data-action="qClaim" data-list="${list}" data-i="${i}">${ic('coin')}Забрать</button>` : `<span class="small muted">${pct}%</span>`}</div>`; };
+    h += `<h4 class="shop-sub">Задания дня <span class="small muted">· новые через ${left(endDay.getTime())}</span></h4>${Q.daily.map((q, i) => row(q, 'daily', i)).join('')}
+      <h4 class="shop-sub">Задания недели <span class="small muted">· новые через ${left(endWeek.getTime())}</span></h4>${Q.weekly.map((q, i) => row(q, 'weekly', i)).join('')}
+      <p class="small muted">Задания одинаковые у всех игроков и меняются по реальному календарю. Прогресс считается после каждого рейса.</p>`;
+  } else if (tab === 'ach'){
+    h += `<div class="ach-grid">${ACHIEVEMENTS.map(a => { const g = A.got && A.got[a.id];
+      return `<div class="ach ${g ? 'got' : ''}"><span class="ach-ic">${ic(a.ic)}</span><b>${esc(a.name)}</b><span class="small">${esc(a.d)}</span><span class="small ${g ? 'pos' : 'muted'}">${g ? `получено · +${rub(a.rw)}` : `награда ${rub(a.rw)}`}</span></div>`; }).join('')}</div>`;
+  } else {
+    const by = state.lbBy || 'capital', lbs = [['capital', 'Капитал'], ['best', 'Лучший рейс'], ['fleet', 'Автопарк'], ['trips', 'Рейсы']];
+    h += `<div class="lb-by">${lbs.map(([k, n]) => `<button type="button" class="btn sm ${by === k ? 'primary' : ''}" data-action="lbBy" data-by="${k}">${n}</button>`).join('')}</div>`;
+    if (!AUTH.api) h += `<p class="small muted">Рейтинг игроков работает на сайте brookcleangame.online после входа в аккаунт.</p>`;
+    else if (!save.auth) h += `<p class="small muted">Войдите в аккаунт, чтобы попасть в рейтинг. <button class="linkbtn" type="button" data-action="gateOpen">Войти</button></p>`;
+    else if (lbBusy && !lbCache) h += `<p class="small muted">Загружаем рейтинг…</p>`;
+    else if (lbCache && lbCache.error) h += `<p class="small neg">Не удалось загрузить рейтинг: ${esc(lbCache.error)}</p>`;
+    else if (lbCache && lbCache.by === by && lbCache.mode === state.mode){
+      const val = r => by === 'capital' || by === 'best' ? rub(r.value) : fmt(r.value);
+      h += `<table class="ptable lb"><thead><tr><td>#</td><td>Игрок</td><td>${lbs.find(x => x[0] === by)[1]}</td></tr></thead><tbody>${lbCache.top.map((r, i) =>
+        `<tr class="${r.me ? 'me' : ''}"><td>${i + 1}</td><td>${esc(r.login)}${r.me ? ' (вы)' : ''}</td><td>${val(r)}</td></tr>`).join('') || '<tr><td colspan="3">Пока никого — будьте первым</td></tr>'}</tbody></table>
+        ${lbCache.me && lbCache.me.rank > lbCache.top.length ? `<p class="small">Ваше место: <b>${lbCache.me.rank}</b> · ${val(lbCache.me)}</p>` : ''}
+        <p class="small muted">Режим «${state.mode === 'easy' ? 'Стажёр' : 'Профи'}» · результат обновляется после каждого рейса.</p>`;
+    } else { h += `<p class="small muted">Загружаем рейтинг…</p>`; loadLeaders(); }
+  }
+  return h;
+}
+async function loadLeaders(){
+  if (lbBusy || !AUTH.api || !save.auth) return;
+  lbBusy = true; const by = state.lbBy || 'capital', mode = state.mode;
+  try { const d = await api(`/leaders?mode=${mode}&by=${by}`); lbCache = { by, mode, top: d.top || [], me: d.me || null }; }
+  catch(e){ lbCache = { by, mode, error: e.message }; }
+  lbBusy = false; if (state.screen === 'garage') $('#garageQuests').innerHTML = questsHTML();
+}
+/* Результат игрока для рейтинга: после рейса, если вошёл в аккаунт */
+function submitScore(){
+  if (!AUTH.api || !save.auth) return;
+  const s = ms(); if (!s || !s.rig) return;
+  api('/score', { method:'PUT', body: JSON.stringify({ mode: state.mode, capital: Math.round(s.balance), best: Math.round((s.best || [0])[0] || 0), fleet: (s.fleet || [1]).length, trips: s.stats.trips || 0 }) })
+    .then(() => { lbCache = null; }).catch(() => {});
 }
 /* Биржа: логисты, их ставки и надёжность, отношения с вами */
 function exchangeHTML(){
@@ -6624,6 +6797,9 @@ function commitTrip(res){
   const before = s.best[0];
   applyTrip(s, res);
   if (res.lgNotes && res.lgNotes.length) setTimeout(() => toast(res.lgNotes.join('. '), 'bad'), RM ? 0 : 1800);
+  if (res.achNew && res.achNew.length) setTimeout(() => achToast(res.achNew), RM ? 0 : 3200);
+  if (res.questDone && res.questDone.length) setTimeout(() => toast(`✓ Задание выполнено: ${res.questDone.map(questText).join('; ')} — заберите награду в гараже`), RM ? 0 : 4600);
+  setTimeout(submitScore, 500);
   res.isRecord = !res.empty && res.profit > 0 && s.best[0] === res.profit && res.profit !== before;
   state.balance = s.balance; save.updatedAt = Date.now();
   writeSave(); syncCloud();
@@ -7049,6 +7225,9 @@ document.addEventListener('click', e => {
   if (a === 'adjPermit'){ if (adjCtl) adjCtl.permit(); return; }
   if (a === 'adjBack'){ if (adjCtl) adjCtl.back(); return; }
   if (a === 'bingePick'){ if (bingeCtl) bingeCtl.pick(b.dataset.c, b.dataset.id); return; }
+  if (a === 'qTab'){ state.qTab = b.dataset.tab; Sfx.play('click'); if (state.qTab === 'lb') lbCache = null; $('#garageQuests').innerHTML = questsHTML(); return; }
+  if (a === 'lbBy'){ state.lbBy = b.dataset.by; lbCache = null; Sfx.play('click'); $('#garageQuests').innerHTML = questsHTML(); return; }
+  if (a === 'qClaim'){ const q = claimQuest(ms(), b.dataset.list, +b.dataset.i); if (!q) return; writeSave(); syncCloud(); Sfx.play('cash'); toast(`Награда за задание: +${rub(q.rw)}`); renderHud(); $('#garageQuests').innerHTML = questsHTML(); return; }
   if (a === 'lgPick'){ state.lgPick = b.dataset.id || null; Sfx.play('click'); renderMarket(); return; }
   if (a === 'fleetSel'){
     const i = +b.dataset.i, s = ms(); if (i === s.cur) return;

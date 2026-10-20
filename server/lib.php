@@ -22,5 +22,14 @@ function db(): PDO {
     created INTEGER NOT NULL,
     expires INTEGER NOT NULL)');
   $pdo->exec('CREATE TABLE IF NOT EXISTS fails (ip TEXT NOT NULL, at INTEGER NOT NULL)');
+  $pdo->exec('CREATE TABLE IF NOT EXISTS scores (
+    user_id INTEGER NOT NULL,
+    mode TEXT NOT NULL,
+    capital INTEGER NOT NULL DEFAULT 0,
+    best INTEGER NOT NULL DEFAULT 0,
+    fleet INTEGER NOT NULL DEFAULT 1,
+    trips INTEGER NOT NULL DEFAULT 0,
+    updated INTEGER NOT NULL,
+    PRIMARY KEY (user_id, mode))');
   return $pdo;
 }

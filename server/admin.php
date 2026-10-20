@@ -35,6 +35,7 @@ if ($authed) {
   $q = $db->prepare('SELECT created FROM users WHERE created >= ?'); $q->execute([$day0 - 29 * 86400]);
   foreach ($q as $r) { $k = date('Y-m-d', (int)$r['created']); if (isset($byDay[$k])) $byDay[$k]++; }
   $max = max(1, max($byDay));
+  $leaders = $db->query("SELECT u.login, s.mode, s.capital, s.best, s.fleet, s.trips FROM scores s JOIN users u ON u.id = s.user_id ORDER BY s.capital DESC LIMIT 10")->fetchAll();
   // последние аккаунты и их прогресс из сохранения
   $users = $db->query('SELECT id, login, created, last_seen, logins, save, save_at FROM users ORDER BY id DESC LIMIT 200')->fetchAll();
   if (isset($_GET['csv'])) {
@@ -102,6 +103,10 @@ input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10
   <div class="card"><b>Регистрации по дням, 30 дней</b>
     <div class="bars"><?php foreach ($byDay as $d => $n): ?><div style="height:<?= round($n / $max * 100) ?>%" title="<?= $h(date('d.m', strtotime($d))) ?>: <?= $n ?>"><?php if ($n): ?><span><?= $n ?></span><?php endif; ?></div><?php endforeach; ?></div>
     <div class="axis"><span><?= $h(date('d.m', strtotime(array_key_first($byDay)))) ?></span><span>сегодня</span></div></div>
+  <div class="card"><b>Топ-10 по капиталу</b>
+    <table><thead><tr><th>#</th><th>Логин</th><th>Режим</th><th>Касса</th><th>Лучший рейс</th><th>Сцепок</th><th>Рейсов</th></tr></thead><tbody>
+    <?php foreach ($leaders as $i => $r): ?><tr><td><?= $i + 1 ?></td><td><?= $h($r['login']) ?></td><td><?= $r['mode'] === 'hard' ? 'Профи' : 'Стажёр' ?></td><td><?= number_format($r['capital'], 0, ',', ' ') ?> ₽</td><td><?= number_format($r['best'], 0, ',', ' ') ?> ₽</td><td><?= (int)$r['fleet'] ?></td><td><?= (int)$r['trips'] ?></td></tr><?php endforeach; if (!$leaders): ?><tr><td colspan="7" class="muted">Пока нет результатов</td></tr><?php endif; ?>
+    </tbody></table></div>
   <div class="card"><b>Аккаунты</b> <span class="muted">последние <?= count($users) ?></span>
     <table><thead><tr><th>#</th><th>Логин</th><th>Создан</th><th>Последний вход</th><th>Входов</th><th>Рейсов</th><th>Касса</th><th>Сохранение</th></tr></thead><tbody>
     <?php foreach ($users as $u): [$trips, $bal] = $prog($u['save']); ?>

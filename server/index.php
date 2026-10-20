@@ -90,6 +90,26 @@ try {
     db()->prepare('UPDATE users SET save = ?, save_at = ? WHERE id = ?')->execute([$json, time(), $u['id']]);
     out(['ok' => true]);
   }
+  // рейтинг: результат игрока по режиму (после каждого рейса) и топ-50
+  if ($path === '/score' && $method === 'PUT') {
+    $u = me(); $b = body(); $mode = ($b['mode'] ?? '') === 'hard' ? 'hard' : 'easy';
+    $n = fn($k, $max) => max(-$max, min($max, (int)($b[$k] ?? 0)));
+    db()->prepare('INSERT INTO scores (user_id, mode, capital, best, fleet, trips, updated) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(user_id, mode) DO UPDATE SET capital = excluded.capital, best = MAX(best, excluded.best), fleet = excluded.fleet, trips = excluded.trips, updated = excluded.updated')
+      ->execute([$u['id'], $mode, $n('capital', 10_000_000_000), max(0, $n('best', 1_000_000_000)), max(1, min(10, $n('fleet', 10))), max(0, $n('trips', 1_000_000)), time()]);
+    out(['ok' => true]);
+  }
+  if ($path === '/leaders' && $method === 'GET') {
+    $u = me(); $mode = ($_GET['mode'] ?? '') === 'hard' ? 'hard' : 'easy';
+    $by = in_array($_GET['by'] ?? '', ['capital', 'best', 'fleet', 'trips'], true) ? $_GET['by'] : 'capital';
+    $q = db()->prepare("SELECT s.user_id, u.login, s.$by AS value FROM scores s JOIN users u ON u.id = s.user_id WHERE s.mode = ? ORDER BY s.$by DESC, s.updated ASC LIMIT 50");
+    $q->execute([$mode]); $top = [];
+    foreach ($q as $r) $top[] = ['login' => $r['login'], 'value' => (int)$r['value'], 'me' => (int)$r['user_id'] === (int)$u['id']];
+    $mine = db()->prepare("SELECT $by FROM scores WHERE user_id = ? AND mode = ?"); $mine->execute([$u['id'], $mode]); $v = $mine->fetchColumn();
+    $me = null;
+    if ($v !== false) { $r = db()->prepare("SELECT COUNT(*) FROM scores WHERE mode = ? AND $by > ?"); $r->execute([$mode, $v]); $me = ['rank' => (int)$r->fetchColumn() + 1, 'value' => (int)$v]; }
+    out(['top' => $top, 'me' => $me, 'by' => $by, 'mode' => $mode]);
+  }
   if ($path === '/' || $path === '/ping') out(['ok' => true, 'service' => 'brookclean-trucks']);
   fail('Не найдено', 404);
 } catch (Throwable $e) {
