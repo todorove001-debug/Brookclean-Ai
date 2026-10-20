@@ -5087,6 +5087,7 @@ function renderGarage(full){
     // достижения за покупки (автопарк, тюнинг, разрешение) — проверяем и в гараже
     const got = achCheck(s, null); if (got.length){ writeSave(); renderHud(); setTimeout(() => achToast(got), 300); }
     $('#garageQuests').innerHTML = questsHTML();
+    submitScore();
   }
   if (!fresh && !over) $('#garageExchange').innerHTML = exchangeHTML();
   if (!fresh && !over) $('#garageShop').innerHTML = shopHTML();
@@ -5253,7 +5254,7 @@ function questsHTML(){
       h += `<table class="ptable lb"><thead><tr><td>#</td><td>Игрок</td><td>${lbs.find(x => x[0] === by)[1]}</td></tr></thead><tbody>${lbCache.top.map((r, i) =>
         `<tr class="${r.me ? 'me' : ''}"><td>${i + 1}</td><td>${esc(r.login)}${r.me ? ' (вы)' : ''}</td><td>${val(r)}</td></tr>`).join('') || '<tr><td colspan="3">Пока никого — будьте первым</td></tr>'}</tbody></table>
         ${lbCache.me && lbCache.me.rank > lbCache.top.length ? `<p class="small">Ваше место: <b>${lbCache.me.rank}</b> · ${val(lbCache.me)}</p>` : ''}
-        <p class="small muted">Режим «${state.mode === 'easy' ? 'Стажёр' : 'Профи'}» · результат обновляется после каждого рейса.</p>`;
+        <p class="small muted">Режим «${state.mode === 'easy' ? 'Стажёр' : 'Профи'}» · в рейтинге игроки, которые вошли в аккаунт и начали игру в этом режиме; результат обновляется после каждого рейса.</p>`;
     } else { h += `<p class="small muted">Загружаем рейтинг…</p>`; loadLeaders(); }
   }
   return h;
@@ -5266,11 +5267,17 @@ async function loadLeaders(){
   lbBusy = false; if (state.screen === 'garage') $('#garageQuests').innerHTML = questsHTML();
 }
 /* Результат игрока для рейтинга: после рейса, если вошёл в аккаунт */
-function submitScore(){
+// отправляем оба режима, где игрок уже начал игру; при входе и открытии гаража — не чаще раза в минуту
+let scoreAt = 0;
+function submitScore(force){
   if (!AUTH.api || !save.auth) return;
-  const s = ms(); if (!s || !s.rig) return;
-  api('/score', { method:'PUT', body: JSON.stringify({ mode: state.mode, capital: Math.round(s.balance), best: Math.round((s.best || [0])[0] || 0), fleet: (s.fleet || [1]).length, trips: s.stats.trips || 0 }) })
-    .then(() => { lbCache = null; }).catch(() => {});
+  if (!force && Date.now() - scoreAt < 60000) return;
+  scoreAt = Date.now();
+  for (const mode of ['easy', 'hard']){
+    const s = save[mode]; if (!s || !s.rig) continue;
+    api('/score', { method:'PUT', body: JSON.stringify({ mode, capital: Math.round(s.balance), best: Math.round((s.best || [0])[0] || 0), fleet: (s.fleet || [1]).length, trips: s.stats.trips || 0 }) })
+      .then(() => { lbCache = null; }).catch(() => {});
+  }
 }
 /* Биржа: логисты, их ставки и надёжность, отношения с вами */
 function exchangeHTML(){
@@ -6799,7 +6806,7 @@ function commitTrip(res){
   if (res.lgNotes && res.lgNotes.length) setTimeout(() => toast(res.lgNotes.join('. '), 'bad'), RM ? 0 : 1800);
   if (res.achNew && res.achNew.length) setTimeout(() => achToast(res.achNew), RM ? 0 : 3200);
   if (res.questDone && res.questDone.length) setTimeout(() => toast(`✓ Задание выполнено: ${res.questDone.map(questText).join('; ')} — заберите награду в гараже`), RM ? 0 : 4600);
-  setTimeout(submitScore, 500);
+  setTimeout(() => submitScore(true), 500);
   res.isRecord = !res.empty && res.profit > 0 && s.best[0] === res.profit && res.profit !== before;
   state.balance = s.balance; save.updatedAt = Date.now();
   writeSave(); syncCloud();
@@ -7041,7 +7048,7 @@ async function api(path, opts){
 }
 function onLogin(d){
   save.auth = { token: d.token, user: d.user || {} }; writeSave(); authMsg = ''; authStep = 'email';
-  toast('Вы вошли'); pullCloud(true);
+  toast('Вы вошли'); pullCloud(true); setTimeout(() => submitScore(true), 2500);
 }
 async function pullCloud(auto){
   if (!AUTH.api || !save.auth) return;
