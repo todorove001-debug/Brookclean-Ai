@@ -906,6 +906,18 @@ u.fine{background:var(--signal);border-radius:1px!important}
 .fl-card .fl-s svg{width:14px;height:14px}
 .shop{margin-top:16px}
 .lgx{margin-top:16px}
+.shop-more{margin-top:14px}.shop-more>summary{cursor:pointer;font-weight:700;font-size:15px}
+.sec-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.howto-d{margin-top:18px;border:2px solid var(--line);border-radius:var(--r-lg);padding:8px 14px;background:var(--surface)}
+.howto-d>summary{cursor:pointer;font-weight:700;padding:4px 0}
+.gtabs{position:sticky;top:calc(var(--navh, 56px) + 4px);z-index:20;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:12px 0;padding:5px;border:2px solid var(--line);border-radius:var(--r-lg);background:var(--surface)}
+.gtabs::-webkit-scrollbar{display:none}
+.gtabs button{flex:1 0 auto;display:flex;align-items:center;justify-content:center;gap:6px;border:0;background:none;font:inherit;font-weight:600;padding:8px 12px;border-radius:var(--r);cursor:pointer;color:var(--ink-2);white-space:nowrap}
+.gtabs button svg{width:17px;height:17px}
+.gtabs button.on{background:var(--ink);color:var(--bg)}
+.gtabs button em{font-style:normal;font-size:11px;font-weight:700;background:var(--amber);color:#1B1300;border-radius:99px;padding:1px 6px}
+.gtabs + .panel,.gtabs ~ .rigrow{margin-top:0}
+@media (max-width:640px){.gtabs button span{font-size:13px}.gtabs button{padding:8px 9px}}
 .quest{margin-top:16px}
 .q-row{display:flex;align-items:center;gap:12px;justify-content:space-between;border:2px solid var(--line);border-radius:var(--r);padding:8px 12px;margin-top:8px;background:var(--surface)}
 .q-row.done{border-color:var(--ok)}.q-row.claimed{opacity:.6}
@@ -969,6 +981,12 @@ body.gated{overflow:hidden}
 .drv-mini.fired{display:flex;align-items:center;gap:6px}
 .drv-mini.fired .drv-h{display:flex;flex-direction:column;line-height:1.15}
 .drv-mini.fired em{font-style:normal;font-size:11px;color:var(--signal)}
+@media (max-width:640px){
+  .shop-grid,.ach-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .shop-card{padding:9px 10px;gap:5px}.shop-card .sc-p{font-size:16px}.shop-card .sc-f{grid-template-columns:1fr;font-size:12px}
+  .shop-card p.small{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;font-size:12px}
+  .ach{padding:8px 9px}.fl-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
 </style>
 
 <div id="app">
@@ -1014,17 +1032,19 @@ body.gated{overflow:hidden}
       <div class="startbox" id="garageStart" hidden></div>
       <div class="panel fleet" id="garageFleet"></div>
       <div class="garage-status" id="garageStatus"></div>
+      <div class="gtabs" id="garageTabs" role="tablist" aria-label="Разделы гаража"></div>
       <div class="rigrow" id="garageRigRow"><div class="panel rigpanel" id="garageRig"></div><div class="panel calpanel" id="garageCal"></div></div>
       <div class="permitbar" id="garagePermit"></div>
       <div class="panel quest" id="garageQuests"></div>
       <div class="panel lgx" id="garageExchange"></div>
       <div class="panel shop" id="garageShop"></div>
       <div id="garagePlay">
-        <h2 class="sec-h">Водитель</h2>
-        <div class="drivers" id="driverPick" role="radiogroup" aria-label="Водитель"></div>
         <h2 class="sec-h" id="routesH">Куда едем</h2>
         <div class="route-cards" id="routeCards"></div>
+        <div class="sec-row"><h2 class="sec-h">Водитель</h2><button class="linkbtn" type="button" data-action="drvFull" id="drvFullBtn">Подробнее о водителях</button></div>
+        <div class="drivers" id="driverPick" role="radiogroup" aria-label="Водитель"></div>
       </div>
+      <details class="howto-d" id="howtoBox"><summary>Экипаж и как играть</summary>
       <h2 class="sec-h">Экипаж</h2>
       <div class="crew" id="crewIntro"></div>
       <h2 class="sec-h">Как играть</h2>
@@ -1038,6 +1058,7 @@ body.gated{overflow:hidden}
         <li>Оформите разрешение на негабарит на 3 месяца — иначе каждая рамка АПВГК на трассе штрафует за габарит. Штраф можно обжаловать, а если первая рамка оштрафовала за высоту — встать на стоянке и опустить секции.</li>
         <li>В рейс: рамки АПВГК, ДПС, поломки, выгрузка и попутные грузы по городам. После рейса — налоги, взносы и прибыль в кабинете.</li>
       </ol>
+      </details>
     </section>
 
     <section id="scrGame" hidden>
@@ -5092,14 +5113,33 @@ function renderGarage(full){
   if (!fresh && !over) $('#garageExchange').innerHTML = exchangeHTML();
   if (!fresh && !over) $('#garageShop').innerHTML = shopHTML();
   $('#garageStatus').hidden = fresh;
-  if (fresh || over) return;
+  $('#garageTabs').hidden = fresh || over;
+  if (fresh || over){ const hero = $('#scrGarage .hero'); if (hero) hero.hidden = false; return; }
   $('#garageRig').innerHTML = rigHTML();
   $('#garageCal').innerHTML = calendarHTML();
   $('#garagePermit').innerHTML = permitHTML('permitG');
-  $('#driverPick').innerHTML = driverCards();
+  // водители в гараже — компактно (имя, скорость, ставка); подробные карточки по кнопке
+  $('#driverPick').classList.toggle('drvrow', !state.drvFull);
+  $('#driverPick').innerHTML = state.drvFull ? driverCards() : driverCards(true);
+  $('#drvFullBtn').textContent = state.drvFull ? 'Свернуть' : 'Подробнее о водителях';
+  { const hb = $('#howtoBox'); if (hb && !hb.dataset.init){ hb.open = !s.rig; hb.dataset.init = '1'; } }
   const ks = routesFrom(s.loc);
   $('#routesH').textContent = ks.some(k => routeOf(k).kind === 'empty') ? `Загрузки ${inCity(s.loc)} нет — перегон порожняком` : `Куда едем ${fromCity(s.loc)}`;
   $('#routeCards').innerHTML = ks.map(routeCard).join('');
+  garageTabs(s);
+}
+/* Гараж по вкладкам: на экране один раздел, страница не растягивается вниз */
+const GTABS = [['trip', 'Рейс', 'road', ['garagePlay']], ['rig', 'Сцепка', 'wrench', ['garageRigRow', 'garagePermit']], ['fleet', 'Автопарк', 'truck', ['garageFleet']],
+  ['quests', 'Задания', 'star', ['garageQuests']], ['exchange', 'Биржа', 'driver', ['garageExchange']], ['shop', 'Магазин', 'coin', ['garageShop']]];
+function garageTabs(s){
+  const tab = GTABS.some(t => t[0] === state.gTab) ? state.gTab : 'trip';
+  const Q = s.quests || {}, ready = (Q.daily || []).concat(Q.weekly || []).filter(q => q.prog >= q.n && !q.claimed).length;
+  const badge = { quests: ready || '', rig: toOverdue(s.rig) ? '!' : '', fleet: s.fleet && s.fleet.length > 1 ? s.fleet.length : '' };
+  $('#garageTabs').hidden = false;
+  $('#garageTabs').innerHTML = GTABS.map(([k, n, i]) => `<button type="button" role="tab" class="${tab === k ? 'on' : ''}" aria-selected="${tab === k}" data-action="gTab" data-tab="${k}">${ic(i)}<span>${n}</span>${badge[k] ? `<em>${badge[k]}</em>` : ''}</button>`).join('');
+  for (const [k, , , ids] of GTABS) for (const id of ids) $('#' + id).hidden = k !== tab;
+  // после начала игры большая заставка не нужна — сразу к делу
+  const hero = $('#scrGarage .hero'); if (hero) hero.hidden = !!s.rig;
 }
 
 /* ---------- Начало игры, сцепка, лизинг, календарь ---------- */
@@ -5318,7 +5358,7 @@ function shopHTML(){
         ${mine ? '<span class="pill ok">ваш тягач</span>' : `<button class="btn sm ${can ? 'primary' : ''}" type="button" data-action="buyTruck" data-id="${T.id}" ${can ? '' : 'disabled'}>${ic('coin')}${armed ? `Точно? −${mln(Math.max(0, net))}` : 'Купить'}</button>`}</div>`;
     };
     h += `<h4 class="shop-sub">Новые тягачи</h4><div class="shop-grid">${TRUCKS.map(T => card(T, false)).join('')}</div>`;
-    h += `<h4 class="shop-sub">С пробегом</h4><p class="small muted">Дешевле, но после рейса почти всегда что-нибудь просят, а мотор ближе к капремонту (${fmt(CONFIG.service.overhaul.km)} км).</p><div class="shop-grid">${USED_TRUCKS.map(T => card(T, true)).join('')}</div>`;
+    h += `<details class="shop-more"><summary>С пробегом · ${USED_TRUCKS.length} тягачей от ${mln(Math.min(...USED_TRUCKS.map(T => T.price)))}</summary><p class="small muted">Дешевле, но после рейса почти всегда что-нибудь просят, а мотор ближе к капремонту (${fmt(CONFIG.service.overhaul.km)} км).</p><div class="shop-grid">${USED_TRUCKS.map(T => card(T, true)).join('')}</div></details>`;
   } else {
     const group = (g, title, note) => `<h4 class="shop-sub">${title}</h4><p class="small muted">${note}</p><div class="shop-grid">${CONFIG.tuning.filter(t => t.group === g).map(t => {
       const on = have.has(t.id), can = !on && s.balance >= t.price;
@@ -7232,6 +7272,8 @@ document.addEventListener('click', e => {
   if (a === 'adjPermit'){ if (adjCtl) adjCtl.permit(); return; }
   if (a === 'adjBack'){ if (adjCtl) adjCtl.back(); return; }
   if (a === 'bingePick'){ if (bingeCtl) bingeCtl.pick(b.dataset.c, b.dataset.id); return; }
+  if (a === 'drvFull'){ state.drvFull = !state.drvFull; Sfx.play('click'); renderGarage(false); return; }
+  if (a === 'gTab'){ state.gTab = b.dataset.tab; Sfx.play('click'); renderGarage(false); const t = $('#garageTabs'); if (t && t.getBoundingClientRect().top < 0) t.scrollIntoView({ block: 'start' }); return; }
   if (a === 'qTab'){ state.qTab = b.dataset.tab; Sfx.play('click'); if (state.qTab === 'lb') lbCache = null; $('#garageQuests').innerHTML = questsHTML(); return; }
   if (a === 'lbBy'){ state.lbBy = b.dataset.by; lbCache = null; Sfx.play('click'); $('#garageQuests').innerHTML = questsHTML(); return; }
   if (a === 'qClaim'){ const q = claimQuest(ms(), b.dataset.list, +b.dataset.i); if (!q) return; writeSave(); syncCloud(); Sfx.play('cash'); toast(`Награда за задание: +${rub(q.rw)}`); renderHud(); $('#garageQuests').innerHTML = questsHTML(); return; }
