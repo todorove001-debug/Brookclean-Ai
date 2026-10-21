@@ -1,0 +1,13 @@
+[Unit]
+Description=Brookclean (сайт клиента и API)
+After=network.target
+
+[Service]
+User=brookclean
+WorkingDirectory=/opt/brookclean
+EnvironmentFile=/opt/brookclean/.env
+ExecStart=/usr/bin/npm start
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
