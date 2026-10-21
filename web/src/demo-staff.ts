@@ -1,7 +1,8 @@
 // Демо панели управления: примерные заявки и рейсы, вход под любой ролью с паролем «demo».
 import {
-  BODY, ROLES, can, isRole, kmTo, normalizePhone, parseRub, quote, routeFor, validateCar, validateCustomer,
-  type CarForm, type CustomerForm, type OrderRowView, type OrderStatus, type Permission, type Role, type StaffMe, type TripView,
+  BODY, EXPENSE_KINDS, NET, ROLES, can, isRole, kmTo, normalizePhone, parseRub, quote, routeFor, validateCar, validateCustomer,
+  type CarForm, type CustomerForm, type OrderRowView, type ExpenseKind, type OrderStatus, type Permission, type Role, type StaffMe,
+  type TripCar, type TripExpense, type TripReport, type TripView,
 } from "@brookclean/shared";
 
 type Res = { status: number; data: unknown };
@@ -15,6 +16,7 @@ const users = [
   { id: 2, name: "Анна", login: "manager", role: "manager" as Role, active: true, createdAt: "2026-10-02T00:00:00Z" },
   { id: 3, name: "Ирина", login: "accountant", role: "accountant" as Role, active: true, createdAt: "2026-10-03T00:00:00Z" },
   { id: 4, name: "Ольга", login: "acceptor", role: "acceptor" as Role, active: true, createdAt: "2026-10-04T00:00:00Z" },
+  { id: 5, name: "Сергей", login: "driver", role: "driver" as Role, active: true, createdAt: "2026-10-05T00:00:00Z" },
 ];
 let me: StaffMe | null = null;
 
@@ -30,6 +32,7 @@ function seedRow(no: number, date: string, car: string, vin: string, year: numbe
 }
 
 const rows: Row[] = [
+  seedRow(685, "2026-10-21T10:05:00Z", "Mazda CX-5", "KF5P-451207", 2022, "Красный", "cross", "Иркутск", "Дорохова Елена Сергеевна", "+79025550071", 0, 2600000, null, null),
   seedRow(684, "2026-10-21T09:10:00Z", "Toyota Yaris", "KSP210-0089458", 2023, "Белый", "sedan", "Новосибирск", "Юферов Павел Юрьевич", "+79135550053", 5000, 1000000, null, "R-01"),
   seedRow(683, "2026-10-21T08:40:00Z", "Toyota Yaris", "KSP210-0094312", 2023, "Чёрный", "sedan", "Кемерово", "Юферов Павел Юрьевич", "+79135550053", 5000, 1000000, null, "R-01"),
   seedRow(682, "2026-10-21T07:15:00Z", "Toyota Corolla Cross", "ZVG11-1068109", 2023, "Белый", "cross", "Краснодар", "Бойков Андрей Алексеевич", "+79605550036", 10000, 3000000, "Роман · Монстеркар", "R-02"),
@@ -41,15 +44,19 @@ const rows: Row[] = [
     { paidDelivery: true, payTo: "Ким", payForm: "перевод" }),
 ];
 
-const trips: TripView[] = [
-  { id: "R-01", dest: "Новосибирск", truck: "Volvo FH · А 482 КР 125", driver: "Сергей", loadDate: "2026-10-21", km: 760, status: "in_transit",
-    orders: [], driveUrl: null, driveError: null, driveSyncedAt: null,
-    events: [{ at: "2026-10-20T20:10:00Z", city: "Владивосток", note: "Погружен, выехал" }, { at: "2026-10-21T08:40:00Z", city: "Хабаровск", note: "В пути" }] },
-  { id: "R-02", dest: "Краснодар", truck: "Scania R · В 117 ОМ 125", driver: "Алексей", loadDate: "2026-10-23", km: 0, status: "loading",
-    orders: [], driveUrl: null, driveError: null, driveSyncedAt: null, events: [] },
-  { id: "R-03", dest: "Москва", truck: "MAN TGX · Е 905 УА 125", driver: "Дмитрий", loadDate: "2026-10-24", km: 0, status: "loading",
-    orders: [], driveUrl: null, driveError: null, driveSyncedAt: null, events: [] },
+type DemoTrip = Omit<TripView, "status" | "orders" | "expensesTotal" | "editable"> & { expenses: TripExpense[] };
+const blank = { driverId: null, odometerStart: null, odometerEnd: null, closedAt: null, driveUrl: null, driveError: null, driveSyncedAt: null };
+const trips: DemoTrip[] = [
+  { ...blank, id: "R-01", dest: "Новосибирск", truck: "Volvo FH · А 482 КР 125", driver: "Сергей", driverId: 5, loadDate: "2026-10-21", km: 760, odometerStart: 412300,
+    events: [{ at: "2026-10-20T20:10:00Z", city: "Владивосток", note: "Погружен, выехал" }, { at: "2026-10-21T08:40:00Z", city: "Хабаровск", note: "В пути" }],
+    expenses: [
+      { id: 1, at: "2026-10-20T20:30:00Z", kind: "fuel", amount: 21600, liters: 300, note: "АЗС Роснефть, Владивосток", by: "Сергей" },
+      { id: 2, at: "2026-10-21T08:55:00Z", kind: "parking", amount: 400, liters: null, note: "Стоянка, Хабаровск", by: "Сергей" },
+    ] },
+  { ...blank, id: "R-02", dest: "Краснодар", truck: "Scania R · В 117 ОМ 125", driver: "Алексей", loadDate: "2026-10-23", km: 0, events: [], expenses: [] },
+  { ...blank, id: "R-03", dest: "Москва", truck: "MAN TGX · Е 905 УА 125", driver: "Дмитрий", loadDate: "2026-10-24", km: 0, events: [], expenses: [] },
 ];
+let expenseId = 10;
 
 const reviews = [
   { no: 671, client: "Петров Илья Сергеевич", phone: "+79145550012", rating: 2, text: "Задержали на неделю, никто не предупредил.", createdAt: "2026-10-18T10:00:00Z" },
@@ -68,10 +75,45 @@ function view(r: Row): OrderRowView {
   const { fio, fullPhone, ...rest } = r;
   return { ...rest, client: personal ? fio : shortName(fio), phone: personal ? fullPhone : maskPhone(fullPhone) };
 }
-function tripView(t: TripView): TripView {
+const canSee = (t: DemoTrip) => !!me && (can(me.role, "trips.read") || (can(me.role, "trips.driver") && t.driverId === me.id));
+const canEdit = (t: DemoTrip) => !!me && (can(me.role, "trips.edit") || (can(me.role, "trips.driver") && t.driverId === me.id && !t.closedAt));
+function tripView(t: DemoTrip): TripView {
   const status = t.km >= kmTo(t.dest) && t.km > 0 ? "arrived" : t.km > 0 ? "in_transit" : "loading";
-  return { ...t, status, orders: rows.filter((r) => r.tripId === t.id).map((r) => r.no).sort() };
+  const { expenses, ...rest } = t;
+  return { ...rest, status, orders: rows.filter((r) => r.tripId === t.id).map((r) => r.no).sort(), expensesTotal: expenses.reduce((s, e) => s + e.amount, 0), editable: canEdit(t) };
 }
+const STATUS_RU: Record<string, string> = { signed: "Подписан", paid: "Оплачен", loading: "Погрузка", in_transit: "В пути", arrived: "Прибыл", delivered: "Выдан" };
+function report(t: DemoTrip): TripReport {
+  const finance = can(me!.role, "reports.read");
+  const cars = rows.filter((r) => r.tripId === t.id).sort((a, b) => a.no - b.no).map((r): TripCar => {
+    const base = { no: r.no, car: r.car, vin: r.vin, year: r.year, color: r.color, city: r.city, km: kmTo(r.city), client: shortName(r.fio), phone: maskPhone(r.fullPhone), status: STATUS_RU[r.status] ?? r.status };
+    return finance ? { ...base, delivery: r.delivery, insurance: r.insurance, total: r.total, paidDelivery: r.paidDelivery, paidInsurance: r.paidInsurance, payTo: r.payTo, payForm: r.payForm } : base;
+  });
+  const byKind: TripReport["totals"]["byKind"] = {};
+  for (const e of t.expenses) byKind[e.kind] = (byKind[e.kind] ?? 0) + e.amount;
+  const sum = (f: (c: TripCar) => number) => cars.reduce((s, c) => s + f(c), 0);
+  return {
+    trip: tripView(t), cars, expenses: t.expenses, finance,
+    totals: {
+      cars: cars.length, expenses: t.expenses.reduce((s, e) => s + e.amount, 0), byKind,
+      fuelLiters: t.expenses.reduce((s, e) => s + (e.liters ?? 0), 0),
+      mileage: t.odometerStart !== null && t.odometerEnd !== null ? t.odometerEnd - t.odometerStart : null,
+      ...(finance ? { delivery: sum((c) => c.delivery!), insurance: sum((c) => c.insurance!),
+        unpaid: sum((c) => (c.paidDelivery ? 0 : c.delivery!) + (c.paidInsurance ? 0 : c.insurance!)) } : {}),
+    },
+  };
+}
+const needAny = (...ps: Permission[]) => (!me ? fail(401, "Войдите в панель") : !ps.some((p) => can(me!.role, p)) ? fail(403, "Нет доступа к этому разделу") : null);
+/** Рейс из адреса с проверкой доступа, как на сервере. */
+function tripFor(id: string, edit: boolean): DemoTrip | Res {
+  const denied = needAny("trips.read", "trips.driver");
+  if (denied) return denied;
+  const t = trips.find((x) => x.id === id);
+  if (!t || !canSee(t)) return fail(404, "Рейс не найден");
+  if (edit && !canEdit(t)) return fail(403, t.closedAt ? "Рейс закрыт" : "Нет доступа к этому рейсу");
+  return t;
+}
+const isRes = (x: DemoTrip | Res): x is Res => "status" in x && "data" in x;
 const need = (p: Permission) => (!me ? fail(401, "Войдите в панель") : !can(me.role, p) ? fail(403, "Нет доступа к этому разделу") : null);
 
 export function demoStaffFetch(path: string, method: string, body: any): Res {
@@ -111,25 +153,88 @@ export function demoStaffFetch(path: string, method: string, body: any): Res {
     return ok(view(r));
   }
 
-  if (path === "/api/staff/trips") return need("trips.read") ?? ok(trips.map(tripView));
-  if ((m = /^\/api\/staff\/trips\/([\w-]+)$/.exec(path)) && method === "PUT") {
-    const denied = need("trips.edit");
+  if (path === "/api/staff/trips" && method === "GET")
+    return needAny("trips.read", "trips.driver") ?? ok(trips.filter(canSee).sort((a, b) => Number(!!a.closedAt) - Number(!!b.closedAt)).map(tripView));
+  if (path === "/api/staff/drivers") return need("trips.edit") ?? ok(users.filter((u) => u.role === "driver" && u.active).map(({ id, name }) => ({ id, name })));
+  if (path === "/api/staff/trips" && method === "POST") {
+    const denied = needAny("trips.edit", "trips.driver");
     if (denied) return denied;
-    let t = trips.find((x) => x.id === m![1]);
-    if (!t) trips.unshift((t = { id: m[1], dest: body.dest, truck: "", driver: "", loadDate: null, km: 0, status: "loading", orders: [], driveUrl: null, driveError: null, driveSyncedAt: null, events: [] }));
-    Object.assign(t, { dest: body.dest, truck: body.truck, driver: body.driver, loadDate: body.loadDate || null });
+    if (!NET[body?.dest] || !String(body?.truck ?? "").trim()) return fail(400, "Укажите город назначения и автовоз");
+    const manager = can(me!.role, "trips.edit");
+    const d = manager && body.driverId ? users.find((u) => u.id === Number(body.driverId) && u.role === "driver") : undefined;
+    let n = trips.length + 1;
+    while (trips.some((t) => t.id === `R-${String(n).padStart(2, "0")}`)) n++;
+    const t: DemoTrip = { ...blank, id: `R-${String(n).padStart(2, "0")}`, dest: body.dest, truck: body.truck.trim(),
+      driver: manager ? d?.name ?? String(body.driver ?? "").trim() : me!.name, driverId: manager ? d?.id ?? null : me!.id,
+      loadDate: body.loadDate || null, km: 0, odometerStart: body.odometerStart ?? null, events: [], expenses: [] };
+    trips.unshift(t);
+    return ok(tripView(t));
+  }
+  if ((m = /^\/api\/staff\/trips\/([\w-]+)$/.exec(path)) && method === "PATCH") {
+    const reopening = body?.closed === false;
+    if (reopening && !can(me!.role, "trips.edit")) return fail(403, "Открыть закрытый рейс может менеджер");
+    const t = tripFor(m[1], !reopening);
+    if (isRes(t)) return t;
+    const start = "odometerStart" in body ? body.odometerStart : t.odometerStart;
+    const end = "odometerEnd" in body ? body.odometerEnd : t.odometerEnd;
+    if (start !== null && end !== null && end < start) return fail(400, "Одометр в конце меньше, чем в начале");
+    if (body.closed === true && end === null) return fail(400, "Перед закрытием укажите одометр в конце рейса");
+    Object.assign(t, { odometerStart: start, odometerEnd: end });
+    if (body.closed === true) t.closedAt = new Date().toISOString();
+    if (reopening) t.closedAt = null;
     return ok(tripView(t));
   }
   if ((m = /^\/api\/staff\/trips\/([\w-]+)\/position$/.exec(path))) {
-    const denied = need("trips.edit");
-    if (denied) return denied;
-    const t = trips.find((x) => x.id === m![1])!;
+    const t = tripFor(m[1], true);
+    if (isRes(t)) return t;
     if (!routeFor(t.dest).includes(body.city)) return fail(400, "Город не на маршруте рейса");
     t.km = kmTo(body.city);
     t.events.push({ at: new Date().toISOString(), city: body.city, note: body.note || (t.km ? "В пути" : "Погрузка") });
     for (const r of rows.filter((x) => x.tripId === t.id && x.status !== "delivered"))
       r.status = (t.km >= kmTo(r.city) ? "arrived" : t.km > 0 ? "in_transit" : "loading") as OrderStatus;
     return ok(tripView(t));
+  }
+  if ((m = /^\/api\/staff\/trips\/([\w-]+)\/report$/.exec(path))) {
+    const t = tripFor(m[1], false);
+    return isRes(t) ? t : ok(report(t));
+  }
+  if ((m = /^\/api\/staff\/trips\/([\w-]+)\/waiting$/.exec(path))) {
+    const t = tripFor(m[1], true);
+    if (isRes(t)) return t;
+    const route = routeFor(t.dest);
+    return ok(rows.filter((r) => !r.tripId && (r.status === "signed" || r.status === "paid") && route.includes(r.city))
+      .map((r) => ({ no: r.no, car: `${r.car} ${r.year}`, vin: r.vin, city: r.city, status: r.status })));
+  }
+  if ((m = /^\/api\/staff\/trips\/([\w-]+)\/cars$/.exec(path))) {
+    const t = tripFor(m[1], true);
+    if (isRes(t)) return t;
+    const r = rows.find((x) => x.no === Number(body?.no));
+    if (!r) return fail(404, "Заявка не найдена");
+    if (body.load) {
+      if (r.tripId) return fail(409, "Машина уже в рейсе " + r.tripId);
+      r.tripId = t.id;
+      r.status = "loading";
+    } else {
+      r.tripId = null;
+      if (r.status === "loading") r.status = "signed";
+    }
+    return ok(tripView(t));
+  }
+  if ((m = /^\/api\/staff\/trips\/([\w-]+)\/expenses$/.exec(path))) {
+    const t = tripFor(m[1], true);
+    if (isRes(t)) return t;
+    const amount = Math.round(Number(body?.amount));
+    if (!(body?.kind in EXPENSE_KINDS)) return fail(400, "Выберите вид расхода");
+    if (!(amount > 0)) return fail(400, "Сумма в рублях больше нуля");
+    t.expenses.push({ id: ++expenseId, at: new Date().toISOString(), kind: body.kind as ExpenseKind, amount,
+      liters: body.kind === "fuel" && body.liters ? Number(body.liters) : null, note: String(body.note ?? "").trim(), by: me!.name });
+    return ok(report(t));
+  }
+  if ((m = /^\/api\/staff\/trips\/([\w-]+)\/expenses\/(\d+)$/.exec(path))) {
+    const t = tripFor(m[1], true);
+    if (isRes(t)) return t;
+    t.expenses = t.expenses.filter((e) => e.id !== Number(m![2]));
+    return ok(report(t));
   }
   if (path === "/api/staff/google") return need("reports.read") ?? ok({ configured: false, connected: false, folderUrl: null });
 

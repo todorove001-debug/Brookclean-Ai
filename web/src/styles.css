@@ -191,6 +191,7 @@ a.btn { display: flex; align-items: center; justify-content: center; text-align:
 .admin-login { padding-top: 40px; }
 .stack { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .self-start { align-self: flex-start; }
+.self-end { align-self: end; }
 .row-between { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .inline input, .inline select { border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 7px 9px; min-height: 36px; min-width: 0; flex: 1 1 140px; }
@@ -223,3 +224,14 @@ table.sheet.narrow { min-width: 640px; }
 .google.ok-border { border-color: var(--ok); }
 .stars-sm { color: var(--accent); letter-spacing: 2px; }
 .btn.sm { white-space: nowrap; }
+
+/* Рейсовый отчёт */
+.card.closed { opacity: .75; }
+.card h3 a { color: inherit; text-decoration: none; }
+.card h3 a:hover { text-decoration: underline; }
+.report h2 { font-size: 18px; }
+.report h4 { margin: 6px 0 0; font-size: 13px; font-weight: 600; color: var(--muted); }
+.waiting li { border: 1px dashed var(--line); border-radius: var(--r); padding: 8px 10px; gap: 8px; flex-wrap: wrap; }
+.history { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.expense-form { align-items: end; }
+.report .kpis { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }

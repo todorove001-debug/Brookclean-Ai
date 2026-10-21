@@ -57,7 +57,22 @@ export function openDb(file: string, orderNoStart: number): DB {
       km INTEGER NOT NULL DEFAULT 0,
       drive_file_id TEXT,                -- рейсовый отчёт в Google Диске
       drive_synced_at TEXT,
-      drive_error TEXT
+      drive_error TEXT,
+      driver_id INTEGER,                 -- водитель-сотрудник: видит и ведёт этот рейс
+      odometer_start INTEGER,
+      odometer_end INTEGER,
+      closed_at TEXT,
+      created_by INTEGER
+    );
+    CREATE TABLE IF NOT EXISTS trip_expenses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      trip_id TEXT NOT NULL,
+      at TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      liters REAL,
+      note TEXT NOT NULL DEFAULT '',
+      staff_id INTEGER
     );
     CREATE TABLE IF NOT EXISTS payments (
       order_id TEXT PRIMARY KEY,
@@ -98,7 +113,13 @@ export function openDb(file: string, orderNoStart: number): DB {
     CREATE TABLE IF NOT EXISTS counters (name TEXT PRIMARY KEY, value INTEGER NOT NULL);
   `);
   db.prepare("INSERT OR IGNORE INTO counters (name, value) VALUES ('order_no', ?)").run(orderNoStart - 1);
+  db.prepare("INSERT OR IGNORE INTO counters (name, value) VALUES ('trip_no', 0)").run();
   return db;
+}
+
+export function nextTripNo(db: DB): number {
+  const row = db.prepare("UPDATE counters SET value = value + 1 WHERE name = 'trip_no' RETURNING value").get() as { value: number };
+  return row.value;
 }
 
 export function nextOrderNo(db: DB): number {

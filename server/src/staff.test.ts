@@ -129,3 +129,82 @@ test("рейсовый отчёт: CSV и загрузка в Google Диск", 
   await app.inject({ method: "POST", url: "/api/staff/trips/R-01/sync", headers: h });
   assert.ok(calls.some((c) => c.method === "PATCH" && c.url.includes("/files/sheet1")));
 });
+
+test("водитель заводит свой рейс, грузит машины, ведёт расходы и закрывает рейс", async () => {
+  const { app, sms, login } = setup();
+  const h = { cookie: (await login("owner@brookclean.ru", "owner-pass-1")).cookie };
+  const add = (name: string, l: string, role: string) =>
+    app.inject({ method: "POST", url: "/api/staff/users", headers: h, payload: { name, login: l, password: "driver-pass", role } });
+  await add("Сергей", "sergey", "driver");
+  await add("Пётр", "petr", "driver");
+  const dh = { cookie: (await login("sergey", "driver-pass")).cookie };
+  const ph = { cookie: (await login("petr", "driver-pass")).cookie };
+
+  // Подписанная заявка, ждёт погрузки
+  const { id, no } = (await app.inject({ method: "POST", url: "/api/staff/orders", headers: h, payload: { car, customer } })).json();
+  await app.inject({ method: "POST", url: `/api/orders/${id}/resend` });
+  const code = /: (\d{4})\./.exec(sms.sent.at(-1)!.text)![1];
+  await app.inject({ method: "POST", url: `/api/orders/${id}/sign`, payload: { code, consents: { contract: true, pep: true, personalData: true } } });
+
+  // Водителю закрыты заявки и сотрудники
+  assert.equal((await app.inject({ url: "/api/staff/orders", headers: dh })).statusCode, 403);
+  assert.equal((await app.inject({ method: "PUT", url: "/api/staff/trips/X-1", headers: dh, payload: { dest: "Омск", truck: "x" } })).statusCode, 403);
+
+  const created = await app.inject({ method: "POST", url: "/api/staff/trips", headers: dh,
+    payload: { dest: "Новосибирск", truck: "Volvo FH · А 482 КР 125", driver: "кто угодно", loadDate: "2026-10-21", odometerStart: 412300 } });
+  assert.equal(created.statusCode, 200);
+  const trip = created.json();
+  assert.equal(trip.id, "R-01");
+  assert.equal(trip.driver, "Сергей", "водитель всегда ставит себя");
+  assert.equal(trip.editable, true);
+
+  // Чужой водитель рейс не видит
+  assert.equal((await app.inject({ url: "/api/staff/trips", headers: ph })).json().length, 0);
+  assert.equal((await app.inject({ url: "/api/staff/trips/R-01/report", headers: ph })).statusCode, 404);
+  assert.equal((await app.inject({ url: "/api/staff/trips", headers: dh })).json().length, 1);
+
+  const waiting = (await app.inject({ url: "/api/staff/trips/R-01/waiting", headers: dh })).json();
+  assert.deepEqual(waiting.map((w: { no: number }) => w.no), [no]);
+  assert.equal((await app.inject({ method: "POST", url: "/api/staff/trips/R-01/cars", headers: dh, payload: { no, load: true } })).json().orders[0], no);
+  await app.inject({ method: "POST", url: "/api/staff/trips/R-01/position", headers: dh, payload: { city: "Хабаровск" } });
+
+  const fuel = await app.inject({ method: "POST", url: "/api/staff/trips/R-01/expenses", headers: dh, payload: { kind: "fuel", amount: 18500, liters: 250, note: "Хабаровск" } });
+  assert.equal(fuel.statusCode, 200);
+  await app.inject({ method: "POST", url: "/api/staff/trips/R-01/expenses", headers: dh, payload: { kind: "toll", amount: 1200 } });
+  assert.equal((await app.inject({ method: "POST", url: "/api/staff/trips/R-01/expenses", headers: dh, payload: { kind: "fuel", amount: -5 } })).statusCode, 400);
+
+  let report = (await app.inject({ url: "/api/staff/trips/R-01/report", headers: dh })).json();
+  assert.equal(report.finance, false, "водитель не видит суммы договоров");
+  assert.equal(report.cars[0].delivery, undefined);
+  assert.equal(report.totals.expenses, 19700);
+  assert.equal(report.totals.fuelLiters, 250);
+  const tollId = report.expenses.find((e: { kind: string }) => e.kind === "toll").id;
+  report = (await app.inject({ method: "DELETE", url: `/api/staff/trips/R-01/expenses/${tollId}`, headers: dh })).json();
+  assert.equal(report.totals.expenses, 18500);
+
+  // Закрыть рейс можно только с одометром в конце
+  assert.equal((await app.inject({ method: "PATCH", url: "/api/staff/trips/R-01", headers: dh, payload: { closed: true } })).statusCode, 400);
+  assert.equal((await app.inject({ method: "PATCH", url: "/api/staff/trips/R-01", headers: dh, payload: { odometerEnd: 400000 } })).statusCode, 400);
+  const closed = (await app.inject({ method: "PATCH", url: "/api/staff/trips/R-01", headers: dh, payload: { odometerEnd: 418050, closed: true } })).json();
+  assert.ok(closed.closedAt);
+  assert.equal(closed.editable, false);
+  assert.equal((await app.inject({ method: "POST", url: "/api/staff/trips/R-01/expenses", headers: dh, payload: { kind: "wash", amount: 500 } })).statusCode, 403);
+  assert.equal((await app.inject({ method: "PATCH", url: "/api/staff/trips/R-01", headers: dh, payload: { closed: false } })).statusCode, 403);
+
+  // Менеджер видит отчёт с деньгами и пробегом, может открыть рейс
+  report = (await app.inject({ url: "/api/staff/trips/R-01/report", headers: h })).json();
+  assert.equal(report.finance, true);
+  assert.equal(report.cars[0].delivery, 110000);
+  assert.equal(report.totals.mileage, 5750);
+  const csv = (await app.inject({ url: "/api/staff/trips/R-01/report.csv", headers: h })).body;
+  assert.ok(csv.includes("Расходы рейса") && csv.includes("Топливо") && csv.includes("Пробег, км"));
+  assert.ok(!csv.includes("556677"), "паспорта в отчёте нет");
+  assert.equal((await app.inject({ method: "PATCH", url: "/api/staff/trips/R-01", headers: h, payload: { closed: false } })).json().closedAt, null);
+
+  // Менеджер назначает водителя из списка
+  const drivers = (await app.inject({ url: "/api/staff/drivers", headers: h })).json();
+  assert.equal(drivers.length, 2);
+  const r2 = (await app.inject({ method: "POST", url: "/api/staff/trips", headers: h, payload: { dest: "Омск", truck: "Scania", driverId: drivers.find((d: { name: string }) => d.name === "Пётр").id } })).json();
+  assert.equal(r2.id, "R-02");
+  assert.equal((await app.inject({ url: "/api/staff/trips", headers: ph })).json()[0].id, "R-02");
+});

@@ -1,11 +1,15 @@
-import type { CarForm, CustomerForm, OrderRowView, OrderStatus, Quote, Role, StaffMe, TripView } from "@brookclean/shared";
+import type { CarForm, CustomerForm, ExpenseKind, OrderRowView, OrderStatus, Quote, Role, StaffMe, TripReport, TripView, WaitingCar } from "@brookclean/shared";
 import { call } from "../api.ts";
 
 export interface StaffUser { id: number; name: string; login: string; role: Role; active: boolean; createdAt: string }
 export interface ReviewRow { no: number; client: string; phone: string; rating: number; text: string; createdAt: string }
 export interface PartnerLink { token: string; partner: string; cashback: number; createdAt: string }
 export interface GoogleStatus { configured: boolean; connected: boolean; folderUrl: string | null }
+export interface NewTripBody { dest: string; truck: string; driver?: string; driverId?: number | null; loadDate?: string; odometerStart?: number | null }
+export type TripPatch = Partial<{ odometerStart: number | null; odometerEnd: number | null; closed: boolean }>;
 export type OrderPatch = Partial<{ status: OrderStatus; tripId: string | null; paidDelivery: boolean; paidInsurance: boolean; payTo: string; payForm: string }>;
+
+const trip = (id: string) => `/api/staff/trips/${encodeURIComponent(id)}`;
 
 export const staffApi = {
   me: () => call<StaffMe>("/api/staff/me"),
@@ -16,8 +20,15 @@ export const staffApi = {
   createOrder: (body: { car: CarForm; customer: CustomerForm; cashback?: number; partner?: string }) =>
     call<{ id: string; no: number; quote: Quote; signUrl: string; smsSent: boolean }>("/api/staff/orders", { body }),
   trips: () => call<TripView[]>("/api/staff/trips"),
-  saveTrip: (id: string, body: { dest: string; truck: string; driver: string; loadDate: string }) =>
-    call<TripView>(`/api/staff/trips/${encodeURIComponent(id)}`, { method: "PUT", body }),
+  createTrip: (body: NewTripBody) => call<TripView>("/api/staff/trips", { body }),
+  patchTrip: (id: string, body: TripPatch) => call<TripView>(`${trip(id)}`, { method: "PATCH", body }),
+  drivers: () => call<Array<{ id: number; name: string }>>("/api/staff/drivers"),
+  report: (id: string) => call<TripReport>(`${trip(id)}/report`),
+  waiting: (id: string) => call<WaitingCar[]>(`${trip(id)}/waiting`),
+  loadCar: (id: string, no: number, load: boolean) => call<TripView>(`${trip(id)}/cars`, { body: { no, load } }),
+  addExpense: (id: string, body: { kind: ExpenseKind; amount: number; liters?: number | null; note?: string }) =>
+    call<TripReport>(`${trip(id)}/expenses`, { body }),
+  deleteExpense: (id: string, eid: number) => call<TripReport>(`${trip(id)}/expenses/${eid}`, { method: "DELETE" }),
   position: (id: string, city: string, note: string) => call<TripView>(`/api/staff/trips/${encodeURIComponent(id)}/position`, { body: { city, note } }),
   syncTrip: (id: string) => call<TripView>(`/api/staff/trips/${encodeURIComponent(id)}/sync`, { method: "POST" }),
   google: () => call<GoogleStatus>("/api/staff/google"),

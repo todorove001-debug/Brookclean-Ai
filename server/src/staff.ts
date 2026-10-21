@@ -2,12 +2,12 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 import {
-  BODY, NET, PAY_FORM, PAY_TO, ROLES, can, isRole, kmTo, normalizePhone, parseRub, quote, rub, routeFor,
+  BODY, EXPENSE_KINDS, NET, PAY_FORM, PAY_TO, ROLES, can, isRole, kmTo, normalizePhone, parseRub, quote, rub, routeFor,
   validateCar, validateCustomer,
   type CarForm, type CustomerForm, type OrderRowView, type OrderStatus, type Permission, type Quote, type Role,
-  type StaffMe, type TripView,
+  type ExpenseKind, type StaffMe, type TripCar, type TripExpense, type TripReport, type TripView, type WaitingCar,
 } from "@brookclean/shared";
-import { nextOrderNo, type DB } from "./db.ts";
+import { nextOrderNo, nextTripNo, type DB } from "./db.ts";
 import { sha256 } from "./contract.ts";
 import { GoogleDrive, getSetting, sheetUrl, toCsv } from "./drive.ts";
 import type { SmsSender } from "./sms.ts";
@@ -57,6 +57,7 @@ interface OrderRow {
 interface TripRow {
   id: string; dest: string; truck: string; driver: string; load_date: string | null; km: number;
   drive_file_id: string | null; drive_synced_at: string | null; drive_error: string | null;
+  driver_id: number | null; odometer_start: number | null; odometer_end: number | null; closed_at: string | null;
 }
 
 declare module "fastify" {
@@ -102,6 +103,12 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
     return row ? meFor(row) : undefined;
   }
 
+  const needAny = (...perms: Permission[]) => async (req: FastifyRequest, reply: FastifyReply) => {
+    const me = authenticate(req);
+    if (!me) return reply.code(401).send({ error: "Войдите в панель" });
+    if (!perms.some((p) => can(me.role, p))) return reply.code(403).send({ error: "Нет доступа к этому разделу" });
+    req.staff = me;
+  };
   const need = (...perms: Permission[]) => async (req: FastifyRequest, reply: FastifyReply) => {
     const me = authenticate(req);
     if (!me) return reply.code(401).send({ error: "Войдите в панель" });
@@ -244,11 +251,19 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
     });
 
   // --- Рейсы ---
-  function tripView(t: TripRow): TripView {
+  // Менеджер видит и меняет все рейсы; водитель — только свои, и только пока рейс не закрыт.
+  const canSeeTrip = (me: StaffMe, t: TripRow) => can(me.role, "trips.read") || (can(me.role, "trips.driver") && t.driver_id === me.id);
+  const canEditTrip = (me: StaffMe, t: TripRow) =>
+    can(me.role, "trips.edit") || (can(me.role, "trips.driver") && t.driver_id === me.id && !t.closed_at);
+
+  function tripView(t: TripRow, me: StaffMe): TripView {
     const orders = (db.prepare("SELECT no FROM orders WHERE trip_id = ? ORDER BY no").all(t.id) as Array<{ no: number }>).map((x) => x.no);
     const events = db.prepare("SELECT at, city, note FROM trip_events WHERE trip_id = ? ORDER BY at").all(t.id) as TripView["events"];
+    const exp = (db.prepare("SELECT COALESCE(SUM(amount), 0) AS s FROM trip_expenses WHERE trip_id = ?").get(t.id) as { s: number }).s;
     return {
-      id: t.id, dest: t.dest, truck: t.truck, driver: t.driver, loadDate: t.load_date, km: t.km,
+      id: t.id, dest: t.dest, truck: t.truck, driver: t.driver, driverId: t.driver_id, loadDate: t.load_date, km: t.km,
+      odometerStart: t.odometer_start, odometerEnd: t.odometer_end, closedAt: t.closed_at, expensesTotal: exp,
+      editable: canEditTrip(me, t),
       status: t.km >= kmTo(t.dest) && t.km > 0 ? "arrived" : t.km > 0 ? "in_transit" : "loading",
       orders, driveUrl: t.drive_file_id ? sheetUrl(t.drive_file_id) : null, driveError: t.drive_error,
       driveSyncedAt: t.drive_synced_at, events,
@@ -256,26 +271,112 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
   }
   const getTrip = (id: string) => db.prepare("SELECT * FROM trips WHERE id = ?").get(id) as TripRow | undefined;
 
-  app.get("/api/staff/trips", { preHandler: need("trips.read") }, async () =>
-    (db.prepare("SELECT * FROM trips ORDER BY load_date DESC, id DESC").all() as unknown as TripRow[]).map(tripView));
+  /** Рейс по id из URL с проверкой доступа: на чтение или на изменение. */
+  function tripFor(req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply, edit: boolean) {
+    const t = getTrip(req.params.id);
+    if (!t || !canSeeTrip(req.staff!, t)) {
+      reply.code(404).send({ error: "Рейс не найден" });
+      return undefined;
+    }
+    if (edit && !canEditTrip(req.staff!, t)) {
+      reply.code(403).send({ error: t.closed_at ? "Рейс закрыт" : "Нет доступа к этому рейсу" });
+      return undefined;
+    }
+    return t;
+  }
 
-  app.put<{ Params: { id: string }; Body: { dest: string; truck: string; driver?: string; loadDate?: string } }>(
+  const tripsAccess = needAny("trips.read", "trips.driver");
+  const tripsWrite = needAny("trips.edit", "trips.driver");
+
+  app.get("/api/staff/trips", { preHandler: tripsAccess }, async (req) =>
+    (db.prepare("SELECT * FROM trips ORDER BY closed_at IS NOT NULL, load_date DESC, id DESC").all() as unknown as TripRow[])
+      .filter((t) => canSeeTrip(req.staff!, t)).map((t) => tripView(t, req.staff!)));
+
+  app.get("/api/staff/drivers", { preHandler: need("trips.edit") }, async () =>
+    db.prepare("SELECT id, name FROM staff WHERE role = 'driver' AND active = 1 ORDER BY name").all());
+
+  /** Данные рейса из формы; водитель всегда ставит в рейс себя. */
+  function tripInput(me: StaffMe, b: { dest?: string; truck?: string; driver?: string; driverId?: number | null; loadDate?: string; odometerStart?: number | string | null }) {
+    if (!b.dest || !NET[b.dest] || !b.truck?.trim()) return { error: "Укажите город назначения и автовоз" } as const;
+    let driverId: number | null = null;
+    let driver = (b.driver ?? "").trim();
+    if (!can(me.role, "trips.edit")) {
+      driverId = me.id;
+      driver = me.name;
+    } else if (b.driverId) {
+      const d = db.prepare("SELECT id, name FROM staff WHERE id = ? AND role = 'driver'").get(Number(b.driverId)) as { id: number; name: string } | undefined;
+      if (!d) return { error: "Водитель не найден" } as const;
+      driverId = d.id;
+      driver = d.name;
+    }
+    const odo = b.odometerStart === undefined || b.odometerStart === null || b.odometerStart === "" ? null : Math.round(Number(b.odometerStart));
+    if (odo !== null && !(odo >= 0)) return { error: "Одометр — число километров" } as const;
+    return { dest: b.dest, truck: b.truck.trim(), driver, driverId, loadDate: b.loadDate || null, odo } as const;
+  }
+
+  // Новый рейс с автономером R-N: его заводит менеджер или сам водитель
+  app.post<{ Body: { dest: string; truck: string; driver?: string; driverId?: number; loadDate?: string; odometerStart?: number } }>(
+    "/api/staff/trips", { preHandler: tripsWrite }, async (req, reply) => {
+      const f = tripInput(req.staff!, req.body ?? {});
+      if ("error" in f) return reply.code(400).send({ error: f.error });
+      let id = "";
+      do id = `R-${String(nextTripNo(db)).padStart(2, "0")}`; while (getTrip(id));
+      db.prepare(`INSERT INTO trips (id, dest, truck, driver, driver_id, load_date, odometer_start, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(id, f.dest, f.truck, f.driver, f.driverId, f.loadDate, f.odo, req.staff!.id || null);
+      audit(req, "trip.create", { id });
+      scheduleSync(id);
+      return tripView(getTrip(id)!, req.staff!);
+    });
+
+  // Рейс с заданным номером (как в старой таблице рейсов) — только менеджер
+  app.put<{ Params: { id: string }; Body: { dest: string; truck: string; driver?: string; driverId?: number; loadDate?: string; odometerStart?: number } }>(
     "/api/staff/trips/:id", { preHandler: need("trips.edit") }, async (req, reply) => {
-      const { dest, truck, driver, loadDate } = req.body ?? ({} as never);
       if (!/^[\w-]{1,20}$/.test(req.params.id)) return reply.code(400).send({ error: "Номер рейса: буквы, цифры и дефис" });
-      if (!NET[dest] || !truck?.trim()) return reply.code(400).send({ error: "Укажите город назначения и автовоз" });
-      db.prepare(`INSERT INTO trips (id, dest, truck, driver, load_date) VALUES (?, ?, ?, ?, ?)
-                  ON CONFLICT(id) DO UPDATE SET dest = excluded.dest, truck = excluded.truck, driver = excluded.driver, load_date = excluded.load_date`)
-        .run(req.params.id, dest, truck.trim(), (driver ?? "").trim(), loadDate || null);
+      const f = tripInput(req.staff!, req.body ?? {});
+      if ("error" in f) return reply.code(400).send({ error: f.error });
+      db.prepare(`INSERT INTO trips (id, dest, truck, driver, driver_id, load_date, odometer_start, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                  ON CONFLICT(id) DO UPDATE SET dest = excluded.dest, truck = excluded.truck, driver = excluded.driver,
+                  driver_id = excluded.driver_id, load_date = excluded.load_date, odometer_start = COALESCE(excluded.odometer_start, odometer_start)`)
+        .run(req.params.id, f.dest, f.truck, f.driver, f.driverId, f.loadDate, f.odo, req.staff!.id || null);
       audit(req, "trip.save", { id: req.params.id });
       scheduleSync(req.params.id);
-      return tripView(getTrip(req.params.id)!);
+      return tripView(getTrip(req.params.id)!, req.staff!);
+    });
+
+  // Одометр и закрытие рейса
+  app.patch<{ Params: { id: string }; Body: Partial<{ odometerStart: number | null; odometerEnd: number | null; closed: boolean }> }>(
+    "/api/staff/trips/:id", { preHandler: tripsAccess }, async (req, reply) => {
+      const b = req.body ?? {};
+      const reopening = b.closed === false;
+      const t = getTrip(req.params.id);
+      // Закрытый рейс может открыть только менеджер
+      if (t && reopening && !can(req.staff!.role, "trips.edit")) return reply.code(403).send({ error: "Открыть закрытый рейс может менеджер" });
+      const trip = tripFor(req, reply, !reopening);
+      if (!trip) return;
+      const num = (v: unknown) => (v === null || v === "" ? null : Math.round(Number(v)));
+      for (const [k, col] of [["odometerStart", "odometer_start"], ["odometerEnd", "odometer_end"]] as const) {
+        if (!(k in b)) continue;
+        const v = num(b[k]);
+        if (v !== null && !(v >= 0)) return reply.code(400).send({ error: "Одометр — число километров" });
+        db.prepare(`UPDATE trips SET ${col} = ? WHERE id = ?`).run(v, trip.id);
+      }
+      const fresh = getTrip(trip.id)!;
+      if (fresh.odometer_start !== null && fresh.odometer_end !== null && fresh.odometer_end < fresh.odometer_start)
+        return reply.code(400).send({ error: "Одометр в конце меньше, чем в начале" });
+      if (b.closed === true) {
+        if (fresh.odometer_end === null) return reply.code(400).send({ error: "Перед закрытием укажите одометр в конце рейса" });
+        db.prepare("UPDATE trips SET closed_at = ? WHERE id = ?").run(now().toISOString(), trip.id);
+      }
+      if (reopening) db.prepare("UPDATE trips SET closed_at = NULL WHERE id = ?").run(trip.id);
+      audit(req, "trip.update", { id: trip.id, ...b });
+      scheduleSync(trip.id);
+      return tripView(getTrip(trip.id)!, req.staff!);
     });
 
   app.post<{ Params: { id: string }; Body: { city: string; note?: string } }>(
-    "/api/staff/trips/:id/position", { preHandler: need("trips.edit") }, async (req, reply) => {
-      const trip = getTrip(req.params.id);
-      if (!trip) return reply.code(404).send({ error: "Рейс не найден" });
+    "/api/staff/trips/:id/position", { preHandler: tripsWrite }, async (req, reply) => {
+      const trip = tripFor(req, reply, true);
+      if (!trip) return;
       const city = req.body?.city;
       if (!routeFor(trip.dest).includes(city)) return reply.code(400).send({ error: "Город не на маршруте рейса" });
       const km = kmTo(city);
@@ -292,40 +393,147 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
       }
       audit(req, "trip.position", { id: trip.id, city });
       scheduleSync(trip.id);
-      return tripView(getTrip(trip.id)!);
+      return tripView(getTrip(trip.id)!, req.staff!);
     });
 
+  // --- Погрузка: подписанные машины без рейса, чей город на маршруте ---
+  app.get<{ Params: { id: string } }>("/api/staff/trips/:id/waiting", { preHandler: tripsWrite }, async (req, reply) => {
+    const trip = tripFor(req, reply, true);
+    if (!trip) return;
+    const route = new Set(routeFor(trip.dest));
+    const rows = db.prepare("SELECT no, car, status FROM orders WHERE trip_id IS NULL AND status IN ('signed', 'paid') ORDER BY no").all() as Array<{ no: number; car: string; status: string }>;
+    return rows.map((o) => ({ ...o, c: JSON.parse(o.car) as CarForm })).filter((o) => route.has(o.c.city))
+      .map((o): WaitingCar => ({ no: o.no, car: `${o.c.car} ${o.c.year}`, vin: o.c.vin.toUpperCase(), city: o.c.city, status: o.status }));
+  });
+
+  app.post<{ Params: { id: string }; Body: { no: number; load: boolean } }>("/api/staff/trips/:id/cars", { preHandler: tripsWrite }, async (req, reply) => {
+    const trip = tripFor(req, reply, true);
+    if (!trip) return;
+    const o = db.prepare("SELECT * FROM orders WHERE no = ?").get(Number(req.body?.no)) as OrderRow | undefined;
+    if (!o) return reply.code(404).send({ error: "Заявка не найдена" });
+    if (req.body.load) {
+      if (o.trip_id) return reply.code(409).send({ error: "Машина уже в рейсе " + o.trip_id });
+      if (!["signed", "paid"].includes(o.status)) return reply.code(409).send({ error: "Машину можно грузить только по подписанному договору" });
+      if (!routeFor(trip.dest).includes((JSON.parse(o.car) as CarForm).city)) return reply.code(400).send({ error: "Город машины не на маршруте" });
+      db.prepare("UPDATE orders SET trip_id = ?, status = 'loading' WHERE id = ?").run(trip.id, o.id);
+    } else {
+      if (o.trip_id !== trip.id) return reply.code(409).send({ error: "Машина не в этом рейсе" });
+      db.prepare("UPDATE orders SET trip_id = NULL, status = CASE WHEN status = 'loading' THEN 'signed' ELSE status END WHERE id = ?").run(o.id);
+    }
+    audit(req, req.body.load ? "trip.load" : "trip.unload", { id: trip.id, no: o.no });
+    scheduleSync(trip.id);
+    return tripView(getTrip(trip.id)!, req.staff!);
+  });
+
+  // --- Расходы рейса ---
+  app.post<{ Params: { id: string }; Body: { kind: ExpenseKind; amount: number; liters?: number | null; note?: string } }>(
+    "/api/staff/trips/:id/expenses", { preHandler: tripsWrite }, async (req, reply) => {
+      const trip = tripFor(req, reply, true);
+      if (!trip) return;
+      const { kind, note } = req.body ?? ({} as never);
+      const amount = Math.round(Number(req.body?.amount));
+      const liters = req.body?.liters ? Number(req.body.liters) : null;
+      if (!(kind in EXPENSE_KINDS)) return reply.code(400).send({ error: "Выберите вид расхода" });
+      if (!(amount > 0 && amount < 10_000_000)) return reply.code(400).send({ error: "Сумма в рублях больше нуля" });
+      if (liters !== null && !(liters > 0 && liters < 5000)) return reply.code(400).send({ error: "Литры — число больше нуля" });
+      db.prepare("INSERT INTO trip_expenses (trip_id, at, kind, amount, liters, note, staff_id) VALUES (?, ?, ?, ?, ?, ?, ?)")
+        .run(trip.id, now().toISOString(), kind, amount, kind === "fuel" ? liters : null, String(note ?? "").trim().slice(0, 300), req.staff!.id || null);
+      audit(req, "trip.expense", { id: trip.id, kind, amount });
+      scheduleSync(trip.id);
+      return buildReport(getTrip(trip.id)!, req.staff!);
+    });
+
+  app.delete<{ Params: { id: string; eid: string } }>("/api/staff/trips/:id/expenses/:eid", { preHandler: tripsWrite }, async (req, reply) => {
+    const trip = tripFor(req, reply, true);
+    if (!trip) return;
+    const r = db.prepare("DELETE FROM trip_expenses WHERE id = ? AND trip_id = ?").run(Number(req.params.eid), trip.id);
+    if (!r.changes) return reply.code(404).send({ error: "Расход не найден" });
+    audit(req, "trip.expense.delete", { id: trip.id, eid: req.params.eid });
+    scheduleSync(trip.id);
+    return buildReport(getTrip(trip.id)!, req.staff!);
+  });
+
   // --- Рейсовый отчёт ---
-  function tripReport(t: TripRow) {
+  /** finance: суммы перевозки и оплата — для ролей с reports.read; водителю не показываем. */
+  function buildReport(t: TripRow, me: StaffMe | null): TripReport {
+    const finance = !me || can(me.role, "reports.read");
     const orders = db.prepare("SELECT * FROM orders WHERE trip_id = ? ORDER BY no").all(t.id) as unknown as OrderRow[];
-    const rows = orders.map((o) => rowView(o, false));
-    const events = db.prepare("SELECT at, city, note FROM trip_events WHERE trip_id = ? ORDER BY at").all(t.id) as TripView["events"];
-    const last = events.at(-1);
+    const cars = orders.map((o): TripCar => {
+      const r = rowView(o, false);
+      const base: TripCar = { no: r.no, car: r.car, vin: r.vin, year: r.year, color: r.color, city: r.city, km: kmTo(r.city), client: r.client, phone: r.phone, status: STATUS_RU[r.status] ?? r.status };
+      return finance
+        ? { ...base, delivery: r.delivery, insurance: r.insurance, total: r.total, paidDelivery: r.paidDelivery, paidInsurance: r.paidInsurance, payTo: r.payTo, payForm: r.payForm }
+        : base;
+    });
+    const expenses = (db.prepare(`SELECT e.id, e.at, e.kind, e.amount, e.liters, e.note, COALESCE(s.name, '') AS by
+                                  FROM trip_expenses e LEFT JOIN staff s ON s.id = e.staff_id WHERE e.trip_id = ? ORDER BY e.at`).all(t.id)) as unknown as TripExpense[];
+    const byKind: TripReport["totals"]["byKind"] = {};
+    for (const e of expenses) byKind[e.kind] = (byKind[e.kind] ?? 0) + e.amount;
+    const sum = (f: (c: TripCar) => number) => cars.reduce((s, c) => s + f(c), 0);
+    const view = me ? tripView(t, me) : tripView(t, { id: 0, name: "", login: "", role: "owner", perms: [] });
+    return {
+      trip: view, cars, expenses, finance,
+      totals: {
+        cars: cars.length,
+        expenses: expenses.reduce((s, e) => s + e.amount, 0),
+        byKind,
+        fuelLiters: Math.round(expenses.reduce((s, e) => s + (e.liters ?? 0), 0) * 10) / 10,
+        mileage: t.odometer_start !== null && t.odometer_end !== null ? t.odometer_end - t.odometer_start : null,
+        ...(finance ? {
+          delivery: sum((c) => c.delivery ?? 0), insurance: sum((c) => c.insurance ?? 0),
+          unpaid: sum((c) => (c.paidDelivery ? 0 : c.delivery ?? 0) + (c.paidInsurance ? 0 : c.insurance ?? 0)),
+        } : {}),
+      },
+    };
+  }
+
+  /** Отчёт строками — для CSV и Google Таблицы. */
+  function reportRows(r: TripReport) {
+    const t = r.trip;
     const fmt = (iso: string) => new Date(iso).toLocaleString("ru-RU", { timeZone: "Asia/Vladivostok" });
-    const sum = (f: (r: OrderRowView) => number) => rows.reduce((s, r) => s + f(r), 0);
+    const last = t.events.at(-1);
+    const head = ["№", "Автомобиль", "VIN / кузов", "Год", "Цвет", "Город выдачи", "Км", "Получатель", "Телефон", "Статус"];
+    const money = ["Перевозка", "Страховка", "Итого", "Перевозка оплачена", "Страховка оплачена", "Кому", "Форма"];
     return [
       [`Рейсовый отчёт ${t.id}`, `Владивосток → ${t.dest}`],
-      ["Автовоз", t.truck], ["Водитель", t.driver || "—"], ["Дата погрузки", t.load_date ?? "—"],
+      ["Автовоз", t.truck], ["Водитель", t.driver || "—"], ["Дата погрузки", t.loadDate ?? "—"],
       ["Текущая точка", last ? `${last.city}, ${fmt(last.at)}` : "Владивосток, погрузка"],
-      ["Машин", rows.length], ["Обновлено", fmt(now().toISOString())],
+      ["Одометр в начале", t.odometerStart ?? "—"], ["Одометр в конце", t.odometerEnd ?? "—"], ["Пробег, км", r.totals.mileage ?? "—"],
+      ["Состояние", t.closedAt ? `закрыт ${fmt(t.closedAt)}` : "открыт"],
+      ["Машин", r.totals.cars], ["Расходы, ₽", r.totals.expenses], ["Топливо, л", r.totals.fuelLiters], ["Обновлено", fmt(now().toISOString())],
       [],
-      ["№", "Автомобиль", "VIN / кузов", "Год", "Цвет", "Кузов", "Город выдачи", "Км", "Получатель", "Телефон", "Перевозка", "Страховка", "Итого", "Перевозка оплачена", "Страховка оплачена", "Кому", "Форма", "Статус"],
-      ...rows.map((r) => [r.no, r.car, r.vin, r.year, r.color, r.body, r.city, kmTo(r.city), r.client, r.phone, r.delivery, r.insurance, r.total,
-        r.paidDelivery ? "да" : "нет", r.paidInsurance ? "да" : "нет", r.payTo, r.payForm, STATUS_RU[r.status] ?? r.status]),
-      ["Итого", "", "", "", "", "", "", "", "", "", sum((r) => r.delivery), sum((r) => r.insurance), sum((r) => r.total),
-        `не оплачено: ${rub(sum((r) => (r.paidDelivery ? 0 : r.delivery) + (r.paidInsurance ? 0 : r.insurance)))}`],
+      r.finance ? [...head, ...money] : head,
+      ...r.cars.map((c) => {
+        const row: Array<string | number> = [c.no, c.car, c.vin, c.year, c.color, c.city, c.km, c.client, c.phone, c.status];
+        return r.finance
+          ? [...row, c.delivery!, c.insurance!, c.total!, c.paidDelivery ? "да" : "нет", c.paidInsurance ? "да" : "нет", c.payTo ?? "", c.payForm ?? ""]
+          : row;
+      }),
+      ...(r.finance ? [["Итого", "", "", "", "", "", "", "", "", "", r.totals.delivery!, r.totals.insurance!, r.totals.delivery! + r.totals.insurance!,
+        `не оплачено: ${rub(r.totals.unpaid!)}`]] : []),
+      [],
+      ["Расходы рейса"],
+      ["Дата", "Вид", "Сумма, ₽", "Литры", "Комментарий", "Внёс"],
+      ...r.expenses.map((e) => [fmt(e.at), EXPENSE_KINDS[e.kind], e.amount, e.liters ?? "", e.note, e.by]),
+      ["Итого расходов", "", r.totals.expenses],
       [],
       ["История движения"],
-      ...events.map((e) => [fmt(e.at), e.city, e.note]),
+      ...t.events.map((e) => [fmt(e.at), e.city, e.note]),
     ];
   }
 
-  app.get<{ Params: { id: string } }>("/api/staff/trips/:id/report.csv", { preHandler: need("reports.read") }, async (req, reply) => {
-    const t = getTrip(req.params.id);
-    if (!t) return reply.code(404).send({ error: "Рейс не найден" });
+  app.get<{ Params: { id: string } }>("/api/staff/trips/:id/report", { preHandler: tripsAccess }, async (req, reply) => {
+    const t = tripFor(req, reply, false);
+    if (!t) return;
+    return buildReport(t, req.staff!);
+  });
+
+  app.get<{ Params: { id: string } }>("/api/staff/trips/:id/report.csv", { preHandler: tripsAccess }, async (req, reply) => {
+    const t = tripFor(req, reply, false);
+    if (!t) return;
     reply.header("content-type", "text/csv; charset=utf-8");
     reply.header("content-disposition", `attachment; filename="trip-${t.id}.csv"`);
-    return "﻿" + toCsv(tripReport(t)); // BOM — чтобы Excel открыл кириллицу
+    return "﻿" + toCsv(reportRows(buildReport(t, req.staff!))); // BOM — чтобы Excel открыл кириллицу
   });
 
   // Автозагрузка в Google Диск: после каждого изменения рейса, с задержкой, чтобы не дёргать Google на каждый клик
@@ -342,7 +550,7 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
     const t = getTrip(tripId);
     if (!t || !ctx.drive) return;
     try {
-      const id = await ctx.drive.upsertSheet(`Рейс ${t.id} · ${t.dest} · ${t.load_date ?? ""}`.trim(), toCsv(tripReport(t)), t.drive_file_id);
+      const id = await ctx.drive.upsertSheet(`Рейс ${t.id} · ${t.dest} · ${t.load_date ?? ""}`.trim(), toCsv(reportRows(buildReport(t, null))), t.drive_file_id);
       db.prepare("UPDATE trips SET drive_file_id = ?, drive_synced_at = ?, drive_error = NULL WHERE id = ?").run(id, now().toISOString(), t.id);
     } catch (e) {
       db.prepare("UPDATE trips SET drive_error = ? WHERE id = ?").run((e as Error).message, t.id);
@@ -358,7 +566,7 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
     } catch (e) {
       return reply.code(502).send({ error: (e as Error).message });
     }
-    return tripView(getTrip(req.params.id)!);
+    return tripView(getTrip(req.params.id)!, req.staff!);
   });
 
   // --- Google Диск: подключение владельцем ---

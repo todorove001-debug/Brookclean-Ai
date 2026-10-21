@@ -3,7 +3,7 @@ import { ROLES, type StaffMe } from "@brookclean/shared";
 import { ApiError } from "../api.ts";
 import { DEMO, navigate } from "../router.ts";
 import { staffApi } from "./api.ts";
-import { MODULES } from "./modules.tsx";
+import { visibleModules } from "./modules.tsx";
 
 export function AdminApp({ path }: { path: string }) {
   const [me, setMe] = useState<StaffMe | null | undefined>(undefined);
@@ -23,7 +23,7 @@ export function AdminApp({ path }: { path: string }) {
     </div>
   );
 
-  const allowed = MODULES.filter((m) => me.perms.includes(m.perm));
+  const allowed = visibleModules(me);
   const slug = path.split("?")[0].split("/")[2] ?? "";
   const current = allowed.find((m) => m.id === slug) ?? allowed[0];
   const Screen = current?.component;
@@ -44,12 +44,12 @@ export function AdminApp({ path }: { path: string }) {
         {allowed.map((m) => (
           <a key={m.id} href={`/admin/${m.id}`} aria-current={m === current ? "page" : undefined}
             onClick={(e) => { e.preventDefault(); navigate(`/admin/${m.id}`); }}>
-            {m.title}
+            {m.id === "trips" && me.role === "driver" ? "Мои рейсы" : m.title}
           </a>
         ))}
       </nav>
       <main className="admin-main">
-        {Screen ? <Screen me={me} /> : <p className="muted">Для вашей роли разделов пока нет.</p>}
+        {Screen ? <Screen me={me} path={path} /> : <p className="muted">Для вашей роли разделов пока нет.</p>}
       </main>
     </div>
   );
@@ -60,6 +60,7 @@ const DEMO_USERS = [
   { login: "manager", label: "Менеджер" },
   { login: "accountant", label: "Бухгалтер" },
   { login: "acceptor", label: "Приёмщик" },
+  { login: "driver", label: "Водитель" },
 ];
 
 function Login({ onDone }: { onDone: (me: StaffMe) => void }) {

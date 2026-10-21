@@ -10,17 +10,20 @@ import { StaffScreen } from "./Staff.tsx";
 export interface AdminModule {
   id: string;
   title: string;
-  /** Раздел виден только сотрудникам с этим правом (см. ROLES в shared/src/staff.ts). */
-  perm: Permission;
-  component: ComponentType<{ me: StaffMe }>;
+  /** Раздел виден сотрудникам хотя бы с одним из этих прав (см. ROLES в shared/src/staff.ts). */
+  perms: Permission[];
+  /** path — текущий адрес, для разделов со своими подстраницами (/admin/trips/R-01). */
+  component: ComponentType<{ me: StaffMe; path: string }>;
 }
 
 // Новый раздел панели: компонент + строка здесь + право в PERMISSIONS
+export const visibleModules = (me: StaffMe) => MODULES.filter((m) => m.perms.some((p) => me.perms.includes(p)));
+
 export const MODULES: AdminModule[] = [
-  { id: "orders", title: "Заявки", perm: "orders.read", component: OrdersScreen },
-  { id: "new", title: "Оформить заявку", perm: "orders.create", component: NewOrderScreen },
-  { id: "trips", title: "Рейсы и отчёты", perm: "trips.read", component: TripsScreen },
-  { id: "reviews", title: "Отзывы", perm: "reviews.read", component: ReviewsScreen },
-  { id: "partners", title: "Партнёры", perm: "partners.edit", component: PartnersScreen },
-  { id: "staff", title: "Сотрудники", perm: "staff.manage", component: StaffScreen },
+  { id: "orders", title: "Заявки", perms: ["orders.read"], component: OrdersScreen },
+  { id: "new", title: "Оформить заявку", perms: ["orders.create"], component: NewOrderScreen },
+  { id: "trips", title: "Рейсы и отчёты", perms: ["trips.read", "trips.driver"], component: TripsScreen },
+  { id: "reviews", title: "Отзывы", perms: ["reviews.read"], component: ReviewsScreen },
+  { id: "partners", title: "Партнёры", perms: ["partners.edit"], component: PartnersScreen },
+  { id: "staff", title: "Сотрудники", perms: ["staff.manage"], component: StaffScreen },
 ];

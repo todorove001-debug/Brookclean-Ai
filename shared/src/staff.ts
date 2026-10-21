@@ -8,6 +8,7 @@ export const PERMISSIONS = {
   "payments.edit": "Отмечать оплату",
   "trips.read": "Видеть рейсы",
   "trips.edit": "Создавать рейсы и отмечать позицию",
+  "trips.driver": "Свои рейсы: создать, загрузить машины, отметки пути, расходы",
   "reports.read": "Рейсовые отчёты",
   "reviews.read": "Отзывы клиентов",
   "partners.edit": "Ссылки партнёров",
@@ -25,6 +26,7 @@ export const ROLES = {
   },
   accountant: { name: "Бухгалтер", perms: ["orders.read", "orders.personal", "payments.edit", "reports.read"] },
   acceptor: { name: "Приёмщик", perms: ["orders.read", "trips.read"] },
+  driver: { name: "Водитель", perms: ["trips.driver"] },
 } satisfies Record<string, { name: string; perms: Permission[] }>;
 
 export type Role = keyof typeof ROLES;
@@ -74,6 +76,13 @@ export interface TripView {
   dest: string;
   truck: string;
   driver: string;
+  driverId: number | null;
+  odometerStart: number | null;
+  odometerEnd: number | null;
+  closedAt: string | null;
+  expensesTotal: number;
+  /** Текущий сотрудник может менять рейс (менеджер — любой, водитель — свой открытый). */
+  editable: boolean;
   loadDate: string | null;
   km: number;
   status: "loading" | "in_transit" | "arrived";
@@ -86,3 +95,41 @@ export interface TripView {
 
 export const PAY_TO = ["Тодоров", "Ким", "Спасские Ворота"];
 export const PAY_FORM = ["нал", "безнал", "перевод"];
+
+export const EXPENSE_KINDS = {
+  fuel: "Топливо",
+  toll: "Платная дорога",
+  parking: "Стоянка",
+  repair: "Ремонт, шиномонтаж",
+  wash: "Мойка",
+  food: "Суточные, питание",
+  other: "Прочее",
+} as const;
+export type ExpenseKind = keyof typeof EXPENSE_KINDS;
+
+export interface TripExpense { id: number; at: string; kind: ExpenseKind; amount: number; liters: number | null; note: string; by: string }
+
+export interface TripCar {
+  no: number; car: string; vin: string; year: string; color: string; city: string; km: number; client: string; phone: string; status: string;
+  /** Суммы и оплата — только для ролей с правом reports.read. */
+  delivery?: number; insurance?: number; total?: number; paidDelivery?: boolean; paidInsurance?: boolean; payTo?: string; payForm?: string;
+}
+
+export interface TripReport {
+  trip: TripView;
+  cars: TripCar[];
+  expenses: TripExpense[];
+  totals: {
+    cars: number;
+    expenses: number;
+    byKind: Partial<Record<ExpenseKind, number>>;
+    fuelLiters: number;
+    mileage: number | null;
+    delivery?: number;
+    insurance?: number;
+    unpaid?: number;
+  };
+  finance: boolean;
+}
+
+export interface WaitingCar { no: number; car: string; vin: string; city: string; status: string }
