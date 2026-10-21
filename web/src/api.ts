@@ -50,4 +50,7 @@ export const api = {
   sign: (id: string, code: string) => call<Order>(`/api/orders/${id}/sign`, { body: { code } }),
   order: (id: string) => call<Order>(`/api/orders/${id}`),
   track: (token: string) => call<TrackingView>(`/api/t/${encodeURIComponent(token)}`),
+  received: (token: string) => call<{ ok: true }>(`/api/t/${encodeURIComponent(token)}/received`, { method: "POST" }),
+  review: (token: string, rating: number, text: string) =>
+    call<{ ok: true }>(`/api/t/${encodeURIComponent(token)}/review`, { body: { rating, text } }),
 };

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { CARRIER, KM_PER_DAY, NET, routeFor, type TrackingView } from "@brookclean/shared";
 import { api, ApiError } from "./api.ts";
+import { Review } from "./Review.tsx";
 
 const STATUS: Record<string, { text: string; cls: string }> = {
   draft: { text: "Не подписан", cls: "gray" },
@@ -15,6 +16,7 @@ const STATUS: Record<string, { text: string; cls: string }> = {
 export function Track({ token }: { token: string }) {
   const [t, setT] = useState<TrackingView | null>(null);
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -81,6 +83,26 @@ export function Track({ token }: { token: string }) {
           })}
         </ol>
       </section>
+
+      {t.status === "arrived" && (
+        <section className="card attention">
+          <h3>Автомобиль прибыл в {t.city}</h3>
+          <p className="small">Когда заберёте машину с терминала и проверите её, отметьте получение.</p>
+          <button className="btn primary" disabled={busy} onClick={async () => {
+            setBusy(true);
+            try {
+              await api.received(token);
+              setT({ ...t, status: "delivered" });
+            } catch (e) {
+              setError((e as ApiError).message);
+            } finally {
+              setBusy(false);
+            }
+          }}>Автомобиль получил</button>
+        </section>
+      )}
+
+      {t.status === "delivered" && <Review token={token} initial={t.review} />}
 
       {t.events.length > 0 && (
         <section className="card">

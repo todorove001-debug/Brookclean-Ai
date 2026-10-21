@@ -92,6 +92,8 @@ button, input, select { font: inherit; color: inherit; }
 .btn.primary { background: var(--accent); color: var(--accent-ink); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 .btn.ghost { background: transparent; border: 1px solid var(--line); }
+.btn.dark { background: var(--ink); color: var(--bg); }
+a.btn { display: flex; align-items: center; justify-content: center; text-align: center; text-decoration: none; }
 .btn.sm { padding: 6px 10px; min-height: 34px; font-size: 13px; }
 
 .dock {
@@ -142,6 +144,11 @@ button, input, select { font: inherit; color: inherit; }
 .events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
 .events li { display: flex; gap: 10px; }
 .events time { font-family: var(--f-mono); color: var(--muted); flex: none; }
+.attention { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+.stars { display: flex; gap: 4px; }
+.stars button { background: none; border: 0; font-size: 34px; line-height: 1; padding: 2px; cursor: pointer; color: var(--line); min-width: 44px; min-height: 44px; }
+.stars button.on { color: var(--accent); }
+.field textarea { width: 100%; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 10px 11px; font: inherit; font-size: 16px; resize: vertical; }
 .plist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 
 .install {

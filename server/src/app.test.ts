@@ -70,3 +70,27 @@ test("после 5 неверных кодов подпись блокирует
   const r = await app.inject({ method: "POST", url: `/api/orders/${id}/sign`, payload: { code: codeFromSms() } });
   assert.equal(r.statusCode, 429);
 });
+
+test("получение автомобиля, SMS об отзыве один раз, отзыв виден менеджеру", async () => {
+  const { app, sms, admin, codeFromSms } = setup();
+  const { id, no } = (await app.inject({ method: "POST", url: "/api/orders", payload: { car, customer, consents } })).json();
+  const { trackToken } = (await app.inject({ method: "POST", url: `/api/orders/${id}/sign`, payload: { code: codeFromSms() } })).json();
+
+  // Отзыв до получения не принимается
+  assert.equal((await app.inject({ method: "POST", url: `/api/t/${trackToken}/review`, payload: { rating: 5 } })).statusCode, 409);
+
+  await app.inject({ method: "POST", url: `/api/admin/orders/${no}/status`, headers: admin, payload: { status: "delivered" } });
+  await app.inject({ method: "POST", url: `/api/admin/orders/${no}/status`, headers: admin, payload: { status: "delivered" } });
+  const reviewSms = sms.sent.filter((m) => m.text.includes("Оцените доставку"));
+  assert.equal(reviewSms.length, 1);
+  assert.ok(reviewSms[0].text.includes(`https://brookclean-reg.ru/t/${trackToken}`));
+
+  assert.equal((await app.inject({ method: "POST", url: `/api/t/${trackToken}/received` })).statusCode, 200);
+  assert.equal((await app.inject({ method: "POST", url: `/api/t/${trackToken}/review`, payload: { rating: 7 } })).statusCode, 400);
+  assert.equal((await app.inject({ method: "POST", url: `/api/t/${trackToken}/review`, payload: { rating: 2, text: "Долго" } })).statusCode, 200);
+
+  assert.deepEqual((await app.inject({ url: `/api/t/${trackToken}` })).json().review, { rating: 2, text: "Долго" });
+  const reviews = (await app.inject({ url: "/api/admin/reviews", headers: admin })).json();
+  assert.equal(reviews[0].no, no);
+  assert.equal(reviews[0].rating, 2);
+});

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  BODY, CARRIER, CITIES, ORIGIN, parseRub, quote, rub, rubWords, validateCar, validateCustomer,
+  BODY, CARRIER, CITIES, GAME_URL, ORIGIN, parseRub, quote, rub, rubWords, validateCar, validateCustomer,
   type BodyType, type CarForm, type CustomerForm, type Errors,
 } from "@brookclean/shared";
 import { api, ApiError, type Order } from "./api.ts";
@@ -335,6 +335,12 @@ function Done({ order, onRestart }: { order: Order; onRestart: () => void }) {
         </div>
         <button className="btn primary" onClick={() => navigate(`/t/${order.trackToken}`)}>Открыть трекинг</button>
         <button className="btn ghost" onClick={onRestart}>Оформить ещё один автомобиль</button>
+      </section>
+      <section className="card game">
+        <div className="eyebrow">Пока автовоз в пути</div>
+        <h3>Игра Brookclean</h3>
+        <p className="small">Скоротайте ожидание — сыграйте в нашу игру.</p>
+        <a className="btn dark" href={GAME_URL} target="_blank" rel="noopener">Играть · brookcleangame.online</a>
       </section>
     </>
   );

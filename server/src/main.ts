@@ -9,6 +9,7 @@ const app = buildApp({
   db,
   sms: smsFromEnv(),
   adminToken: process.env.ADMIN_TOKEN,
+  publicUrl: process.env.PUBLIC_URL,
   webDist: fileURLToPath(new URL("../../web/dist", import.meta.url)),
   exposeSmsCode: !prod && process.env.SMS_PROVIDER === undefined,
 });

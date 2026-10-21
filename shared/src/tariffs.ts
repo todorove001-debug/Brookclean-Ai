@@ -42,6 +42,11 @@ export const CARRIER = {
   phone: "+7 950 281 55 55",
 };
 
+export const GAME_URL = "https://brookcleangame.online";
+export const REVIEW_2GIS_URL = "https://2gis.ru/vladivostok/geo/70000001097861346";
+/** С какой оценки предлагаем продублировать отзыв в 2ГИС крупной кнопкой. */
+export const GOOD_RATING = 4;
+
 export function tariffFor(city: string, body: BodyType): number {
   const r = TARIFF.find((t) => t[0] === city);
   return r ? r[BODY[body].i] : 0;

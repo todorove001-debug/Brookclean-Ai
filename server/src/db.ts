@@ -23,7 +23,15 @@ export function openDb(file: string, orderNoStart: number): DB {
       track_token TEXT UNIQUE,
       trip_id TEXT,
       signed_at TEXT,
-      signature TEXT                     -- JSON журнал подписи ПЭП
+      signature TEXT,                    -- JSON журнал подписи ПЭП
+      received_at TEXT,                  -- клиент отметил, что получил автомобиль
+      review_sms_at TEXT                 -- когда отправили SMS с просьбой об отзыве
+    );
+    CREATE TABLE IF NOT EXISTS reviews (
+      order_id TEXT PRIMARY KEY,
+      rating INTEGER NOT NULL,
+      text TEXT NOT NULL,
+      created_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS sms_codes (
       order_id TEXT PRIMARY KEY,

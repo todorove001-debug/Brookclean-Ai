@@ -34,6 +34,7 @@ export interface TrackingView {
   truck: string | null;
   loadDate: string | null;
   events: Array<{ at: string; city: string; note: string }>;
+  review: { rating: number; text: string } | null;
 }
 
 export type Errors<T> = Partial<Record<keyof T, string>>;

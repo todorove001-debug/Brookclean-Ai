@@ -15,6 +15,8 @@ export interface AppOptions {
   sms: SmsSender;
   adminToken?: string;
   webDist?: string;
+  /** Адрес сайта для ссылок в SMS. */
+  publicUrl?: string;
   /** Только для разработки: возвращать код SMS в ответе API. */
   exposeSmsCode?: boolean;
   now?: () => Date;
@@ -34,7 +36,7 @@ function randomToken(len = 16) {
 interface OrderRow {
   id: string; no: number; created_at: string; status: OrderStatus; car: string; customer: string; phone: string;
   partner: string | null; cashback: number; quote: string; track_token: string | null; trip_id: string | null;
-  signed_at: string | null; signature: string | null;
+  signed_at: string | null; signature: string | null; received_at: string | null; review_sms_at: string | null;
 }
 
 const ruDate = (d: Date) => d.toLocaleDateString("ru-RU", { timeZone: "Asia/Vladivostok" });
@@ -44,6 +46,8 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   const now = opts.now ?? (() => new Date());
   const app = Fastify({ logger: process.env.NODE_ENV === "production", trustProxy: process.env.TRUST_PROXY ?? "127.0.0.1" });
 
+  const publicUrl = (opts.publicUrl ?? "https://brookclean-reg.ru").replace(/\/$/, "");
+  const byToken = (token: string) => db.prepare("SELECT * FROM orders WHERE track_token = ?").get(token) as OrderRow | undefined;
   const getOrder = (id: string) => db.prepare("SELECT * FROM orders WHERE id = ?").get(id) as OrderRow | undefined;
 
   function publicOrder(o: OrderRow) {
@@ -191,9 +195,10 @@ export function buildApp(opts: AppOptions): FastifyInstance {
 
   // --- Трекинг по ссылке: без ФИО и телефона ---
   app.get<{ Params: { token: string } }>("/api/t/:token", async (req, reply) => {
-    const o = db.prepare("SELECT * FROM orders WHERE track_token = ?").get(req.params.token) as OrderRow | undefined;
+    const o = byToken(req.params.token);
     if (!o) return reply.code(404).send({ error: "Ссылка не найдена" });
     const car = JSON.parse(o.car) as CarForm;
+    const review = db.prepare("SELECT rating, text FROM reviews WHERE order_id = ?").get(o.id) as TrackingView["review"] | undefined;
     const trip = o.trip_id
       ? (db.prepare("SELECT * FROM trips WHERE id = ?").get(o.trip_id) as { truck: string; load_date: string | null; km: number } | undefined)
       : undefined;
@@ -208,8 +213,31 @@ export function buildApp(opts: AppOptions): FastifyInstance {
       truck: trip?.truck ?? null, loadDate: trip?.load_date ?? null,
       // Клиент видит только точки своего маршрута: остальные машины рейса едут дальше
       events: events.filter((e) => route.has(e.city)),
+      review: review ? { rating: review.rating, text: review.text } : null,
     };
     return view;
+  });
+
+  // --- Клиент отмечает получение автомобиля, затем оставляет отзыв ---
+  app.post<{ Params: { token: string } }>("/api/t/:token/received", async (req, reply) => {
+    const o = byToken(req.params.token);
+    if (!o) return reply.code(404).send({ error: "Ссылка не найдена" });
+    if (o.status === "draft") return reply.code(409).send({ error: "Договор не подписан" });
+    db.prepare("UPDATE orders SET status = 'delivered', received_at = COALESCE(received_at, ?) WHERE id = ?").run(now().toISOString(), o.id);
+    return { ok: true };
+  });
+
+  app.post<{ Params: { token: string }; Body: { rating: number; text?: string } }>("/api/t/:token/review", async (req, reply) => {
+    const o = byToken(req.params.token);
+    if (!o) return reply.code(404).send({ error: "Ссылка не найдена" });
+    if (o.status !== "delivered") return reply.code(409).send({ error: "Отзыв можно оставить после получения автомобиля" });
+    const rating = Number(req.body?.rating);
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) return reply.code(400).send({ error: "Поставьте оценку от 1 до 5" });
+    const text = String(req.body?.text ?? "").trim().slice(0, 2000);
+    db.prepare(`INSERT INTO reviews (order_id, rating, text, created_at) VALUES (?, ?, ?, ?)
+                ON CONFLICT(order_id) DO UPDATE SET rating = excluded.rating, text = excluded.text, created_at = excluded.created_at`)
+      .run(o.id, rating, text, now().toISOString());
+    return { ok: true };
   });
 
   // --- Менеджер (этап 1 трекинга: ручные отметки). Доступ по ADMIN_TOKEN ---
@@ -217,6 +245,11 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     admin.addHook("onRequest", async (req, reply) => {
       if (!requireAdmin(req.headers.authorization)) return reply.code(401).send({ error: "Нет доступа" });
     });
+
+    // Отзывы с сайта: низкие оценки сверху, их нужно разобрать в первую очередь
+    admin.get("/api/admin/reviews", async () =>
+      db.prepare(`SELECT o.no, o.phone, r.rating, r.text, r.created_at AS createdAt
+                  FROM reviews r JOIN orders o ON o.id = r.order_id ORDER BY r.rating, r.created_at DESC`).all());
 
     admin.get("/api/admin/orders", async () =>
       (db.prepare("SELECT * FROM orders ORDER BY no DESC").all() as unknown as OrderRow[]).map(publicOrder));
@@ -272,9 +305,24 @@ export function buildApp(opts: AppOptions): FastifyInstance {
       if (!allowed.includes(req.body?.status)) return reply.code(400).send({ error: "Неизвестный статус" });
       const r = db.prepare("UPDATE orders SET status = ? WHERE no = ? AND status != 'draft'").run(req.body.status, Number(req.params.no));
       if (!r.changes) return reply.code(404).send({ error: "Заказ не найден или не подписан" });
+      if (req.body.status === "delivered") await requestReview(Number(req.params.no), req.log);
       return { ok: true };
     });
   });
+
+  /** Один раз после выдачи автомобиля: SMS со ссылкой на форму отзыва. */
+  async function requestReview(no: number, log: { error: (e: unknown) => void }) {
+    const o = db.prepare("SELECT * FROM orders WHERE no = ?").get(no) as OrderRow | undefined;
+    if (!o?.track_token || o.review_sms_at) return;
+    const has = db.prepare("SELECT 1 FROM reviews WHERE order_id = ?").get(o.id);
+    if (has) return;
+    try {
+      await sms.send(o.phone, `Brookclean Trucks: автомобиль по договору №${o.no} выдан. Оцените доставку: ${publicUrl}/t/${o.track_token}`);
+      db.prepare("UPDATE orders SET review_sms_at = ? WHERE id = ?").run(now().toISOString(), o.id);
+    } catch (err) {
+      log.error(err);
+    }
+  }
 
   // --- Сайт (PWA): собранный web/dist, все не-API пути отдают index.html ---
   if (opts.webDist && existsSync(opts.webDist)) {
