@@ -1,0 +1,14 @@
+{
+  "name": "brookclean-contract-pdf",
+  "version": "0.1.0",
+  "description": "Генерация PDF договора перевозки и согласия на обработку ПД",
+  "main": "src/node.js",
+  "scripts": {
+    "test": "node --test test/contract.test.js",
+    "example": "node scripts/generate.js"
+  },
+  "dependencies": {
+    "pdfmake": "^0.2.20"
+  },
+  "private": true
+}
