@@ -1,10 +1,9 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { registerSW } from "virtual:pwa-register";
 import { App } from "./App.tsx";
 import "./styles.css";
 
-registerSW({ immediate: true });
+if (import.meta.env.VITE_DEMO !== "1") import("virtual:pwa-register").then((m) => m.registerSW({ immediate: true }));
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

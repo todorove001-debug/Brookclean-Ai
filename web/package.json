@@ -6,6 +6,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "build:demo": "DEMO=1 vite build && node scripts/demo-page.mjs dist-demo/demo.html",
     "typecheck": "tsc -p ."
   },
   "dependencies": {

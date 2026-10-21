@@ -2,10 +2,17 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
+// DEMO=1: одна страница без сервера (имитация API) для показа заказчику
+const demo = process.env.DEMO === "1";
+
 export default defineConfig({
+  base: demo ? "./" : "/",
+  define: demo ? { "import.meta.env.VITE_DEMO": JSON.stringify("1") } : {},
+  build: demo ? { outDir: "dist-demo", assetsInlineLimit: 100_000_000, cssCodeSplit: false, modulePreload: false, rollupOptions: { output: { inlineDynamicImports: true } } } : {},
   plugins: [
     react(),
     VitePWA({
+      disable: demo,
       registerType: "autoUpdate",
       includeAssets: ["icons/favicon-32.png", "icons/apple-touch-icon.png"],
       manifest: {

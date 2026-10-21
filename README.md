@@ -44,6 +44,12 @@ npm test             # тесты расчёта, API и SMS
 `SMSAERO_SIGN` — имя отправителя (например, `Brookclean`) после согласования в кабинете;
 пока оно пустое, SMS идут от общей подписи «SMS Aero».
 
+Демо без сервера (одна HTML-страница, API имитируется в браузере):
+
+```bash
+cd web && DEMO=1 npx vite build && node scripts/demo-page.mjs ../brookclean-demo.html
+```
+
 ## API менеджера (временно, до кабинета)
 
 Заголовок `Authorization: Bearer $ADMIN_TOKEN`.

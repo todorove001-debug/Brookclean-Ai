@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { CARRIER, KM_PER_DAY, NET, routeFor, type TrackingView } from "@brookclean/shared";
 import { api, ApiError } from "./api.ts";
 import { Review } from "./Review.tsx";
+import { DEMO } from "./router.ts";
 
 const STATUS: Record<string, { text: string; cls: string }> = {
   draft: { text: "Не подписан", cls: "gray" },
@@ -17,6 +18,7 @@ export function Track({ token }: { token: string }) {
   const [t, setT] = useState<TrackingView | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -32,7 +34,7 @@ export function Track({ token }: { token: string }) {
       clearInterval(id);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [token]);
+  }, [token, tick]);
 
   if (error && !t) return <div className="card"><h2>Трекинг</h2><p>{error}</p></div>;
   if (!t) return <div className="card muted">Загружаем…</div>;
@@ -83,6 +85,20 @@ export function Track({ token }: { token: string }) {
           })}
         </ol>
       </section>
+
+      {DEMO && t.status !== "delivered" && t.status !== "arrived" && (
+        <section className="card demo-panel">
+          <div className="eyebrow">Демо · так позицию отмечает менеджер</div>
+          <div className="row2">
+            <button className="btn ghost" onClick={() => import("./demo.ts").then((d) => { d.demoAdvance(token, "move"); setTick((x) => x + 1); })}>
+              Следующий город
+            </button>
+            <button className="btn ghost" onClick={() => import("./demo.ts").then((d) => { d.demoAdvance(token, "arrive"); setTick((x) => x + 1); })}>
+              Прибыл
+            </button>
+          </div>
+        </section>
+      )}
 
       {t.status === "arrived" && (
         <section className="card attention">

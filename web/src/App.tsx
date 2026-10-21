@@ -3,17 +3,14 @@ import { Checkout } from "./Checkout.tsx";
 import { Track } from "./Track.tsx";
 import { InstallBanner } from "./Install.tsx";
 import { myOrders } from "./storage.ts";
+import { DEMO, currentPath, navigate } from "./router.ts";
 
-export function navigate(path: string) {
-  history.pushState(null, "", path);
-  dispatchEvent(new PopStateEvent("popstate"));
-  scrollTo(0, 0);
-}
+export { navigate };
 
 function usePath() {
-  const [path, setPath] = useState(location.pathname + location.search);
+  const [path, setPath] = useState(currentPath);
   useEffect(() => {
-    const on = () => setPath(location.pathname + location.search);
+    const on = () => setPath(currentPath());
     addEventListener("popstate", on);
     return () => removeEventListener("popstate", on);
   }, []);
@@ -34,9 +31,14 @@ export function App() {
         )}
       </header>
       <main className="col">
-        {track ? <Track token={track[1]} /> : path.startsWith("/my") ? <MyOrders /> : <Checkout />}
+        {DEMO && (
+          <p className="demo-note">
+            <b>Демо-версия.</b> Сервер и SMS имитируются: код для подписи показан на экране, никуда ничего не отправляется.
+          </p>
+        )}
+        {track ? <Track token={track[1]} /> : path.startsWith("/my") ? <MyOrders /> : <Checkout key={path} />}
       </main>
-      <InstallBanner />
+      {!DEMO && <InstallBanner />}
     </>
   );
 }

@@ -5,7 +5,7 @@ import {
 } from "@brookclean/shared";
 import { api, ApiError, type Order } from "./api.ts";
 import { load, rememberOrder, remove, save } from "./storage.ts";
-import { navigate } from "./App.tsx";
+import { SITE_ORIGIN, navigate, searchParam } from "./router.ts";
 
 const EMPTY_CAR: CarForm = { car: "", vin: "", year: "", color: "", body: "sedan", value: "", city: "Новосибирск" };
 const EMPTY_CUSTOMER: CustomerForm = {
@@ -32,7 +32,7 @@ export function Checkout() {
   useEffect(() => save("draft-customer", customer), [customer]);
 
   useEffect(() => {
-    const p = new URLSearchParams(location.search).get("p");
+    const p = searchParam("p");
     if (p) api.partnerLink(p).then((r) => setPartner({ token: p, ...r })).catch(() => {});
   }, []);
 
@@ -103,7 +103,7 @@ export function Checkout() {
     scrollTo(0, 0);
   });
 
-  if (signed) return <Done order={signed} onRestart={() => location.assign("/")} />;
+  if (signed) return <Done order={signed} onRestart={() => navigate("/?new=" + Date.now())} />;
 
   const setC = (k: keyof CarForm) => (v: string) => setCar((s) => ({ ...s, [k]: v }));
   const setU = (k: keyof CustomerForm) => (v: string) => setCustomer((s) => ({ ...s, [k]: v }));
@@ -306,7 +306,7 @@ function Documents({ car, customer, q, agree, setAgree }: {
 }
 
 function Done({ order, onRestart }: { order: Order; onRestart: () => void }) {
-  const link = `${location.origin}/t/${order.trackToken}`;
+  const link = `${SITE_ORIGIN}/t/${order.trackToken}`;
   const [copied, setCopied] = useState(false);
   const at = order.signature ? new Date(order.signature.at).toLocaleString("ru-RU") : "";
   return (

@@ -1,3 +1,4 @@
+import { DEMO } from "./router.ts";
 import type { CarForm, CustomerForm, Quote, TrackingView } from "@brookclean/shared";
 
 export class ApiError extends Error {
@@ -7,6 +8,13 @@ export class ApiError extends Error {
 }
 
 async function call<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
+  if (DEMO) {
+    const { demoFetch } = await import("./demo.ts");
+    const r = await demoFetch(path, init?.method ?? (init?.body ? "POST" : "GET"), init?.body);
+    await new Promise((ok) => setTimeout(ok, 250));
+    if (r.status >= 400) throw new ApiError((r.data as { error?: string }).error ?? "Ошибка", r.status, (r.data as { errors?: Record<string, string> }).errors);
+    return r.data as T;
+  }
   let res: Response;
   try {
     res = await fetch(path, {
