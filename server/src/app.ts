@@ -1,19 +1,22 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import fastifyStatic from "@fastify/static";
-import { randomBytes, randomInt, randomUUID, timingSafeEqual } from "node:crypto";
+import { randomBytes, randomInt, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import {
-  CITIES, NET, kmTo, maskVin, normalizePhone, parseRub, quote, routeFor, validateCar, validateCustomer,
+  CITIES, kmTo, maskVin, normalizePhone, parseRub, quote, routeFor, validateCar, validateCustomer,
   type CarForm, type CustomerForm, type OrderStatus, type Quote, type TrackingView,
 } from "@brookclean/shared";
 import { nextOrderNo, type DB } from "./db.ts";
 import { contractPayload, sha256 } from "./contract.ts";
 import type { SmsSender } from "./sms.ts";
+import { registerStaff } from "./staff.ts";
+import type { GoogleDrive } from "./drive.ts";
 
 export interface AppOptions {
   db: DB;
   sms: SmsSender;
   adminToken?: string;
+  drive?: GoogleDrive;
   webDist?: string;
   /** Адрес сайта для ссылок в SMS. */
   publicUrl?: string;
@@ -37,6 +40,7 @@ interface OrderRow {
   id: string; no: number; created_at: string; status: OrderStatus; car: string; customer: string; phone: string;
   partner: string | null; cashback: number; quote: string; track_token: string | null; trip_id: string | null;
   signed_at: string | null; signature: string | null; received_at: string | null; review_sms_at: string | null;
+  created_by: number | null;
 }
 
 const ruDate = (d: Date) => d.toLocaleDateString("ru-RU", { timeZone: "Asia/Vladivostok" });
@@ -60,14 +64,6 @@ export function buildApp(opts: AppOptions): FastifyInstance {
       trackToken: o.track_token, signedAt: o.signed_at,
       signature: o.signature ? JSON.parse(o.signature) : null,
     };
-  }
-
-  function requireAdmin(auth: string | undefined) {
-    const expected = opts.adminToken;
-    if (!expected) return false;
-    const got = Buffer.from((auth ?? "").replace(/^Bearer\s+/i, ""));
-    const exp = Buffer.from(expected);
-    return got.length === exp.length && timingSafeEqual(got, exp);
   }
 
   app.get("/api/health", async () => ({ ok: true }));
@@ -153,10 +149,14 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     }
   });
 
-  app.post<{ Params: { id: string }; Body: { code: string } }>("/api/orders/:id/sign", async (req, reply) => {
+  app.post<{ Params: { id: string }; Body: { code: string; consents?: Record<string, boolean> } }>("/api/orders/:id/sign", async (req, reply) => {
     const o = getOrder(req.params.id);
     if (!o) return reply.code(404).send({ error: "Заказ не найден" });
     if (o.status !== "draft") return publicOrder(o);
+    // Заявку от менеджера клиент подписывает по ссылке: согласия ставит сам на этом шаге
+    const cs = req.body?.consents;
+    if (o.created_by !== null && !(cs?.contract && cs?.pep && cs?.personalData))
+      return reply.code(400).send({ error: "Нужны все три согласия" });
     const c = db.prepare("SELECT * FROM sms_codes WHERE order_id = ?").get(o.id) as
       | { code_hash: string; expires_at: number; attempts: number } | undefined;
     if (!c || now().getTime() > c.expires_at) return reply.code(410).send({ error: "Код устарел, запросите новый" });
@@ -190,7 +190,13 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   app.get<{ Params: { id: string } }>("/api/orders/:id", async (req, reply) => {
     const o = getOrder(req.params.id);
     if (!o) return reply.code(404).send({ error: "Заказ не найден" });
-    return publicOrder(o);
+    if (o.status !== "draft") return publicOrder(o);
+    // Неподписанная заявка: данные для текста договора, паспорт частично скрыт
+    const c = JSON.parse(o.customer) as CustomerForm;
+    return {
+      ...publicOrder(o),
+      documentCustomer: { ...c, passportNumber: "••••" + c.passportNumber.slice(-2) },
+    };
   });
 
   // --- Трекинг по ссылке: без ФИО и телефона ---
@@ -240,74 +246,10 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     return { ok: true };
   });
 
-  // --- Менеджер (этап 1 трекинга: ручные отметки). Доступ по ADMIN_TOKEN ---
-  app.register(async (admin) => {
-    admin.addHook("onRequest", async (req, reply) => {
-      if (!requireAdmin(req.headers.authorization)) return reply.code(401).send({ error: "Нет доступа" });
-    });
-
-    // Отзывы с сайта: низкие оценки сверху, их нужно разобрать в первую очередь
-    admin.get("/api/admin/reviews", async () =>
-      db.prepare(`SELECT o.no, o.phone, r.rating, r.text, r.created_at AS createdAt
-                  FROM reviews r JOIN orders o ON o.id = r.order_id ORDER BY r.rating, r.created_at DESC`).all());
-
-    admin.get("/api/admin/orders", async () =>
-      (db.prepare("SELECT * FROM orders ORDER BY no DESC").all() as unknown as OrderRow[]).map(publicOrder));
-
-    admin.post<{ Body: { partner: string; cashback: number } }>("/api/admin/partner-links", async (req, reply) => {
-      const { partner, cashback } = req.body ?? ({} as never);
-      if (!partner || !(cashback >= 0)) return reply.code(400).send({ error: "partner и cashback обязательны" });
-      const token = randomToken(10);
-      db.prepare("INSERT INTO partner_links (token, partner, cashback, created_at) VALUES (?, ?, ?, ?)")
-        .run(token, partner, Math.round(cashback), now().toISOString());
-      return { token, path: `/?p=${token}` };
-    });
-
-    admin.put<{ Params: { id: string }; Body: { dest: string; truck: string; loadDate?: string } }>(
-      "/api/admin/trips/:id", async (req, reply) => {
-        const { dest, truck, loadDate } = req.body ?? ({} as never);
-        if (!NET[dest] || !truck) return reply.code(400).send({ error: "dest и truck обязательны" });
-        db.prepare(`INSERT INTO trips (id, dest, truck, load_date) VALUES (?, ?, ?, ?)
-                    ON CONFLICT(id) DO UPDATE SET dest = excluded.dest, truck = excluded.truck, load_date = excluded.load_date`)
-          .run(req.params.id, dest, truck, loadDate ?? null);
-        return { ok: true };
-      });
-
-    admin.post<{ Params: { no: string }; Body: { tripId: string } }>("/api/admin/orders/:no/trip", async (req, reply) => {
-      const r = db.prepare("UPDATE orders SET trip_id = ?, status = CASE WHEN status IN ('signed','paid') THEN 'loading' ELSE status END WHERE no = ?")
-        .run(req.body?.tripId ?? null, Number(req.params.no));
-      if (!r.changes) return reply.code(404).send({ error: "Заказ не найден" });
-      return { ok: true };
-    });
-
-    admin.post<{ Params: { id: string }; Body: { city: string; note?: string } }>("/api/admin/trips/:id/position", async (req, reply) => {
-      const trip = db.prepare("SELECT * FROM trips WHERE id = ?").get(req.params.id) as { dest: string } | undefined;
-      if (!trip) return reply.code(404).send({ error: "Рейс не найден" });
-      const city = req.body?.city;
-      if (!routeFor(trip.dest).includes(city)) return reply.code(400).send({ error: "Город не на маршруте рейса" });
-      const km = kmTo(city);
-      db.prepare("UPDATE trips SET km = ? WHERE id = ?").run(km, req.params.id);
-      db.prepare("INSERT INTO trip_events (trip_id, at, city, note) VALUES (?, ?, ?, ?)")
-        .run(req.params.id, now().toISOString(), city, req.body?.note ?? "В пути");
-      // Статусы машин рейса: в пути / прибыл — по километражу до города каждой машины
-      const orders = db.prepare("SELECT id, car, status FROM orders WHERE trip_id = ?").all(req.params.id) as Array<{ id: string; car: string; status: OrderStatus }>;
-      for (const o of orders) {
-        if (o.status === "delivered") continue;
-        const dest = kmTo((JSON.parse(o.car) as CarForm).city);
-        const status: OrderStatus = km >= dest ? "arrived" : km > 0 ? "in_transit" : "loading";
-        db.prepare("UPDATE orders SET status = ? WHERE id = ?").run(status, o.id);
-      }
-      return { ok: true, km };
-    });
-
-    admin.post<{ Params: { no: string }; Body: { status: OrderStatus } }>("/api/admin/orders/:no/status", async (req, reply) => {
-      const allowed: OrderStatus[] = ["signed", "paid", "loading", "in_transit", "arrived", "delivered"];
-      if (!allowed.includes(req.body?.status)) return reply.code(400).send({ error: "Неизвестный статус" });
-      const r = db.prepare("UPDATE orders SET status = ? WHERE no = ? AND status != 'draft'").run(req.body.status, Number(req.params.no));
-      if (!r.changes) return reply.code(404).send({ error: "Заказ не найден или не подписан" });
-      if (req.body.status === "delivered") await requestReview(Number(req.params.no), req.log);
-      return { ok: true };
-    });
+  registerStaff(app, {
+    db, sms, now, publicUrl, adminToken: opts.adminToken, drive: opts.drive,
+    secureCookies: publicUrl.startsWith("https://") && process.env.NODE_ENV === "production",
+    requestReview, randomToken,
   });
 
   /** Один раз после выдачи автомобиля: SMS со ссылкой на форму отзыва. */

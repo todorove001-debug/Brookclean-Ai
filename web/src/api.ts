@@ -7,7 +7,7 @@ export class ApiError extends Error {
   }
 }
 
-async function call<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
+export async function call<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
   if (DEMO) {
     const { demoFetch } = await import("./demo.ts");
     const r = await demoFetch(path, init?.method ?? (init?.body ? "POST" : "GET"), init?.body);
@@ -56,7 +56,9 @@ export const api = {
     call<{ id: string; no: number; quote: Quote; devCode?: string }>("/api/orders", { body }),
   resend: (id: string) => call<{ ok: true; devCode?: string }>(`/api/orders/${id}/resend`, { method: "POST" }),
   sign: (id: string, code: string) => call<Order>(`/api/orders/${id}/sign`, { body: { code } }),
-  order: (id: string) => call<Order>(`/api/orders/${id}`),
+  order: (id: string) => call<Order & { documentCustomer?: CustomerForm }>(`/api/orders/${id}`),
+  signWithConsents: (id: string, code: string, consents: Record<string, boolean>) =>
+    call<Order>(`/api/orders/${id}/sign`, { body: { code, consents } }),
   track: (token: string) => call<TrackingView>(`/api/t/${encodeURIComponent(token)}`),
   received: (token: string) => call<{ ok: true }>(`/api/t/${encodeURIComponent(token)}/received`, { method: "POST" }),
   review: (token: string, rating: number, text: string) =>

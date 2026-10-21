@@ -71,6 +71,7 @@ export function demoAdvance(token: string, step: "move" | "arrive") {
 
 export async function demoFetch(path: string, method: string, body: any): Promise<{ status: number; data: unknown }> {
   let m: RegExpExecArray | null;
+  if (path.startsWith("/api/staff/")) return (await import("./demo-staff.ts")).demoStaffFetch(path, method, body);
 
   if ((m = /^\/api\/partner-links\//.exec(path))) return fail(404, "Ссылка не найдена");
 

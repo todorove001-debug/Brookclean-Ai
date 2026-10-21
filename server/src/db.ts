@@ -25,7 +25,8 @@ export function openDb(file: string, orderNoStart: number): DB {
       signed_at TEXT,
       signature TEXT,                    -- JSON журнал подписи ПЭП
       received_at TEXT,                  -- клиент отметил, что получил автомобиль
-      review_sms_at TEXT                 -- когда отправили SMS с просьбой об отзыве
+      review_sms_at TEXT,                -- когда отправили SMS с просьбой об отзыве
+      created_by INTEGER                 -- сотрудник, если заявку оформил менеджер
     );
     CREATE TABLE IF NOT EXISTS reviews (
       order_id TEXT PRIMARY KEY,
@@ -51,8 +52,40 @@ export function openDb(file: string, orderNoStart: number): DB {
       id TEXT PRIMARY KEY,
       dest TEXT NOT NULL,
       truck TEXT NOT NULL,
+      driver TEXT NOT NULL DEFAULT '',
       load_date TEXT,
-      km INTEGER NOT NULL DEFAULT 0
+      km INTEGER NOT NULL DEFAULT 0,
+      drive_file_id TEXT,                -- рейсовый отчёт в Google Диске
+      drive_synced_at TEXT,
+      drive_error TEXT
+    );
+    CREATE TABLE IF NOT EXISTS payments (
+      order_id TEXT PRIMARY KEY,
+      paid_delivery INTEGER NOT NULL DEFAULT 0,
+      paid_insurance INTEGER NOT NULL DEFAULT 0,
+      pay_to TEXT NOT NULL DEFAULT '',
+      pay_form TEXT NOT NULL DEFAULT ''
+    );
+    CREATE TABLE IF NOT EXISTS staff (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      login TEXT UNIQUE NOT NULL,        -- телефон или email
+      pass_hash TEXT NOT NULL,
+      role TEXT NOT NULL,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS sessions (
+      token_hash TEXT PRIMARY KEY,
+      staff_id INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS audit (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      at TEXT NOT NULL,
+      staff_id INTEGER,
+      action TEXT NOT NULL,
+      details TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS trip_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,6 +94,7 @@ export function openDb(file: string, orderNoStart: number): DB {
       city TEXT NOT NULL,
       note TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS counters (name TEXT PRIMARY KEY, value INTEGER NOT NULL);
   `);
   db.prepare("INSERT OR IGNORE INTO counters (name, value) VALUES ('order_no', ?)").run(orderNoStart - 1);

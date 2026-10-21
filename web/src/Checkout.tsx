@@ -222,7 +222,7 @@ type FieldProps = {
   id: string; label: string; value: string; onChange: (v: string) => void; errors: Record<string, string>; hint?: string;
 } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "onChange" | "value" | "id">;
 
-function Field({ id, label, value, onChange, errors, hint, ...rest }: FieldProps) {
+export function Field({ id, label, value, onChange, errors, hint, ...rest }: FieldProps) {
   const err = errors[id];
   return (
     <div className={"field" + (err ? " bad" : "")}>
@@ -234,7 +234,7 @@ function Field({ id, label, value, onChange, errors, hint, ...rest }: FieldProps
   );
 }
 
-function QuoteCard({ city, body, q }: { city: string; body: BodyType; q: ReturnType<typeof quote> }) {
+export function QuoteCard({ city, body, q }: { city: string; body: BodyType; q: ReturnType<typeof quote> }) {
   const from = q.needsManager ? "от " : "";
   return (
     <section className="card">
@@ -252,7 +252,7 @@ function QuoteCard({ city, body, q }: { city: string; body: BodyType; q: ReturnT
   );
 }
 
-function Documents({ car, customer, q, agree, setAgree }: {
+export function Documents({ car, customer, q, agree, setAgree }: {
   car: CarForm; customer: CustomerForm; q: ReturnType<typeof quote>;
   agree: { contract: boolean; pep: boolean; personalData: boolean };
   setAgree: (a: { contract: boolean; pep: boolean; personalData: boolean }) => void;
@@ -305,7 +305,7 @@ function Documents({ car, customer, q, agree, setAgree }: {
   );
 }
 
-function Done({ order, onRestart }: { order: Order; onRestart: () => void }) {
+export function Done({ order, onRestart }: { order: Order; onRestart: () => void }) {
   const link = `${SITE_ORIGIN}/t/${order.trackToken}`;
   const [copied, setCopied] = useState(false);
   const at = order.signature ? new Date(order.signature.at).toLocaleString("ru-RU") : "";

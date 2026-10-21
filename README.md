@@ -50,17 +50,38 @@ npm test             # тесты расчёта, API и SMS
 cd web && DEMO=1 npx vite build && node scripts/demo-page.mjs ../brookclean-demo.html
 ```
 
-## API менеджера (временно, до кабинета)
+## Панель управления — `/admin`
 
-Заголовок `Authorization: Bearer $ADMIN_TOKEN`.
+Вход по логину и паролю. Первого владельца создают переменные `OWNER_LOGIN` и `OWNER_PASSWORD`,
+остальных сотрудников владелец добавляет в разделе «Сотрудники».
 
-- `GET /api/admin/orders` — все заказы
-- `POST /api/admin/partner-links` `{partner, cashback}` — ссылка партнёра
-- `PUT /api/admin/trips/R-01` `{dest, truck, loadDate}` — рейс
-- `POST /api/admin/orders/685/trip` `{tripId}` — поставить машину в рейс
-- `POST /api/admin/trips/R-01/position` `{city, note}` — отметить, где автовоз (видят все клиенты рейса)
-- `POST /api/admin/orders/685/status` `{status}` — `paid`, `delivered` и т.д. (`delivered` отправляет SMS с просьбой об отзыве)
-- `GET /api/admin/reviews` — отзывы, низкие оценки сверху
+| Раздел | Что внутри |
+|---|---|
+| Заявки | Таблица: авто, клиент, перевозка, страховка, оплата (кому, форма), рейс, трекинг. Поиск и фильтры |
+| Оформить заявку | Менеджер вносит заявку со слов клиента, клиенту уходит SMS со ссылкой `/o/…`, он подписывает сам |
+| Рейсы и отчёты | Рейсы, отметки позиции (видят все клиенты рейса), рейсовый отчёт: CSV и Google Таблица |
+| Отзывы | Отзывы клиентов, низкие оценки сверху |
+| Партнёры | Ссылки с кэшбэком |
+| Сотрудники | Добавить, сменить роль или пароль, выключить; таблица прав по ролям |
+
+Роли: владелец (всё), менеджер, бухгалтер (оплаты и отчёты), приёмщик (заявки и рейсы без ФИО и телефонов).
+Права и роли — `shared/src/staff.ts`, разделы — `web/src/admin/modules.tsx`: новый раздел = компонент + строка в списке + право.
+Все изменения пишутся в журнал (`audit`).
+
+### Рейсовый отчёт в Google Диск
+
+1. console.cloud.google.com → новый проект → «APIs & Services» → включить **Google Drive API**.
+2. «OAuth consent screen»: тип External, добавить свой email в тестовые пользователи.
+3. «Credentials» → «Create credentials» → OAuth client ID → **Web application**,
+   Authorized redirect URI: `https://brookclean-reg.ru/api/google/callback`.
+4. Client ID и Client secret — в `.env` (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`), перезапустить сервис.
+5. В панели: «Рейсы и отчёты» → «Подключить Google Диск» → войти в Google.
+
+Сайт создаёт папку «Brookclean · рейсовые отчёты» и по каждому рейсу Google Таблицу; она обновляется через
+несколько секунд после любого изменения рейса или его машин. В отчёте нет паспортов, ФИО сокращено, телефон
+скрыт: Google хранит данные за пределами РФ.
+
+API панели доступно и скриптам: заголовок `Authorization: Bearer $ADMIN_TOKEN` (права владельца).
 
 ## Размещение на Reg.ru (brookclean-reg.ru)
 

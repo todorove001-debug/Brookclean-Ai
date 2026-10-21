@@ -1,9 +1,12 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Checkout } from "./Checkout.tsx";
 import { Track } from "./Track.tsx";
 import { InstallBanner } from "./Install.tsx";
 import { myOrders } from "./storage.ts";
 import { DEMO, currentPath, navigate } from "./router.ts";
+import { SignOrder } from "./SignOrder.tsx";
+
+const AdminApp = lazy(() => import("./admin/AdminApp.tsx").then((m) => ({ default: m.AdminApp })));
 
 export { navigate };
 
@@ -20,13 +23,18 @@ function usePath() {
 export function App() {
   const path = usePath();
   const track = /^\/t\/([\w-]+)/.exec(path);
+  const sign = /^\/o\/([\w-]+)/.exec(path);
+  if (path.startsWith("/admin")) {
+    return <Suspense fallback={<div className="admin-loading muted">Загрузка…</div>}><AdminApp path={path} /></Suspense>;
+  }
   return (
     <>
       <header className="top">
         <a className="brand" href="/" onClick={(e) => { e.preventDefault(); navigate("/"); }}>
           <span className="plate">ВЛ → РФ</span> Brookclean · Автовоз
         </a>
-        {myOrders().length > 0 && !track && (
+        {DEMO && <a className="top-link" href="/admin" onClick={(e) => { e.preventDefault(); navigate("/admin"); }}>Панель сотрудников</a>}
+        {!DEMO && myOrders().length > 0 && !track && (
           <a className="top-link" href="/my" onClick={(e) => { e.preventDefault(); navigate("/my"); }}>Мои доставки</a>
         )}
       </header>
@@ -36,7 +44,7 @@ export function App() {
             <b>Демо-версия.</b> Сервер и SMS имитируются: код для подписи показан на экране, никуда ничего не отправляется.
           </p>
         )}
-        {track ? <Track token={track[1]} /> : path.startsWith("/my") ? <MyOrders /> : <Checkout key={path} />}
+        {track ? <Track token={track[1]} /> : sign ? <SignOrder id={sign[1]} /> : path.startsWith("/my") ? <MyOrders /> : <Checkout key={path} />}
       </main>
       {!DEMO && <InstallBanner />}
     </>

@@ -22,7 +22,7 @@ function setup() {
 test("оформление, подпись кодом и трекинг", async () => {
   const { app, sms, admin, codeFromSms } = setup();
 
-  const link = (await app.inject({ method: "POST", url: "/api/admin/partner-links", headers: admin, payload: { partner: "Монстеркар", cashback: 5000 } })).json();
+  const link = (await app.inject({ method: "POST", url: "/api/staff/partner-links", headers: admin, payload: { partner: "Монстеркар", cashback: 5000 } })).json();
 
   const created = await app.inject({ method: "POST", url: "/api/orders", payload: { car, customer, consents, partnerToken: link.token } });
   assert.equal(created.statusCode, 200);
@@ -43,9 +43,9 @@ test("оформление, подпись кодом и трекинг", async 
   assert.match(order.signature.documentSha256, /^[0-9a-f]{64}$/);
   assert.equal(order.trackToken.length, 16);
 
-  await app.inject({ method: "PUT", url: "/api/admin/trips/R-01", headers: admin, payload: { dest: "Новосибирск", truck: "Volvo FH" } });
-  await app.inject({ method: "POST", url: `/api/admin/orders/${no}/trip`, headers: admin, payload: { tripId: "R-01" } });
-  await app.inject({ method: "POST", url: "/api/admin/trips/R-01/position", headers: admin, payload: { city: "Хабаровск" } });
+  await app.inject({ method: "PUT", url: "/api/staff/trips/R-01", headers: admin, payload: { dest: "Новосибирск", truck: "Volvo FH" } });
+  await app.inject({ method: "PATCH", url: `/api/staff/orders/${no}`, headers: admin, payload: { tripId: "R-01" } });
+  await app.inject({ method: "POST", url: "/api/staff/trips/R-01/position", headers: admin, payload: { city: "Хабаровск" } });
 
   const t = (await app.inject({ url: `/api/t/${order.trackToken}` })).json();
   assert.equal(t.status, "in_transit");
@@ -60,7 +60,7 @@ test("без согласий и с ошибками заказ не созда�
   const r = await app.inject({ method: "POST", url: "/api/orders", payload: { car: { ...car, vin: "1" }, customer, consents } });
   assert.equal(r.statusCode, 400);
   assert.ok(r.json().errors.vin);
-  assert.equal((await app.inject({ url: "/api/admin/orders" })).statusCode, 401);
+  assert.equal((await app.inject({ url: "/api/staff/orders" })).statusCode, 401);
 });
 
 test("после 5 неверных кодов подпись блокируется", async () => {
@@ -79,8 +79,8 @@ test("получение автомобиля, SMS об отзыве один р
   // Отзыв до получения не принимается
   assert.equal((await app.inject({ method: "POST", url: `/api/t/${trackToken}/review`, payload: { rating: 5 } })).statusCode, 409);
 
-  await app.inject({ method: "POST", url: `/api/admin/orders/${no}/status`, headers: admin, payload: { status: "delivered" } });
-  await app.inject({ method: "POST", url: `/api/admin/orders/${no}/status`, headers: admin, payload: { status: "delivered" } });
+  await app.inject({ method: "PATCH", url: `/api/staff/orders/${no}`, headers: admin, payload: { status: "delivered" } });
+  await app.inject({ method: "PATCH", url: `/api/staff/orders/${no}`, headers: admin, payload: { status: "delivered" } });
   const reviewSms = sms.sent.filter((m) => m.text.includes("Оцените доставку"));
   assert.equal(reviewSms.length, 1);
   assert.ok(reviewSms[0].text.includes(`https://brookclean-reg.ru/t/${trackToken}`));
@@ -90,7 +90,7 @@ test("получение автомобиля, SMS об отзыве один р
   assert.equal((await app.inject({ method: "POST", url: `/api/t/${trackToken}/review`, payload: { rating: 2, text: "Долго" } })).statusCode, 200);
 
   assert.deepEqual((await app.inject({ url: `/api/t/${trackToken}` })).json().review, { rating: 2, text: "Долго" });
-  const reviews = (await app.inject({ url: "/api/admin/reviews", headers: admin })).json();
+  const reviews = (await app.inject({ url: "/api/staff/reviews", headers: admin })).json();
   assert.equal(reviews[0].no, no);
   assert.equal(reviews[0].rating, 2);
 });
