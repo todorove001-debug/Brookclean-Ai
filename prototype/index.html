@@ -1576,19 +1576,24 @@ function demoDoc(id,k){
   applyDoc(d,k,ex[k]);d.docs[k]={url:null,status:"done",demo:true,msg:"Демо: поля заполнены примером"};
 }
 function vDriversList(){
-  const rows=S.drivers.map(d=>{const t=S.trips.find(x=>x.driverId===d.id),u=S.users.find(x=>x.id===d.userId);
+  const q=(S.drvQ||"").toLowerCase(), fl=S.drvF||"all";
+  const list=S.drivers.filter(d=>(fl==="all"||(fl==="own")===d.own)&&(!q||[d.name,d.phone,d.tractor.model,d.tractor.plate,d.trailer.model,d.trailer.plate,d.company.name,d.company.inn,d.group].join(" ").toLowerCase().includes(q)));
+  const rows=list.map(d=>{const t=S.trips.find(x=>x.driverId===d.id),u=S.users.find(x=>x.id===d.userId);
     return `<tr><td><button class="linkbtn" data-act="drv-open" data-id="${d.id}">${esc(d.name)}</button>${u&&u.status!=="active"?` <span class="pill ${USER_ST[u.status][1]}">${USER_ST[u.status][0]}</span>`:""}</td>
       <td><span class="pill ${d.own?"info":"warn"}">${d.own?"свой":"наёмный"}</span></td>
-      <td>${d.own?"—":`${esc(d.company.name||"не указана")}${d.company.inn?`<br><small class="muted">ИНН ${esc(d.company.inn)}</small>`:""}`}</td>
+      <td>${d.own?(d.group?`<small class="muted">${esc(d.group)}</small>`:"—"):`${esc(d.company.name||d.group||"не указана")}${d.company.inn?`<br><small class="muted">ИНН ${esc(d.company.inn)}</small>`:""}`}</td>
       <td class="mono" style="white-space:nowrap">${esc(d.phone||"—")}</td>
       <td>${esc(d.tractor.model||"")}<br><b class="mono">${esc(d.tractor.plate||"—")}</b></td>
       <td>${esc(d.trailer.model||"")}<br><b class="mono">${esc(d.trailer.plate||"—")}</b></td>
       <td class="mono">${esc((d.data.lic||{}).number||"—")}${licExpired(d)?` <span class="pill err">просрочено</span>`:(d.data.lic||{}).valid_until?`<br><small class="muted">до ${esc(d.data.lic.valid_until)}</small>`:""}</td>
-      <td><span class="pill ${docCount(d)===DOC_KEYS.length?"ok":docCount(d)?"warn":"gray"}">${docCount(d)}/${DOC_KEYS.length}</span></td>
+      <td><span class="pill ${docCount(d)===DOC_KEYS.length?"ok":docCount(d)?"warn":"gray"}">${docCount(d)}/${DOC_KEYS.length}</span>${d.fromXls?`<br><small class="muted">из Excel</small>`:""}</td>
       <td>${t?t.id:"—"}</td></tr>`}).join("");
-  return `<div class="card"><div class="sheet-head"><h3>Водители · ${S.drivers.length}</h3>
-      <div class="inline"><button class="btn sm ghost" data-act="drv-new" data-own="1">+ Свой водитель</button><button class="btn sm dark" data-act="drv-new" data-own="0">+ Наёмный водитель</button></div></div>
-    <div class="tablewrap"><table class="exp" style="min-width:980px"><thead><tr><th>Водитель</th><th>Тип</th><th>Компания</th><th>Телефон</th><th>Тягач</th><th>Прицеп</th><th>ВУ</th><th>Документы</th><th>Рейс</th></tr></thead><tbody>${rows}</tbody></table></div>
+  return `<div class="card"><div class="sheet-head"><h3>Водители · ${list.length}${list.length!==S.drivers.length?" из "+S.drivers.length:""}</h3>
+      <div class="inline"><label class="btn sm ghost filelabel" for="drv-xls">Импорт из Excel</label><input type="file" id="drv-xls" class="sr" accept=".xlsx,.xls">
+        <button class="btn sm ghost" data-act="drv-new" data-own="1">+ Свой водитель</button><button class="btn sm dark" data-act="drv-new" data-own="0">+ Наёмный водитель</button></div></div>
+    <div class="inline"><input class="cellin" id="drv-q" placeholder="Поиск: ФИО, госномер, компания, телефон" value="${esc(S.drvQ||"")}" style="max-width:340px">
+      ${[["all","Все"],["own","Свои"],["hired","Наёмные"]].map(([k,l])=>`<button class="subtab" data-act="drv-f" data-f="${k}" aria-current="${fl===k}">${l} · ${k==="all"?S.drivers.length:S.drivers.filter(d=>(k==="own")===d.own).length}</button>`).join("")}</div>
+    <div class="tablewrap" style="max-height:640px;overflow:auto"><table class="exp" style="min-width:980px"><thead><tr><th>Водитель</th><th>Тип</th><th>Компания / автопарк</th><th>Телефон</th><th>Тягач</th><th>Прицеп</th><th>ВУ</th><th>Документы</th><th>Рейс</th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="muted" style="font-size:12px">При назначении водителя на рейс или в акт приёмки его тягач, прицеп и компания подставляются автоматически. Данные документов распознаются по фото в карточке водителя.</div></div>`;
 }
 function vDriverCard(d,self){
@@ -1641,6 +1646,54 @@ function vHoDriver(o,st,h,ro){
   return `<div class="card"><h3>${st==="priemka"?"Водитель, который забирает машину":"Водитель, который сдаёт машину"}</h3>
     ${ro?`<div>${d?`<b>${esc(d.name)}</b>`:"не указан"}</div>`:`<div class="field"><label for="ho-drv">Водитель</label><select id="ho-drv" data-hodrv="1"><option value="">— выберите —</option>${S.drivers.filter(drvActive).map(x=>`<option value="${x.id}" ${x.id===h.driverId?"selected":""}>${esc(x.name)} · ${esc(x.tractor.plate||"без номера")}${x.own?"":" · "+esc(x.company.name||"наёмный")}</option>`).join("")}</select></div>`}
     ${info}${!ro&&d&&docCount(d)<DOC_KEYS.length?`<div class="muted" style="font-size:12px">Документы водителя: ${docCount(d)}/${DOC_KEYS.length}. Недостающие можно сфотографировать во вкладке «Водители».</div>`:""}</div>`;
+}
+
+/* импорт реестра водителей из Excel (формат «Транспортное средство | Водители | Дата рождения | Паспорт | Дата выдачи | Телефон») */
+const PLATE_L="АВЕКМНОРСТУХABEKMHOPCTYX";
+const toCyr=s=>s.toUpperCase().replace(/[ABEKMHOPCTYX]/g,c=>"АВЕКМНОРСТУХ"["ABEKMHOPCTYX".indexOf(c)]);
+function splitPlate(part,trailer){
+  const re=trailer?new RegExp(`([${PLATE_L}]{2})\\s?(\\d{4})\\s?(\\d{2,3})`,"i"):new RegExp(`([${PLATE_L}])\\s?(\\d{3})\\s?([${PLATE_L}]{2})\\s?(\\d{2,3})`,"i");
+  if(trailer)part=part.replace(new RegExp(`([${PLATE_L}])0(?=\\d{6,7}\\b)`,"gi"),"$1О"); // «A0214325» → «АО 2143 25»
+  const m=re.exec(part);
+  if(!m){const toks=part.replace(/[,.:]+/g," ").trim().split(/\s+/),last=toks[toks.length-1]||"";
+    // иностранный номер (транзит): последний токен из букв и цифр
+    if(toks.length>1&&/\d/.test(last)&&/[A-ZА-Я]/i.test(last)&&last.length>=5)return {model:toks.slice(0,-1).join(" "),plate:last.toUpperCase()};
+    return {model:part.replace(/[,.:]+$/,"").trim(),plate:""}}
+  const plate=trailer?`${toCyr(m[1])} ${m[2]} ${m[3]}`:`${toCyr(m[1])} ${m[2]} ${toCyr(m[3])} ${m[4]}`;
+  return {model:part.replace(m[0],"").replace(/[,.:]+/g," ").replace(/\s+/g," ").trim(),plate};
+}
+function parseVehicle(s){let [a,b]=String(s||"").split(/прицеп[:\s]*/i);a=a||"";
+  if(!b){const m=new RegExp(`[${PLATE_L}]\\s?\\d{3}\\s?[${PLATE_L}]{2}\\s?\\d{2,3}`,"i").exec(a);if(m){b=a.slice(m.index+m[0].length);a=a.slice(0,m.index+m[0].length)}}
+  return {tractor:splitPlate(a,false),trailer:splitPlate(b||"",true)}}
+const xDate=v=>v instanceof Date?pad2(v.getDate())+"."+pad2(v.getMonth()+1)+"."+v.getFullYear():String(v||"").trim();
+function xPhone(v){const d=String(v||"").replace(/\D/g,"");return d.length===10?fmtPhone("7"+d):d.length===11?fmtPhone("7"+d.slice(1)):String(v||"").trim()}
+function loadXLSX(){return window.XLSX?Promise.resolve():new Promise((ok,no)=>{const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";s.onload=ok;s.onerror=no;document.head.appendChild(s)})}
+async function importDrivers(file){
+  try{await loadXLSX()}catch(e){toast("Не удалось загрузить модуль чтения Excel");return}
+  let rows;try{const wb=XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:true});rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:null})}
+  catch(e){toast("Файл не читается. Нужен .xlsx или .xls");return}
+  const hi=rows.findIndex(r=>r&&String(r[2]||"").trim()==="Водители");
+  if(hi<0){toast("Не найден столбец «Водители». Проверьте формат файла");return}
+  let group={own:true,label:"",company:"",inn:""},veh=null,added=0,skipped=0;const companies=new Set();
+  rows.slice(hi+1).forEach(r=>{
+    if(!r)return;const a=r[0]!=null?String(r[0]).trim():"",c=r[2]!=null?String(r[2]).trim():"";
+    if(!c){if(!a)return;
+      if(/^наемник|^наёмник/i.test(a)){group={own:false,label:a,company:"",inn:""};veh=null;return}
+      if(/^транзит$/i.test(a)){group={own:false,label:a,company:"",inn:""};veh=null;return}
+      const inn=(/ИНН[:\s]*(\d{10,12})/i.exec(a)||[])[1]||"";
+      group={own:group.own&&!inn&&!/^(ИП|ООО|OOO)/i.test(a),label:a,company:a.replace(/\(.*$/,"").replace(/\s+/g," ").trim(),inn};veh=null;return}
+    if(a)veh=parseVehicle(a);
+    const pass=String(r[4]||"").trim().split(/\s+/), nm=c.split(/\s+/);
+    const key=[c,r[4],veh&&veh.tractor.plate].join("|");
+    if(S.drivers.some(d=>d.importKey===key)){skipped++;return}
+    const d=newDriver(group.own);
+    Object.assign(d,{importKey:key,name:c,phone:xPhone(r[6]),group:group.label,
+      company:{name:group.own?"":group.company,inn:group.inn,phone:""},
+      tractor:veh?{...veh.tractor}:{model:"",plate:""},trailer:veh?{...veh.trailer}:{model:"",plate:""}});
+    d.data.p1={last_name:nm[0]||"",first_name:nm[1]||"",middle_name:nm.slice(2).join(" "),birth_date:xDate(r[3]),series:pass.length>1?pass[0]:"",number:pass.length>1?pass.slice(1).join(" "):pass[0]||"",issue_date:xDate(r[5])};
+    d.fromXls=true;if(!group.own&&group.company)companies.add(group.company);added++;
+  });
+  S.drvOpen=null;render();toast(`Импорт: добавлено водителей ${added}, компаний ${companies.size}${skipped?`, повторов пропущено ${skipped}`:""}`);
 }
 
 /* менеджер: проверка отчётов */
@@ -1837,6 +1890,7 @@ document.addEventListener("click",async e=>{
     S.termPays.push({d,sum,ts:Date.now(),how:$("#tp-h").value,note:$("#tp-n").value.trim()});S.lastTp=null;render();toast(`Оплата ${rub(sum)} от ${d} внесена`)}
   if(act==="tp-del"){const i=+a.dataset.i;S.lastTp={...S.termPays[i],i};S.termPays.splice(i,1);render()}
   if(act==="tp-undo"){const p=S.lastTp;S.termPays.splice(p.i,0,{d:p.d,sum:p.sum,ts:p.ts,how:p.how,note:p.note});S.lastTp=null;render()}
+  if(act==="drv-f"){S.drvF=a.dataset.f;render()}
   if(act==="drv-open"){S.drvOpen=a.dataset.id;render();window.scrollTo(0,0)}
   if(act==="drv-close"){S.drvOpen=null;render();window.scrollTo(0,0)}
   if(act==="drv-new"){const d=newDriver(a.dataset.own==="1");S.drvOpen=d.id;render();window.scrollTo(0,0);toast("Водитель добавлен — заполните данные или сфотографируйте документы")}
@@ -1886,6 +1940,8 @@ document.addEventListener("change",e=>{
   if(el.dataset.dv){const [id,path]=el.dataset.dv.split("|"),d=drvOf(id),ks=path.split(".");if(ks.length>1)d[ks[0]][ks[1]]=el.value.trim();else d[ks[0]]=el.value.trim();syncTrips(d);render()}
   if(el.dataset.dd){const [id,k,key]=el.dataset.dd.split("|"),d=drvOf(id);d.data[k]=d.data[k]||{};d.data[k][key]=el.value.trim();if(["t1f","t2f","p1"].includes(k))applyDoc(d,k,{[key]:el.value.trim()});render()}
   if(el.dataset.dvown){const d=drvOf(el.dataset.dvown);d.own=!el.checked;syncTrips(d);render()}
+  if(el.id==="drv-xls"&&el.files&&el.files[0])importDrivers(el.files[0]);
+  if(el.id==="drv-q"){S.drvQ=el.value;render();const n=$("#drv-q");if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length)}}
   if(el.dataset.doc&&el.files&&el.files[0]){const [id,k]=el.dataset.doc.split("|");readDoc(id,k,el.files[0])}
   if(el.dataset.loadcity){const t=S.trips.find(x=>x.id===el.dataset.loadcity);t.loadCity=el.value;t.km=NET[el.value][1];render();toast("Город погрузки: "+el.value)}
   if(el.dataset.set){const k=el.dataset.set;S.settings[k]=k==="directWaitDays"?Math.max(0,numOnly(el.value)):el.value;render();toast("Настройка сохранена")}
