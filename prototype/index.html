@@ -668,7 +668,8 @@ function cpGate(o,id){
   const cps=checkpointsOf(o),i=cps.findIndex(c=>c.id===id),cp=cps[i],prev=cps[i-1];
   if(prev&&!cpDone(o,prev.id))return {ok:false,why:`Сначала нужен этап «${STAGES[prev.id].name}».`};
   const t=legTrip(o,cp.leg);
-  if(!t)return {ok:false,why:"Рейс для этого плеча ещё не назначен. Его назначает менеджер."};
+  // приёмка на стоянку возможна до назначения рейса
+  if(!t&&id!=="priemka")return {ok:false,why:"Рейс для этого плеча ещё не назначен. Его назначает менеджер."};
   if(id==="term_in"&&t.km<NET[o.transfer][1])return {ok:false,why:`Автовоз ${t.id} ещё не на терминале ${o.transfer}. Снимать можно заранее, завершить — по прибытии.`};
   if(id==="vygruzka"&&t.km<NET[o.city][1])return {ok:false,why:`Автовоз ещё не в городе получателя. Снимать можно заранее, а завершить сдачу — только в городе ${o.city}.`};
   return {ok:true};
@@ -1319,9 +1320,10 @@ function vSettings(){
 /* приёмщик площадки во Владивостоке: приёмка к перевозке */
 function vYardOrigin(u){
   const city=u.terminal;
-  const q=S.orders.filter(o=>{const t=legTrip(o,0);return t&&(t.loadCity||t.origin||"Владивосток")===city&&!o.delivered});
+  // машины с погрузкой в этом городе, включая новые заявки без рейса — они приезжают на стоянку
+  const q=S.orders.filter(o=>!o.delivered&&loadCityOf(o)===city);
   const todo=q.filter(o=>!cpDone(o,"priemka")), done=q.filter(o=>cpDone(o,"priemka"));
-  const line=o=>{const t=legTrip(o,0);return `№${o.no} · <b>${esc(o.car)}</b>, ${esc(o.color)}<br><small class="muted"><span class="mono">${esc(o.vin)}</span> → ${esc(o.city)}${o.transfer?" (через "+esc(o.transfer)+")":""} · рейс ${t.id}, погрузка ${esc(t.loadDate)}</small>`};
+  const line=o=>{const t=legTrip(o,0);return `№${o.no} · <b>${esc(o.car)}</b>, ${esc(o.color)}<br><small class="muted"><span class="mono">${esc(o.vin)}</span> → ${esc(o.city)}${o.transfer?" (через "+esc(o.transfer)+")":""} · ${t?`рейс ${t.id}, погрузка ${esc(t.loadDate)}`:`<span style="color:var(--warn)">рейс не назначен</span> · договор от ${esc(o.date)}`}</small>`};
   if(S.sub==="incoming")return `<div class="card"><div class="eyebrow">${esc(TERMINALS[city].name)}</div><h2>К приёмке · ${todo.length}</h2>
     <div class="plist">${todo.map(o=>{const hs=hoStat(o,"priemka");return `<div class="pi"><span style="min-width:0">${line(o)}</span>
       <span style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><button class="btn sm primary" data-act="ho-open" data-stage="priemka" data-no="${o.no}">Принять</button>
@@ -1329,7 +1331,7 @@ function vYardOrigin(u){
     <div class="muted" style="font-size:12px">Во Владивостоке осмотр при погрузке делает приёмщик: 10 фото, 5–7 видео и акт. Водитель только подписывает акт.</div></div>`;
   if(S.sub==="yard")return `<div class="card"><div class="eyebrow">${esc(TERMINALS[city].name)}</div><h2>Приняты · ${done.length}</h2>
     <div class="plist">${done.map(o=>{const t=legTrip(o,0);return `<div class="pi"><span style="min-width:0">${line(o)}<br><small class="muted">принята ${esc(hoOf(o,"priemka").doneAt)}</small></span>
-      <span style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><span class="pill ${notLeft(t)?"warn":"ok"}">${notLeft(t)?"ждёт погрузки":"уехала"}</span>
+      <span style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><span class="pill ${!t?"gray":notLeft(t)?"warn":"ok"}">${!t?"на стоянке, ждёт рейса":notLeft(t)?"ждёт погрузки":"уехала"}</span>
       <button class="btn sm ghost" data-act="ho-open" data-stage="priemka" data-no="${o.no}">Акт приёмки</button></span></div>`}).join("")||`<p class="muted" style="margin:0">Пока нет принятых машин.</p>`}</div></div>`;
   return vProfile();
 }
