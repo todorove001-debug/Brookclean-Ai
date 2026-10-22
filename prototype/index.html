@@ -222,6 +222,8 @@ table.sheet{border-collapse:collapse;font-size:13px;min-width:1500px;width:100%}
 /* deliveries */
 .cellin{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:4px 6px;font:inherit;font-size:13px;color:inherit;width:100%;min-width:120px}
 .bhform{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;align-items:end}
+/* drivers */
+.docgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}
 /* handover */
 .check input[type=radio]{width:20px;height:20px;margin-top:1px;accent-color:var(--accent);flex:none}
 .stop.term .dot{border-radius:4px;border-color:var(--accent)}
@@ -312,7 +314,7 @@ const KM_PER_DAY = 600;
 
 /* ===== Состояние ===== */
 const S = {
-  view:"client", step:0, nextNo:687, termPays:[], lastTp:null, trPrice:{date:"15.09.2026",rows:{"Сочи":[90000,95000,100000,105000],"Краснодар":[60000,65000,70000,75000],"Ростов-на-Дону":[60000,65000,70000,75000],"Волгоград":[60000,65000,70000,75000],"Воронеж":[60000,65000,70000,75000],"Саратов":[60000,65000,70000,75000],"Архангельск":[150000,155000,160000,165000],"Петрозаводск":[100000,100000,105000,110000],"Санкт-Петербург":[60000,65000,70000,75000],"Москва":[45000,50000,55000,60000],"Владимир":[45000,50000,55000,60000],"Рязань":[50000,55000,60000,65000],"Нижний Новгород":[45000,50000,55000,60000],"Пенза":[50000,55000,60000,65000],"Чебоксары":[45000,50000,55000,60000],"Казань":[45000,50000,55000,60000],"Ульяновск":[45000,50000,55000,60000],"Киров":[45000,50000,55000,60000],"Набережные Челны":[45000,50000,55000,60000],"Ижевск":[45000,50000,55000,60000],"Пермь":[45000,50000,55000,60000],"Новый Уренгой":[85000,85000,90000,95000],"Нижневартовск":[75000,75000,80000,85000],"Ханты-Мансийск":[75000,75000,80000,85000],"Сургут":[55000,58000,60000,65000],"Екатеринбург":[30000,30000,35000,35000],"Тюмень":[30000,30000,35000,35000],"Оренбург":[55000,55000,60000,65000],"Тольятти":[30000,30000,35000,40000],"Самара":[30000,30000,35000,40000],"Уфа":[30000,30000,35000,40000],"Челябинск":[30000,30000,35000,40000],"Курган":[30000,30000,35000,40000],"Омск":[15000,15000,18000,22000],"Барнаул":[27000,27000,27000,27000]}}, settings:{termOutRule:"byStay",directWaitDays:5}, partner:null, cashback:0, partnerLink:null,
+  view:"client", step:0, nextNo:687, drivers:[], drvOpen:null, termPays:[], lastTp:null, trPrice:{date:"15.09.2026",rows:{"Сочи":[90000,95000,100000,105000],"Краснодар":[60000,65000,70000,75000],"Ростов-на-Дону":[60000,65000,70000,75000],"Волгоград":[60000,65000,70000,75000],"Воронеж":[60000,65000,70000,75000],"Саратов":[60000,65000,70000,75000],"Архангельск":[150000,155000,160000,165000],"Петрозаводск":[100000,100000,105000,110000],"Санкт-Петербург":[60000,65000,70000,75000],"Москва":[45000,50000,55000,60000],"Владимир":[45000,50000,55000,60000],"Рязань":[50000,55000,60000,65000],"Нижний Новгород":[45000,50000,55000,60000],"Пенза":[50000,55000,60000,65000],"Чебоксары":[45000,50000,55000,60000],"Казань":[45000,50000,55000,60000],"Ульяновск":[45000,50000,55000,60000],"Киров":[45000,50000,55000,60000],"Набережные Челны":[45000,50000,55000,60000],"Ижевск":[45000,50000,55000,60000],"Пермь":[45000,50000,55000,60000],"Новый Уренгой":[85000,85000,90000,95000],"Нижневартовск":[75000,75000,80000,85000],"Ханты-Мансийск":[75000,75000,80000,85000],"Сургут":[55000,58000,60000,65000],"Екатеринбург":[30000,30000,35000,35000],"Тюмень":[30000,30000,35000,35000],"Оренбург":[55000,55000,60000,65000],"Тольятти":[30000,30000,35000,40000],"Самара":[30000,30000,35000,40000],"Уфа":[30000,30000,35000,40000],"Челябинск":[30000,30000,35000,40000],"Курган":[30000,30000,35000,40000],"Омск":[15000,15000,18000,22000],"Барнаул":[27000,27000,27000,27000]}}, settings:{termOutRule:"byStay",directWaitDays:5}, partner:null, cashback:0, partnerLink:null,
   f:{car:"Toyota Prius",vin:"ZVW51-6123456",year:"2021",color:"Белый",body:"sedan",value:"1600000",city:"Новосибирск",
      fio:"Иванов Пётр Сергеевич",phone:"+7 913 555 12 34",pser:"5012",pnum:"345678",pissued:"ГУ МВД России по Новосибирской обл.",pdate:"2019-06-14",addr:"г. Новосибирск, ул. Кирова, д. 10, кв. 5"},
   example:true, errs:{}, agree:{contract:false,pep:false,pd:false},
@@ -336,6 +338,15 @@ function seed(){
   const f680=S.orders.find(o=>o.no===680);f680.trip=null;f680.transfer="Новосибирск";
   f680.legs=[{trip:"R-01",from:"Владивосток",to:"Новосибирск"},{trip:"R-03",from:"Новосибирск",to:"Москва"}];
   S.orders.filter(o=>legsOf(o)[0].trip==="R-01").forEach(o=>seedPriemka(o,"21.10 05:"+String(10+o.no%40).padStart(2,"0")));
+  const D=(id,userId,own,name,phone,tm,tp,rm,rp,company)=>({id,userId,own,name,phone,company:company||{name:"",inn:"",phone:""},tractor:{model:tm,plate:tp},trailer:{model:rm,plate:rp},docs:{},data:{}});
+  S.drivers=[
+    D("u2","u2",true,"Петров Сергей Иванович","+7 914 000-11-22","Volvo FH","А 482 КР 125","LUXUDA LZC9407BG","ОО 5642 25"),
+    D("u3","u3",true,"Смирнов Алексей Викторович","+7 914 000-33-44","Scania R","В 117 ОМ 125","LOHR S2M52X","АО 0802 25"),
+    D("u4","u4",false,"Волков Дмитрий Олегович","+7 914 000-55-66","MAN TGX","Е 905 УА 54","LUXUDA LZC9405BG","АО 2148 54",{name:"ООО «Сибирь-Транзит» (пример)",inn:"5406000000",phone:"+7 383 000-00-00"}),
+    D("u6","u6",true,"Ким Олег Сергеевич","+7 914 000-77-88","Shacman X3000","Т 418 ОР 54","LOHR S2M52X","АР 3317 54"),
+    D("h1",null,false,"Гаврилов Игорь Петрович","+7 924 000-12-34","Sitrak C7H","Р 117 ТТ 125","LUXUDA LZC9407BG","ОО 7781 25",{name:"ИП Гаврилов И. П. (пример)",inn:"253700000000",phone:"+7 924 000-12-34"}),
+    D("h2",null,true,"Лебедев Павел Андреевич","+7 914 000-90-12","Volvo FH","К 230 НС 125","LOHR S2M52X","АН 4410 25"),
+  ];
   S.users=[
     {id:"u1",role:"manager",name:"Тодоров Евгений Константинович",short:"Е. Тодоров",login:"79502815555",pass:"demo1234",status:"active"},
     {id:"u2",role:"driver",name:"Петров Сергей Иванович",short:"Сергей П.",login:"79140001122",pass:"demo1234",status:"active",license:"25 31 123456"},
@@ -768,7 +779,7 @@ function vManager(part){
        ${notLeft(t)?(tripFormed(t)?`<button class="btn sm ghost" data-act="trip-unform" data-trip="${t.id}">Вернуть в формирование</button>`:`<button class="btn sm primary" data-act="trip-form" data-trip="${t.id}" ${on.length&&t.driverId?"":"disabled"}>Сформировать рейс</button>`):""}
        ${tripFormed(t)?`<button class="btn sm ghost" data-act="deliv-trip" data-trip="${t.id}">Таблица доставок</button>`:""}</div>
      ${!tripFormed(t)&&(!on.length||!t.driverId)?`<div class="muted" style="font-size:12px">Чтобы сформировать рейс, нужны водитель и хотя бы одна машина.</div>`:""}
-     <div class="inline"><label for="drv-${t.id}" style="font-size:13px;font-weight:500">Водитель</label><select id="drv-${t.id}" data-assign="${t.id}"><option value="">— не назначен —</option>${S.users.filter(u=>u.role==="driver"&&u.status==="active").map(u=>`<option value="${u.id}" ${u.id===t.driverId?"selected":""}>${esc(u.name)}</option>`).join("")}</select></div>
+     <div class="inline"><label for="drv-${t.id}" style="font-size:13px;font-weight:500">Водитель</label><select id="drv-${t.id}" data-assign="${t.id}"><option value="">— не назначен —</option>${S.drivers.filter(drvActive).map(d=>`<option value="${d.id}" ${d.id===t.driverId?"selected":""}>${esc(d.name)} · ${esc(d.tractor.plate||"без номера")}${d.own?"":" · наёмный"}</option>`).join("")}</select></div>
      <div class="trip-orders">${on.map(o=>{const cps=checkpointsOf(o),d=cps.filter(c=>cpDone(o,c.id)).length,leg=legsOf(o).find(l=>l.trip===t.id);
        return `<button class="pill ${o.delivered?"ok":d?"info":"gray"} chipbtn" data-act="ho-view" data-no="${o.no}">№${o.no} ${esc(o.car)} → ${esc(leg.to)}${o.transfer?" · перегрузка":""} · этапы ${d}/${cps.length}</button>`}).join("")||`<span class="muted" style="font-size:13px">Нет машин</span>`}</div>
      <div class="inline"><select id="pos-${t.id}" aria-label="Текущая точка рейса ${t.id}">${route.map(c=>`<option ${NET[c][1]===t.km?"selected":""}>${c}</option>`).join("")}</select>
@@ -809,10 +820,10 @@ function emptyDraft(){return {d:today(),time:"",cat:"fuel",seller:"",city:"",des
 /* --- Кабинеты сотрудников --- */
 const ROLE={manager:"Менеджер",driver:"Водитель",partner:"Партнёр",terminal:"Терминал"};
 const SUBS={
-  manager:[["orders","Стоянка"],["deliv","Доставки"],["trips","Рейсы"],["termbal","Терминал Нск"],["reports","Отчёты водителей"],["staff","Сотрудники"],["settings","Настройки"]],
+  manager:[["orders","Стоянка"],["deliv","Доставки"],["trips","Рейсы"],["termbal","Терминал Нск"],["drivers","Водители"],["reports","Отчёты водителей"],["staff","Сотрудники"],["settings","Настройки"]],
   driver:[["report","Рейсовый отчёт"],["trip","Мой рейс"],["profile","Профиль"]],
   partner:[["links","Ссылки и клиенты"],["profile","Профиль"]],
-  terminal:[["incoming","Прибывают"],["yard","На площадке"],["profile","Профиль"]]
+  terminal:[["incoming","Прибывают"],["yard","На площадке"],["drivers","Водители"],["profile","Профиль"]]
 };
 const USER_ST={active:["Активен","ok"],pending:["Ждёт подтверждения","warn"],blocked:["Заблокирован","err"],rejected:["Отклонён","gray"]};
 const REP_ST={draft:["Черновик","gray"],submitted:["На проверке","warn"],accepted:["Принят","ok"],returned:["Возвращён на доработку","err"]};
@@ -835,15 +846,15 @@ const km=n=>Number(n||0).toLocaleString("ru-RU");
 
 function vCab(){
   const u=me();if(!u)return vAuth();
-  const subs=u.role==="terminal"&&u.terminal==="Владивосток"?[["incoming","К приёмке"],["yard","Приняты"],["profile","Профиль"]]:SUBS[u.role];if(!subs.some(s=>s[0]===S.sub))S.sub=subs[0][0];
+  const subs=u.role==="terminal"&&u.terminal==="Владивосток"?[["incoming","К приёмке"],["yard","Приняты"],["drivers","Водители"],["profile","Профиль"]]:SUBS[u.role];if(!subs.some(s=>s[0]===S.sub))S.sub=subs[0][0];
   const pend=S.users.filter(x=>x.status==="pending").length, waiting=S.trips.filter(t=>t.report.status==="submitted").length;
   const badge=k=>u.role!=="manager"?"":k==="staff"&&pend?`<span class="badge">${pend}</span>`:k==="reports"&&waiting?`<span class="badge">${waiting}</span>`:"";
   const nav=`<nav class="subnav" aria-label="Разделы кабинета">${subs.map(([k,l])=>`<button class="subtab" data-sub="${k}" aria-current="${S.sub===k}">${l}${badge(k)}</button>`).join("")}<button class="subtab out" data-act="logout">Выйти</button></nav>`;
   let body="";
-  if(u.role==="manager")body=S.mgrHo?vMediaView():S.sub==="orders"?vManager("orders"):S.sub==="deliv"?`<div class="mgr">${vDeliveries()}</div>`:S.sub==="termbal"?`<div class="mgr">${vTermBalance()}</div>`:S.sub==="trips"?vManager("trips"):S.sub==="reports"?vMgrReports():S.sub==="settings"?vSettings():vStaff();
+  if(u.role==="manager")body=S.mgrHo?vMediaView():S.sub==="orders"?vManager("orders"):S.sub==="deliv"?`<div class="mgr">${vDeliveries()}</div>`:S.sub==="termbal"?`<div class="mgr">${vTermBalance()}</div>`:S.sub==="drivers"?`<div class="mgr">${vDriversPage()}</div>`:S.sub==="trips"?vManager("trips"):S.sub==="reports"?vMgrReports():S.sub==="settings"?vSettings():vStaff();
   if(u.role==="driver")body=S.sub==="report"?vDriverReport():S.sub==="trip"?vDriverTrip():vProfile();
   if(u.role==="partner")body=S.sub==="links"?vPartner():vProfile();
-  if(u.role==="terminal")body=vTerminal();
+  if(u.role==="terminal")body=S.sub==="drivers"&&!S.ho?vDriversPage():vTerminal();
   return u.role==="manager"?`<div class="mgr">${nav}${body}</div>`:`<div class="col">${nav}${body}</div>`;
 }
 
@@ -925,7 +936,8 @@ function vProfile(){
     ${u.terminal?`<dt>Терминал</dt><dd>${esc(u.terminal)}</dd>`:""}
     ${u.role==="driver"?`<dt>Рейс</dt><dd>${t?t.id+" · до "+esc(t.dest):"не назначен"}</dd>`:""}
     <dt>Статус</dt><dd><span class="pill ${USER_ST[u.status][1]}">${USER_ST[u.status][0]}</span></dd></dl>
-   <div class="actions"><button class="btn ghost" data-act="chpass">Сменить пароль</button><button class="btn dark" data-act="logout">Выйти</button></div></div>`;
+   <div class="actions"><button class="btn ghost" data-act="chpass">Сменить пароль</button><button class="btn dark" data-act="logout">Выйти</button></div></div>
+   ${u.role==="driver"&&drvOf(u.id)?vDriverCard(drvOf(u.id),true):""}`;
 }
 
 /* добавление чека */
@@ -1128,6 +1140,9 @@ function vHandover(o,st,ro){
        <span class="pill ${s.act?"ok":"gray"}">Акт ${s.act?"есть":"нет"}</span>
        ${s.done?`<span class="pill ok">Завершено ${esc(h.doneAt)}</span>`:""}</div>
      <div class="copyline"><code>…/${esc(carFolder(o))}/${esc(stageFolder(o,st))}/</code></div>
+   </div>
+   ${vHoDriver(o,st,h,ro||s.done)}
+   <div class="card" style="gap:8px">
      ${edit?`<button class="linkbtn" data-act="ho-demo" style="align-self:flex-start">Заполнить примером (демо)</button>`:""}
    </div>
    <div class="card"><h3>Фото — ${HO_PHOTOS.length} ракурсов</h3>
@@ -1390,7 +1405,7 @@ function vDeliveries(){
       <dt>Рейс</dt><dd style="text-align:left">${t.id} · выход ${esc(t.loadDate)} · ${esc(t.origin||"Владивосток")} → ${esc(t.dest)}</dd>
       <dt>Тягач</dt><dd style="text-align:left"><input class="cellin" data-tf="truck" value="${esc(t.truck)}" aria-label="Тягач"></dd>
       <dt>Прицеп</dt><dd style="text-align:left"><input class="cellin" data-tf="trailer" value="${esc(t.trailer||"")}" placeholder="марка, госномер" aria-label="Прицеп"></dd>
-      <dt>Водитель</dt><dd style="text-align:left">${esc((S.users.find(u=>u.id===t.driverId)||{}).name||t.driver)}</dd>
+      <dt>Водитель</dt><dd style="text-align:left">${esc((drvOf(t.driverId)||{}).name||t.driver)}${drvOf(t.driverId)&&drvOf(t.driverId).phone?" · "+esc(drvOf(t.driverId).phone):""}</dd>
       <dt>Перевозчик</dt><dd style="text-align:left"><input class="cellin" data-tf="carrier" value="${esc(t.carrier||"")}" placeholder="собственный или название компании" aria-label="Перевозчик"></dd>
     </dl>
    </div>
@@ -1498,7 +1513,7 @@ function seedScenario(){
   // №681 и №682 сняты с прямого R-02 на перегрузку, дальше рейсом R-05 с водителем Олегом
   S.users.find(u=>u.id==="u6").status="active";
   const r5=newTrip("Новосибирск","Краснодар","22.10");
-  Object.assign(r5,{truck:"Shacman X3000 · Т 418 ОР 54",trailer:"LOHR S2M52X · АР 3317 54",carrier:"собственный",driverId:"u6",driver:"Олег К."});
+  Object.assign(r5,{driverId:"u6"});syncTrips(drvOf("u6"));
   [681,682].forEach(no=>{const o=O(no);setTransfer(o,"R-02","Перераспределение загрузки");o.rerouted.at=st();o.legs[1].trip=r5.id});
   T("R-02").status="formed";
   [681,682].forEach(no=>done(O(no),"priemka"));
@@ -1508,6 +1523,124 @@ function seedScenario(){
   ["Омск","Уфа","Воронеж","Краснодар"].forEach(c=>move(r5,c));
   [681,682].forEach(no=>done(O(no),"vygruzka"));
   pay(100000,"п/п 3");
+}
+
+/* реестр водителей: свои и наёмные, транспорт, компания, документы с распознаванием по фото */
+const DOC_FIELDS={
+  p1:{label:"Паспорт · разворот с фото",f:[["last_name","Фамилия"],["first_name","Имя"],["middle_name","Отчество"],["birth_date","Дата рождения"],["birth_place","Место рождения"],["series","Серия"],["number","Номер"],["issued_by","Кем выдан"],["issue_date","Дата выдачи"],["code","Код подразделения"]]},
+  p2:{label:"Паспорт · страница с пропиской",f:[["address","Адрес регистрации"],["reg_date","Дата регистрации"]]},
+  lic:{label:"Водительское удостоверение",f:[["number","Номер ВУ"],["categories","Категории"],["issue_date","Дата выдачи"],["valid_until","Действует до"],["birth_date","Дата рождения"]]},
+  t1f:{label:"СТС тягача · лицевая сторона",f:[["plate","Госномер"],["model","Марка, модель"],["vin","VIN"],["year","Год выпуска"],["color","Цвет"],["category","Категория"]]},
+  t1b:{label:"СТС тягача · оборотная сторона",f:[["owner","Собственник"],["owner_address","Адрес собственника"],["sts_number","Серия и номер СТС"]]},
+  t2f:{label:"СТС прицепа · лицевая сторона",f:[["plate","Госномер"],["model","Марка, модель"],["vin","VIN"],["year","Год выпуска"],["category","Категория"]]},
+  t2b:{label:"СТС прицепа · оборотная сторона",f:[["owner","Собственник"],["owner_address","Адрес собственника"],["sts_number","Серия и номер СТС"]]}
+};
+const DOC_KEYS=Object.keys(DOC_FIELDS);
+function drvOf(id){return S.drivers.find(d=>d.id===id)}
+function drvShort(d){const p=d.name.trim().split(/\s+/);return (p[1]||p[0])+" "+(p[0][0]||"")+"."}
+const truckStr=d=>[d.tractor.model,d.tractor.plate].filter(Boolean).join(" · ")||"тягач не указан";
+const trailerStr=d=>[d.trailer.model,d.trailer.plate].filter(Boolean).join(" · ");
+function drvActive(d){const u=S.users.find(x=>x.id===d.userId);return !u||u.status==="active"}
+function docCount(d){return DOC_KEYS.filter(k=>d.docs[k]&&d.docs[k].status==="done").length}
+function licExpired(d){const v=(d.data.lic||{}).valid_until;return v&&dKey(v)&&dKey(v)<dKey(today())}
+function newDriver(own){const d={id:"h"+(S.drivers.length+1),userId:null,own,name:"Новый водитель",phone:"",company:{name:"",inn:"",phone:""},tractor:{model:"",plate:""},trailer:{model:"",plate:""},docs:{},data:{}};S.drivers.push(d);return d}
+function applyDoc(d,k,r){
+  d.data[k]={...(d.data[k]||{}),...r};
+  if(k==="p1"&&r.last_name){const n=[r.last_name,r.first_name,r.middle_name].filter(Boolean).join(" ");if(n)d.name=n}
+  if(k==="t1f"){if(r.plate)d.tractor.plate=r.plate;if(r.model)d.tractor.model=r.model}
+  if(k==="t2f"){if(r.plate)d.trailer.plate=r.plate;if(r.model)d.trailer.model=r.model}
+  if((k==="t1b"||k==="t2b")&&!d.own&&r.owner&&!d.company.name)d.company.name=r.owner;
+  syncTrips(d);
+}
+function syncTrips(d){S.trips.filter(t=>t.driverId===d.id&&notLeft(t)).forEach(t=>{t.driver=drvShort(d);t.truck=truckStr(d);t.trailer=trailerStr(d);t.carrier=d.own?"собственный":(d.company.name||"наёмный")})}
+async function readDoc(id,k,file){
+  const d=drvOf(id);if(!/^image\//.test(file.type)){toast("Нужна фотография документа");return}
+  const url=URL.createObjectURL(file);d.docs[k]={url,status:"reading"};render();
+  const fin=(st,msg)=>{if(d.docs[k].url!==url)return;d.docs[k]={url,status:st,msg};render()};
+  if(!(AI.fn&&AI.images)){fin("manual","Автораспознавание работает, когда страница открыта в Claude. Заполните поля ниже по фото.");return}
+  const F=DOC_FIELDS[k], prompt=`На фото — ${F.label} (Россия). Прочитай документ и верни только JSON-объект с полями: ${F.f.map(x=>`"${x[0]}" (${x[1]})`).join(", ")}. Даты в формате ДД.ММ.ГГГГ. Госномер — как на документе, например «А 482 КР 125». Если поле не видно — null. Если на фото не этот документ — {"error":"wrong_doc"}.`;
+  try{const r=await AI.fn.json(prompt,{images:[file]});
+    if(!r||r.error){fin("error","На фото не видно этого документа. Сфотографируйте целиком, без бликов.");return}
+    const clean={};F.f.forEach(([key])=>{if(r[key]!=null&&r[key]!=="")clean[key]=String(r[key])});applyDoc(d,k,clean);fin("done","Распознано — проверьте поля")}
+  catch(e){if(e&&["not_granted","images_unavailable","sampling_disabled"].includes(e.code))AI.images=false;fin("manual","Распознать не удалось. Заполните поля ниже по фото.")}
+}
+function demoDoc(id,k){
+  const d=drvOf(id),p=d.name.split(/\s+/),seed=d.id.charCodeAt(1)*7;
+  const ex={p1:{last_name:p[0]||"Иванов",first_name:p[1]||"Иван",middle_name:p[2]||"Иванович",birth_date:"14.03.1984",birth_place:"г. Владивосток",series:"05"+(10+seed%80),number:String(400000+seed*137%500000),issued_by:"УМВД России по Приморскому краю",issue_date:"22.05.2019",code:"250-001"},
+    p2:{address:"Приморский край, г. Владивосток, ул. Светланская, д. "+(10+seed%90)+", кв. "+(seed%60+1),reg_date:"03.06.2019"},
+    lic:{number:"25 31 "+String(100000+seed*91%800000),categories:"B, C, CE",issue_date:"11.09.2018",valid_until:"11.09.2028",birth_date:"14.03.1984"},
+    t1f:{plate:d.tractor.plate||"О 555 ОО 125",model:d.tractor.model||"Volvo FH",vin:"YV2RT40A"+String(seed*7919).slice(0,9).padEnd(9,"0"),year:"2019",color:"Белый",category:"C"},
+    t1b:{owner:d.own?"ИП Тодоров Евгений Константинович":(d.company.name||"ООО «Перевозчик»"),owner_address:"г. Владивосток",sts_number:"99 "+(20+seed%70)+" "+String(300000+seed*53%600000)},
+    t2f:{plate:d.trailer.plate||"АА 1234 25",model:d.trailer.model||"LOHR S2M52X",vin:"VF9S2M52X"+String(seed*613).slice(0,8).padEnd(8,"0"),year:"2018",category:"O4"},
+    t2b:{owner:d.own?"ИП Тодоров Евгений Константинович":(d.company.name||"ООО «Перевозчик»"),owner_address:"г. Владивосток",sts_number:"99 "+(30+seed%60)+" "+String(500000+seed*71%400000)}};
+  applyDoc(d,k,ex[k]);d.docs[k]={url:null,status:"done",demo:true,msg:"Демо: поля заполнены примером"};
+}
+function vDriversList(){
+  const rows=S.drivers.map(d=>{const t=S.trips.find(x=>x.driverId===d.id),u=S.users.find(x=>x.id===d.userId);
+    return `<tr><td><button class="linkbtn" data-act="drv-open" data-id="${d.id}">${esc(d.name)}</button>${u&&u.status!=="active"?` <span class="pill ${USER_ST[u.status][1]}">${USER_ST[u.status][0]}</span>`:""}</td>
+      <td><span class="pill ${d.own?"info":"warn"}">${d.own?"свой":"наёмный"}</span></td>
+      <td>${d.own?"—":`${esc(d.company.name||"не указана")}${d.company.inn?`<br><small class="muted">ИНН ${esc(d.company.inn)}</small>`:""}`}</td>
+      <td class="mono" style="white-space:nowrap">${esc(d.phone||"—")}</td>
+      <td>${esc(d.tractor.model||"")}<br><b class="mono">${esc(d.tractor.plate||"—")}</b></td>
+      <td>${esc(d.trailer.model||"")}<br><b class="mono">${esc(d.trailer.plate||"—")}</b></td>
+      <td class="mono">${esc((d.data.lic||{}).number||"—")}${licExpired(d)?` <span class="pill err">просрочено</span>`:(d.data.lic||{}).valid_until?`<br><small class="muted">до ${esc(d.data.lic.valid_until)}</small>`:""}</td>
+      <td><span class="pill ${docCount(d)===DOC_KEYS.length?"ok":docCount(d)?"warn":"gray"}">${docCount(d)}/${DOC_KEYS.length}</span></td>
+      <td>${t?t.id:"—"}</td></tr>`}).join("");
+  return `<div class="card"><div class="sheet-head"><h3>Водители · ${S.drivers.length}</h3>
+      <div class="inline"><button class="btn sm ghost" data-act="drv-new" data-own="1">+ Свой водитель</button><button class="btn sm dark" data-act="drv-new" data-own="0">+ Наёмный водитель</button></div></div>
+    <div class="tablewrap"><table class="exp" style="min-width:980px"><thead><tr><th>Водитель</th><th>Тип</th><th>Компания</th><th>Телефон</th><th>Тягач</th><th>Прицеп</th><th>ВУ</th><th>Документы</th><th>Рейс</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="muted" style="font-size:12px">При назначении водителя на рейс или в акт приёмки его тягач, прицеп и компания подставляются автоматически. Данные документов распознаются по фото в карточке водителя.</div></div>`;
+}
+function vDriverCard(d,self){
+  const inp=(path,label,val,attrs="")=>`<div class="field"><label for="dv-${d.id}-${path}">${label}</label><input id="dv-${d.id}-${path}" data-dv="${d.id}|${path}" value="${esc(val||"")}" ${attrs}></div>`;
+  const slot=k=>{const s=d.docs[k];return `<div class="shot${s&&s.status==="done"?" done":""}"><b>${DOC_FIELDS[k].label}</b>
+     ${s&&s.url?`<img src="${s.url}" alt="${DOC_FIELDS[k].label}">`:`<div class="ph${s&&s.demo?" demo":""}">${s&&s.demo?"Пример":"нет фото"}</div>`}
+     ${s&&s.status==="reading"?`<div class="reading"><span class="spin" aria-hidden="true"></span><small>Читаю документ…</small></div>`:s&&s.msg?`<small class="${s.status==="error"?"err":""}" style="${s.status==="error"?"color:var(--err)":""}">${esc(s.msg)}</small>`:""}
+     <label class="btn sm ${s?"ghost":"dark"} filelabel" for="doc-${d.id}-${k}">${s?"Переснять":"Сфотографировать"}</label>
+     <input type="file" id="doc-${d.id}-${k}" class="sr" data-doc="${d.id}|${k}" accept="image/*" capture="environment">
+     ${s&&s.status==="done"?"":`<button class="linkbtn" data-act="doc-demo" data-id="${d.id}" data-k="${k}" style="font-size:12px;align-self:flex-start">Пример (демо)</button>`}</div>`};
+  const dataBlock=(keys,title)=>`<div class="card"><h3>${title}</h3>${keys.map(k=>`<div class="eyebrow" style="margin-top:4px">${DOC_FIELDS[k].label}${d.docs[k]&&d.docs[k].status==="done"?` <span class="pill ok">из фото</span>`:""}</div>
+     <div class="docgrid">${DOC_FIELDS[k].f.map(([key,lab])=>`<div class="field"><label for="dd-${d.id}-${k}-${key}">${lab}</label><input id="dd-${d.id}-${k}-${key}" data-dd="${d.id}|${k}|${key}" value="${esc((d.data[k]||{})[key]||"")}"></div>`).join("")}</div>`).join("")}</div>`;
+  const t=S.trips.find(x=>x.driverId===d.id);
+  return `<div class="card">
+     ${self?"":`<button class="linkbtn" data-act="drv-close" style="align-self:flex-start">← К списку водителей</button>`}
+     <div class="sheet-head"><h2>${esc(d.name)}</h2><span class="pill ${d.own?"info":"warn"}">${d.own?"свой водитель":"наёмный"}</span></div>
+     <div class="muted" style="font-size:13px">${t?`Рейс ${t.id} · ${esc(t.origin||"Владивосток")} → ${esc(t.dest)}`:"Рейс не назначен"} · документы ${docCount(d)}/${DOC_KEYS.length}${licExpired(d)?` · <span class="pill err">ВУ просрочено</span>`:""}</div>
+     <div class="row2">${inp("name","ФИО",d.name)}${inp("phone","Телефон",d.phone,'inputmode="tel"')}</div>
+     ${self?"":`<label class="check"><input type="checkbox" data-dvown="${d.id}" ${d.own?"":"checked"}> Наёмный водитель (не наш)</label>`}
+   </div>
+   <div class="card"><h3>Транспорт</h3>
+     <div class="row2">${inp("tractor.model","Тягач · марка, модель",d.tractor.model)}${inp("tractor.plate","Тягач · госномер",d.tractor.plate,'class="mono"')}</div>
+     <div class="row2">${inp("trailer.model","Прицеп · марка, модель",d.trailer.model)}${inp("trailer.plate","Прицеп · госномер",d.trailer.plate,'class="mono"')}</div>
+   </div>
+   ${d.own?"":`<div class="card"><h3>Компания-перевозчик</h3>
+     <div class="row2">${inp("company.name","Название",d.company.name)}${inp("company.inn","ИНН",d.company.inn,'inputmode="numeric"')}</div>
+     ${inp("company.phone","Телефон диспетчера / руководителя",d.company.phone,'inputmode="tel"')}
+   </div>`}
+   <div class="card"><h3>Документы по фото</h3>
+     <p class="muted" style="margin:0;font-size:13px">${AI.fn&&AI.images?"Сфотографируйте документ — Claude прочитает данные и заполнит поля. Проверьте и при необходимости поправьте.":"Автораспознавание работает, когда страница открыта в Claude. Здесь можно сохранить фото и заполнить поля вручную."}</p>
+     <div class="shots">${DOC_KEYS.map(slot).join("")}</div></div>
+   ${dataBlock(["p1","p2"],"Паспорт")}
+   ${dataBlock(["lic"],"Водительское удостоверение")}
+   ${dataBlock(["t1f","t1b"],"СТС тягача")}
+   ${dataBlock(["t2f","t2b"],"СТС прицепа")}`;
+}
+function vDriversPage(){
+  const d=S.drvOpen&&drvOf(S.drvOpen);
+  return d?`<div class="col" style="max-width:860px;margin:0">${vDriverCard(d,false)}</div>`:vDriversList();
+}
+// блок водителя в акте приёмки: выбор из реестра, данные подставляются сами
+function vHoDriver(o,st,h,ro){
+  if(!(st==="priemka"||st==="term_in"))return "";
+  const t=legTrip(o,0);if(!h.driverId&&t&&t.driverId)h.driverId=t.driverId;
+  const d=h.driverId&&drvOf(h.driverId);
+  const info=d?`<dl class="kv" style="grid-template-columns:auto minmax(0,1fr)">
+      <dt>Тягач</dt><dd>${esc(truckStr(d))}</dd><dt>Прицеп</dt><dd>${esc(trailerStr(d)||"—")}</dd>
+      <dt>Перевозчик</dt><dd>${d.own?"собственный":esc(d.company.name||"наёмный")}${!d.own&&d.company.inn?" · ИНН "+esc(d.company.inn):""}</dd>
+      <dt>Телефон</dt><dd>${esc(d.phone||"—")}</dd><dt>ВУ</dt><dd>${esc((d.data.lic||{}).number||"нет данных")}${licExpired(d)?` <span class="pill err">просрочено</span>`:""}</dd></dl>`:"";
+  return `<div class="card"><h3>${st==="priemka"?"Водитель, который забирает машину":"Водитель, который сдаёт машину"}</h3>
+    ${ro?`<div>${d?`<b>${esc(d.name)}</b>`:"не указан"}</div>`:`<div class="field"><label for="ho-drv">Водитель</label><select id="ho-drv" data-hodrv="1"><option value="">— выберите —</option>${S.drivers.filter(drvActive).map(x=>`<option value="${x.id}" ${x.id===h.driverId?"selected":""}>${esc(x.name)} · ${esc(x.tractor.plate||"без номера")}${x.own?"":" · "+esc(x.company.name||"наёмный")}</option>`).join("")}</select></div>`}
+    ${info}${!ro&&d&&docCount(d)<DOC_KEYS.length?`<div class="muted" style="font-size:12px">Документы водителя: ${docCount(d)}/${DOC_KEYS.length}. Недостающие можно сфотографировать во вкладке «Водители».</div>`:""}</div>`;
 }
 
 /* менеджер: проверка отчётов */
@@ -1653,7 +1786,7 @@ document.addEventListener("click",async e=>{
   if(act==="demo"){const u=S.users.find(x=>x.id===a.dataset.uid);S.session=u.id;S.sub=null;S.auth.err="";S.auth.ok="";render();window.scrollTo(0,0);toast("Вы вошли как "+u.short)}
   if(act==="forgot")toast("В рабочей версии пароль сбрасывается кодом из SMS");
   if(act==="chpass")toast("В рабочей версии: старый пароль, новый пароль, код из SMS");
-  if(act==="logout"){S.session=null;S.sub=null;S.ho=null;S.mgrHo=null;S.rx={status:"idle"};S.lastDel=null;render();window.scrollTo(0,0);toast("Вы вышли из кабинета")}
+  if(act==="logout"){S.session=null;S.sub=null;S.drvOpen=null;S.ho=null;S.mgrHo=null;S.rx={status:"idle"};S.lastDel=null;render();window.scrollTo(0,0);toast("Вы вышли из кабинета")}
   if(act==="submit-report"){const t=S.trips.find(x=>x.id===repTrip());t.report.status="submitted";t.report.submittedAt=nowStamp();t.report.comment="";render();window.scrollTo(0,0);toast("Отчёт сдан менеджеру")}
   if(act==="open-rep"){S.report.trip=a.dataset.trip;render()}
   if(act==="accept-rep"){const t=S.trips.find(x=>x.id===S.report.trip);t.report.status="accepted";t.report.acceptedAt=nowStamp();render();toast("Отчёт "+t.id+" принят")}
@@ -1704,6 +1837,10 @@ document.addEventListener("click",async e=>{
     S.termPays.push({d,sum,ts:Date.now(),how:$("#tp-h").value,note:$("#tp-n").value.trim()});S.lastTp=null;render();toast(`Оплата ${rub(sum)} от ${d} внесена`)}
   if(act==="tp-del"){const i=+a.dataset.i;S.lastTp={...S.termPays[i],i};S.termPays.splice(i,1);render()}
   if(act==="tp-undo"){const p=S.lastTp;S.termPays.splice(p.i,0,{d:p.d,sum:p.sum,ts:p.ts,how:p.how,note:p.note});S.lastTp=null;render()}
+  if(act==="drv-open"){S.drvOpen=a.dataset.id;render();window.scrollTo(0,0)}
+  if(act==="drv-close"){S.drvOpen=null;render();window.scrollTo(0,0)}
+  if(act==="drv-new"){const d=newDriver(a.dataset.own==="1");S.drvOpen=d.id;render();window.scrollTo(0,0);toast("Водитель добавлен — заполните данные или сфотографируйте документы")}
+  if(act==="doc-demo"){demoDoc(a.dataset.id,a.dataset.k);render()}
   if(act==="deliver"){const o=S.orders.find(x=>x.no===+a.dataset.no),t=tripOf(o);o.delivered=true;t.events.push({t:nowStamp(),city:o.city,note:"Выдан №"+o.no+" "+o.car});render();toast("№"+o.no+" отмечен выданным")}
 });
 document.addEventListener("input",e=>{
@@ -1742,8 +1879,14 @@ document.addEventListener("change",e=>{
   if(el.dataset.trp){const [c,i]=el.dataset.trp.split("|");S.trPrice.rows[c][+i]=numOnly(el.value);render()}
   if(el.dataset.trpdate){S.trPrice.date=el.value.trim();render()}
   if(el.dataset.odo){S.trips.find(x=>x.id===repTrip()).report[el.dataset.odo]=numOnly(el.value);render()}
-  if(el.dataset.assign){const t=S.trips.find(x=>x.id===el.dataset.assign),u=S.users.find(x=>x.id===el.value);
-    if(!u){t.driverId=null;t.driver="не назначен";render();return}t.driverId=u.id;t.driver=u.short;render();toast(u.short+" назначен на "+t.id)}
+  if(el.dataset.assign){const t=S.trips.find(x=>x.id===el.dataset.assign),d=drvOf(el.value);
+    if(!d){t.driverId=null;t.driver="не назначен";render();return}t.driverId=d.id;t.driver=drvShort(d);t.truck=truckStr(d);t.trailer=trailerStr(d);t.carrier=d.own?"собственный":(d.company.name||"наёмный");
+    render();toast(`${drvShort(d)} назначен на ${t.id}: ${truckStr(d)}${trailerStr(d)?", прицеп "+trailerStr(d):""}`)}
+  if(el.dataset.hodrv){const h=hoOf(S.orders.find(o=>o.no===S.ho.no),S.ho.stage);h.driverId=el.value||null;render()}
+  if(el.dataset.dv){const [id,path]=el.dataset.dv.split("|"),d=drvOf(id),ks=path.split(".");if(ks.length>1)d[ks[0]][ks[1]]=el.value.trim();else d[ks[0]]=el.value.trim();syncTrips(d);render()}
+  if(el.dataset.dd){const [id,k,key]=el.dataset.dd.split("|"),d=drvOf(id);d.data[k]=d.data[k]||{};d.data[k][key]=el.value.trim();if(["t1f","t2f","p1"].includes(k))applyDoc(d,k,{[key]:el.value.trim()});render()}
+  if(el.dataset.dvown){const d=drvOf(el.dataset.dvown);d.own=!el.checked;syncTrips(d);render()}
+  if(el.dataset.doc&&el.files&&el.files[0]){const [id,k]=el.dataset.doc.split("|");readDoc(id,k,el.files[0])}
   if(el.dataset.loadcity){const t=S.trips.find(x=>x.id===el.dataset.loadcity);t.loadCity=el.value;t.km=NET[el.value][1];render();toast("Город погрузки: "+el.value)}
   if(el.dataset.set){const k=el.dataset.set;S.settings[k]=k==="directWaitDays"?Math.max(0,numOnly(el.value)):el.value;render();toast("Настройка сохранена")}
   if(el.id==="rep-adv"){S.trips.find(x=>x.id===S.report.trip).advance=numOnly(el.value);render()}
