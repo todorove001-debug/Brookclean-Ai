@@ -1,7 +1,7 @@
 // Демо автопарка: реестр водителей, сдача отчёта, формирование рейса, распределение, таблица доставок, регистрация.
 // Повторяет проверки сервера (server/src/fleet.ts), данные живут в памяти страницы.
 import {
-  CAPACITY, TRANSFER_CITY, can, docsFilled, isSite, kmTo, licExpired, normalizePhone, routeFor,
+  CAPACITY, HUB, TRANSFER_CITY, can, terminalOf, docsFilled, isSite, kmTo, licExpired, normalizePhone, routeFor,
   type BackhaulRow, type Deliveries, type DistributionItem, type DriverCard, type DriverInput, type Permission, type Role, type StaffMe,
   type TripReport, type TripView,
 } from "@brookclean/shared";
@@ -12,9 +12,9 @@ type Res = { status: number; data: unknown };
 const ok = (data: unknown): Res => ({ status: 200, data });
 const fail = (status: number, error: string, errors?: unknown): Res => ({ status, data: { error, errors } });
 
-type Card = DriverInput & { id: number; staffId: number | null; active: boolean; importKey: string | null; createdAt: string };
-const blankCard = (id: number, own: boolean): Card => ({
-  id, name: "", phone: "", own, group: "", tractorModel: "", tractorPlate: "", trailerModel: "", trailerPlate: "",
+type Card = DriverInput & { id: number; site: string; staffId: number | null; active: boolean; importKey: string | null; createdAt: string };
+const blankCard = (id: number, own: boolean, site: string = HUB): Card => ({
+  id, site, name: "", phone: "", own, group: "", tractorModel: "", tractorPlate: "", trailerModel: "", trailerPlate: "",
   companyName: "", companyInn: "", companyPhone: "", docs: {}, staffId: null, active: true, importKey: null, createdAt: "2026-10-01T00:00:00Z",
 });
 const cards: Card[] = [];
@@ -29,13 +29,17 @@ export function seedFleet() {
     docs: { lic: { number: "25 31 123456", categories: "B, C, CE", issue_date: "14.03.2019", valid_until: "14.03.2029", birth_date: "03.05.1985" } } });
   c(2, true, { name: "Смирнов Алексей Викторович", phone: "+79140003344", tractorModel: "Scania R", tractorPlate: "В 117 ОМ 125", trailerModel: "LOHR S2M52X", trailerPlate: "АО 0802 25" });
   c(3, false, { name: "Волков Дмитрий Олегович", phone: "+79140005566", tractorModel: "MAN TGX", tractorPlate: "Е 905 УА 54", trailerModel: "LUXUDA LZC9405BG", trailerPlate: "АО 2148 54",
-    companyName: "ООО «Сибирь-Транзит» (пример)", companyInn: "5406000000", companyPhone: "+73830000000", group: "Наёмники",
+    companyName: "ООО «Сибирь-Транзит» (пример)", companyInn: "5406000000", companyPhone: "+73830000000", group: "Наёмники", site: TRANSFER_CITY,
     docs: { lic: { number: "25 30 778899", valid_until: "01.09.2026" } } });
   c(4, false, { name: "Гаврилов Игорь Петрович", phone: "+79240001234", tractorModel: "Sitrak C7H", tractorPlate: "Р 117 ТТ 125", trailerModel: "LUXUDA LZC9407BG", trailerPlate: "ОО 7781 25",
     companyName: "ИП Гаврилов И. П. (пример)", companyInn: "253700000000", group: "Наёмники", importKey: "demo-4" });
   c(5, true, { name: "Ким Олег Сергеевич", phone: "+79140007788", staffId: 7, tractorModel: "Shacman X3000", tractorPlate: "Т 418 ОР 54", trailerModel: "LOHR S2M52X", trailerPlate: "АР 3317 54" });
+  // Свой водитель терминала Новосибирск: его видит только приёмщик терминала и менеджер
+  c(6, true, { name: "Сидоров Андрей Петрович", phone: "+79130004455", site: TRANSFER_CITY, tractorModel: "КАМАЗ 54901", tractorPlate: "К 230 НС 154",
+    trailerModel: "LOHR S2M52X", trailerPlate: "НВ 4410 54" });
 }
 export const demoDriverCard = (id: number) => cards.find((c) => c.id === id && c.active);
+export const demoCardOfStaff = (staffId: number) => cards.find((c) => c.staffId === staffId && c.active);
 
 interface Ctx {
   me: StaffMe | null;
@@ -60,26 +64,30 @@ export function demoFleetFetch(path: string, method: string, body: any, ctx: Ctx
       docsFilled: docsFilled(c.docs), licExpired: licExpired(c.docs, new Date()) };
   };
   const apply = (c: Card, b: Partial<Card>, self: boolean) => {
-    const { docs, own, active, id: _i, staffId: _s, importKey: _k, ...rest } = b;
+    const { docs, own, active, id: _i, staffId: _s, importKey: _k, site: _site, ...rest } = b;
     Object.assign(c, rest);
     if (docs) c.docs = { ...c.docs, ...docs };
     if (!self && own !== undefined) c.own = own;
     if (!self && active !== undefined) c.active = active;
   };
 
-  // --- Реестр ---
-  if (path === "/api/staff/registry" && method === "GET") return needAny("drivers.edit", "trips.edit") ?? ok(cards.map(view));
+  // --- Реестр: менеджер видит всех, приёмщик терминала — только своих (как scopeOf на сервере) ---
+  const scope: string | null | undefined = !me ? null : can(me.role, "drivers.edit") || can(me.role, "trips.edit") ? undefined
+    : can(me.role, "drivers.site") ? terminalOf(me) : null;
+  const regDenied = () => needAny("drivers.edit", "trips.edit", "drivers.site") ?? (scope === null ? fail(403, "Свой список водителей есть только у терминала перегруза") : null);
+  const inScope = (c: Card) => scope == null || c.site === scope;
+  if (path === "/api/staff/registry" && method === "GET") return regDenied() ?? ok(cards.filter(inScope).map(view));
   if (path === "/api/staff/registry" && method === "POST") {
-    const denied = need("drivers.edit");
+    const denied = regDenied();
     if (denied) return denied;
     if (String(body?.name ?? "").trim().length < 3) return fail(400, "Укажите ФИО водителя");
-    const c = blankCard(++seq, body.own !== false);
+    const c = blankCard(++seq, body.own !== false, scope ?? (isSite(body.site) ? body.site : HUB));
     apply(c, body, false);
     cards.push(c);
     return ok(view(c));
   }
   if (path === "/api/staff/registry/import") {
-    const denied = need("drivers.edit");
+    const denied = regDenied();
     if (denied) return denied;
     let added = 0, skipped = 0;
     for (const d of body?.drivers ?? []) {
@@ -87,7 +95,7 @@ export function demoFleetFetch(path: string, method: string, body: any, ctx: Ctx
         skipped++;
         continue;
       }
-      const c = blankCard(++seq, d.own !== false);
+      const c = blankCard(++seq, d.own !== false, scope ?? HUB);
       apply(c, d, false);
       c.importKey = d.importKey ?? null;
       cards.push(c);
@@ -106,10 +114,11 @@ export function demoFleetFetch(path: string, method: string, body: any, ctx: Ctx
     return ok(view(c));
   }
   if ((m = /^\/api\/staff\/registry\/(\d+)$/.exec(path))) {
-    const denied = need("drivers.edit");
+    const denied = regDenied();
     if (denied) return denied;
     const c = cards.find((x) => x.id === Number(m![1]));
-    if (!c) return fail(404, "Водитель не найден");
+    if (!c || !inScope(c)) return fail(404, "Водитель не найден");
+    if (scope === undefined && isSite(body?.site)) c.site = body.site;
     if (body?.name !== undefined && String(body.name).trim().length < 3) return fail(400, "Укажите ФИО водителя");
     apply(c, body ?? {}, false);
     return ok(view(c));

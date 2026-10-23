@@ -21,6 +21,8 @@ export const PERMISSIONS = {
   "acts.manage": "Снимать отметки дефектов в подписанном акте",
   "drivers.edit": "Реестр водителей: карточки, документы, импорт из Excel",
   "staff.approve": "Подтверждать регистрацию водителей и приёмщиков",
+  "orders.money": "Видеть стоимость перевозки, оплаты и кэшбэк",
+  "drivers.site": "Свои водители терминала (у приёмщика Новосибирска)",
   "partner.self": "Кабинет партнёра: свои ссылки с кэшбэком и свои клиенты",
 } as const;
 
@@ -31,10 +33,10 @@ export const ROLES = {
   owner: { name: "Владелец", perms: ALL },
   manager: {
     name: "Менеджер",
-    perms: ["orders.read", "orders.create", "orders.edit", "orders.personal", "trips.read", "trips.edit", "reports.read", "reviews.read", "partners.edit", "acts.read", "acts.manage", "drivers.edit", "staff.approve"],
+    perms: ["orders.read", "orders.create", "orders.edit", "orders.personal", "trips.read", "trips.edit", "reports.read", "reviews.read", "partners.edit", "acts.read", "acts.manage", "drivers.edit", "staff.approve", "orders.money"],
   },
-  accountant: { name: "Бухгалтер", perms: ["orders.read", "orders.personal", "payments.edit", "reports.read"] },
-  acceptor: { name: "Приёмщик", perms: ["orders.read", "trips.read", "acts.read", "acts.edit"] },
+  accountant: { name: "Бухгалтер", perms: ["orders.read", "orders.personal", "orders.money", "payments.edit", "reports.read"] },
+  acceptor: { name: "Приёмщик", perms: ["orders.read", "orders.personal", "trips.read", "acts.read", "acts.edit", "drivers.site"] },
   driver: { name: "Водитель", perms: ["trips.driver"] },
   partner: { name: "Партнёр", perms: ["partner.self"] },
 } satisfies Record<string, { name: string; perms: Permission[] }>;
@@ -53,7 +55,7 @@ export interface StaffMe {
   site: string | null;
 }
 
-/** Строка таблицы заявок в панели. ФИО и телефон — только при праве orders.personal. */
+/** Строка таблицы заявок в панели. ФИО и телефон — только при праве orders.personal, суммы и оплата — при orders.money (иначе нули). */
 export interface OrderRowView {
   no: number;
   id: string;
@@ -88,6 +90,8 @@ export interface OrderRowView {
   policyNo: string;
   /** Где машина ждёт рейса: стоянка Владивостока, терминал перегруза или уже в сформированном рейсе (null). */
   yard: "vl" | "nsk" | null;
+  /** Примечание менеджера: видят все, кто видит заявку, в том числе приёмщики. */
+  note: string;
 }
 
 export interface TripView {

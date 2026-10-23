@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { INS_RATE, PAY_FORM, PAY_TO, TRANSFER_CITY, can, canTransfer, routeFor, rub, type OrderRowView, type OrderStatus, type StaffMe, type TripView } from "@brookclean/shared";
+import { INS_RATE, PAY_FORM, PAY_TO, TRANSFER_CITY, can, canTransfer, routeFor, rub, terminalOf, type OrderRowView, type OrderStatus, type StaffMe, type TripView } from "@brookclean/shared";
 import { ApiError } from "../api.ts";
 import { CLIENT_ORIGIN, staffApi, type OrderPatch } from "./api.ts";
 
@@ -15,6 +15,8 @@ export const STATUS: Record<string, { text: string; cls: string }> = {
 const MANUAL: OrderStatus[] = ["signed", "paid", "loading", "in_transit", "arrived", "delivered"];
 const SV_SHARE = 0.4;
 const YARDS = [["vl", "Стоянка Владивосток"], ["nsk", `Терминал ${TRANSFER_CITY}`], ["all", "Все заявки"]] as const;
+// Приёмщик терминала не видит стоянку Владивостока: сервер отдаёт ему только машины с перегрузом к нему
+const TERMINAL_YARDS = [["all", "Все мои машины"], ["nsk", "На терминале"]] as const;
 const fmtPhone = (p: string) => (/^\+7\d{10}$/.test(p) ? `+7 ${p.slice(2, 5)} ${p.slice(5, 8)}-${p.slice(8, 10)}-${p.slice(10)}` : p); // доля страховки «Спасские Ворота»
 
 export function OrdersScreen({ me }: { me: StaffMe }) {
@@ -23,9 +25,12 @@ export function OrdersScreen({ me }: { me: StaffMe }) {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
   const [unpaid, setUnpaid] = useState(false);
-  const [yard, setYard] = useState<"vl" | "nsk" | "all">("vl");
+  const term = terminalOf(me);
+  const [yard, setYard] = useState<"vl" | "nsk" | "all">(term ? "all" : "vl");
   const [error, setError] = useState("");
   const canEdit = can(me.role, "orders.edit");
+  const money = can(me.role, "orders.money");
+  const yards = term ? TERMINAL_YARDS : YARDS;
   const canPay = can(me.role, "payments.edit");
 
   useEffect(() => {
@@ -39,7 +44,7 @@ export function OrdersScreen({ me }: { me: StaffMe }) {
     if (unpaid && r.paidDelivery && r.paidInsurance) return false;
     if (!q) return true;
     const s = q.toLowerCase();
-    return [r.no, r.car, r.vin, r.city, r.client, r.phone, r.partner ?? ""].some((v) => String(v).toLowerCase().includes(s));
+    return [r.no, r.car, r.vin, r.city, r.client, r.phone, r.partner ?? "", r.note].some((v) => String(v).toLowerCase().includes(s));
   }), [rows, q, status, unpaid, yard]);
 
   async function patch(no: number, p: OrderPatch) {
@@ -71,13 +76,14 @@ export function OrdersScreen({ me }: { me: StaffMe }) {
       </div>}
 
       <div className="filters">
-        {YARDS.map(([k, label]) => (
+        {yards.map(([k, label]) => (
           <button key={k} className={`btn sm ${yard === k ? "dark" : "ghost"}`} aria-pressed={yard === k} onClick={() => setYard(k)}>
             {label} · {k === "all" ? rows.length : rows.filter((r) => r.yard === k).length}
           </button>
         ))}
       </div>
-      <p className="small muted">{yard === "all" ? "Реестр всех договоров." : yard === "nsk"
+      <p className="small muted">{term ? `Машины, которые идут через терминал ${term}: данные клиента, машины, город и примечания. Кто едет к вам и водитель — в разделе «Терминал».`
+        : yard === "all" ? "Реестр всех договоров." : yard === "nsk"
         ? `Машины, принятые на терминал ${TRANSFER_CITY}, ждут рейса дальше.`
         : "Машины ждут рейса во Владивостоке. Когда рейс сформирован, они уходят со стоянки в таблицу доставок этого рейса (раздел «Доставки»)."}</p>
       <div className="filters">
@@ -86,7 +92,7 @@ export function OrdersScreen({ me }: { me: StaffMe }) {
           <option value="">Все статусы</option>
           {Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.text}</option>)}
         </select>
-        <label className="check"><input type="checkbox" checked={unpaid} onChange={(e) => setUnpaid(e.target.checked)} /> Только неоплаченные</label>
+        {money && <label className="check"><input type="checkbox" checked={unpaid} onChange={(e) => setUnpaid(e.target.checked)} /> Только неоплаченные</label>}
       </div>
       {error && <div className="callout warn" role="alert">{error}</div>}
 
@@ -94,17 +100,17 @@ export function OrdersScreen({ me }: { me: StaffMe }) {
         <table className="sheet">
           <thead>
             <tr>
-              <th colSpan={3}>Договор</th><th className="grp" colSpan={5}>Автомобиль</th><th className="grp" colSpan={3}>Клиент</th>
-              <th className="grp" colSpan={3}>Перевозка</th><th className="grp" colSpan={2}>Страховка 0,3%</th>
-              <th className="grp" colSpan={4}>Оплата</th><th className="grp" colSpan={2}>Доставка</th>
+              <th colSpan={3}>Договор</th><th className="grp" colSpan={6}>Автомобиль</th><th className="grp" colSpan={money ? 3 : 2}>Клиент</th>
+              {money && <><th className="grp" colSpan={3}>Перевозка</th><th className="grp" colSpan={2}>Страховка 0,3%</th>
+              <th className="grp" colSpan={4}>Оплата</th></>}<th className="grp" colSpan={2}>Доставка</th>
             </tr>
             <tr>
               <th>№</th><th>Дата</th><th>Статус</th>
-              <th className="bl">Авто</th><th>VIN / кузов</th><th className="r">Год</th><th>Цвет</th><th>Город</th>
-              <th className="bl">Получатель</th><th>Телефон</th><th>Партнёр</th>
-              <th className="r bl">Тариф</th><th className="r">Кэшбэк</th><th className="r">В договоре</th>
+              <th className="bl">Авто</th><th>VIN / кузов</th><th className="r">Год</th><th>Цвет</th><th>Город</th><th>Примечание</th>
+              <th className="bl">Получатель</th><th>Телефон</th>{money && <th>Партнёр</th>}
+              {money && <><th className="r bl">Тариф</th><th className="r">Кэшбэк</th><th className="r">В договоре</th>
               <th className="r bl">Оценка</th><th className="r">Сумма</th>
-              <th className="bl">Перевозка</th><th>Страховка</th><th>Кому</th><th>Форма</th>
+              <th className="bl">Перевозка</th><th>Страховка</th><th>Кому</th><th>Форма</th></>}
               <th className="bl">Рейс</th><th>Трекинг</th>
             </tr>
           </thead>
@@ -126,7 +132,8 @@ export function OrdersScreen({ me }: { me: StaffMe }) {
                     ) : <span className={`pill ${st.cls}`}>{st.text}</span>}
                   </td>
                   <td className="bl">{r.car}</td><td className="mono">{r.vin}</td><td className="r">{r.year}</td><td>{r.color}</td><td>{r.city}</td>
-                  <td className="bl">{r.client}</td><td className="mono">{fmtPhone(r.phone)}</td><td>{r.partner ?? "—"}</td>
+                  <td>{canEdit ? <NoteInput no={r.no} value={r.note} onSave={(note) => patch(r.no, { note })} /> : r.note || "—"}</td>
+                  <td className="bl">{r.client}</td><td className="mono">{fmtPhone(r.phone)}</td>{money && <><td>{r.partner ?? "—"}</td>
                   <td className="r bl">{rub(r.tariff)}</td><td className="r">{r.cashback ? rub(r.cashback) : "—"}</td><td className="r"><b>{rub(r.delivery)}</b></td>
                   <td className="r bl">{rub(r.value)}</td><td className="r">{rub(r.insurance)}</td>
                   <td className="bl c"><input type="checkbox" disabled={!canPay} checked={r.paidDelivery} aria-label={`Оплата перевозки №${r.no}`} onChange={(e) => patch(r.no, { paidDelivery: e.target.checked })} /></td>
@@ -140,7 +147,7 @@ export function OrdersScreen({ me }: { me: StaffMe }) {
                     <select disabled={!canPay} value={r.payForm} onChange={(e) => patch(r.no, { payForm: e.target.value })} aria-label={`Форма оплаты №${r.no}`}>
                       <option value="" />{PAY_FORM.map((x) => <option key={x}>{x}</option>)}
                     </select>
-                  </td>
+                  </td></>}
                   <td className="bl">
                     {canEdit && r.status !== "draft" ? (
                       <select value={r.tripId ?? ""} onChange={(e) => patch(r.no, { tripId: e.target.value || null })} aria-label={`Рейс №${r.no}`}>
@@ -167,17 +174,28 @@ export function OrdersScreen({ me }: { me: StaffMe }) {
               );
             })}
           </tbody>
-          <tfoot>
+          {money && <tfoot>
             <tr>
-              <td colSpan={11}>Итого по выборке</td>
+              <td colSpan={12}>Итого по выборке</td>
               <td className="r bl">{rub(sum((r) => r.tariff))}</td><td className="r">{rub(sum((r) => r.cashback))}</td><td className="r">{rub(sum((r) => r.delivery))}</td>
               <td className="r bl">{rub(sum((r) => r.value))}</td><td className="r">{rub(sum((r) => r.insurance))}</td>
               <td colSpan={6} className="bl">не оплачено {rub(owed)}</td>
             </tr>
-          </tfoot>
+          </tfoot>}
         </table>
       </div>
-      <p className="small muted">Страховка {INS_RATE * 100}% от оценки. Строки добавляются сами, когда клиент подписывает договор.</p>
+      {money && <p className="small muted">Страховка {INS_RATE * 100}% от оценки. Строки добавляются сами, когда клиент подписывает договор.</p>}
     </div>
+  );
+}
+
+/** Примечание к заявке: сохраняется, когда поле теряет фокус. */
+function NoteInput({ no, value, onSave }: { no: number; value: string; onSave: (v: string) => void }) {
+  const [v, setV] = useState(value);
+  useEffect(() => setV(value), [value]);
+  return (
+    <input className="note" value={v} placeholder="—" maxLength={500} aria-label={`Примечание №${no}`}
+      onChange={(e) => setV(e.target.value)} onBlur={() => v.trim() !== value && onSave(v.trim())}
+      onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
   );
 }

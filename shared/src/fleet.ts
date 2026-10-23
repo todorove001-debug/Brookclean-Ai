@@ -29,6 +29,8 @@ export interface DriverInput {
 
 export interface DriverCard extends DriverInput {
   id: number;
+  /** Площадка водителя: Владивосток или свой список терминала перегруза. */
+  site: string;
   /** Учётная запись водителя в панели, если он входит сам. */
   staffId: number | null;
   /** Учётная запись ждёт подтверждения менеджером. */

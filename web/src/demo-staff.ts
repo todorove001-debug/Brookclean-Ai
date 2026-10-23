@@ -1,13 +1,13 @@
 // Демо панели управления: примерные заявки и рейсы, вход под любой ролью с паролем «demo».
 import {
-  BODY, CAPACITY, EXPENSE_KINDS, legShare, NET, ROLES, can, isRole, kmTo, normalizePhone, parseRub, routeFor, validateCar, validateCustomer,
+  BODY, CAPACITY, EXPENSE_KINDS, legShare, NET, ROLES, can, terminalOf, isRole, kmTo, normalizePhone, parseRub, routeFor, validateCar, validateCustomer,
   type CarForm, type CustomerForm, type OrderRowView, type ExpenseKind, type OrderStatus, type Permission, type Role, type StaffMe,
   type TripCar, type TripExpense, type TripReport, type TripView,
 } from "@brookclean/shared";
 import { quote, tariffFor } from "../../server/src/pricing.ts";
 import { partnerRequests } from "./demo-partners.ts";
 import { demoActClosedAt, demoActsFetch, seedActs } from "./demo-acts.ts";
-import { demoDriverCard, demoFleetFetch, seedFleet } from "./demo-fleet.ts";
+import { demoCardOfStaff, demoDriverCard, demoFleetFetch, seedFleet } from "./demo-fleet.ts";
 
 type Res = { status: number; data: unknown };
 const ok = (data: unknown): Res => ({ status: 200, data });
@@ -34,7 +34,7 @@ function seedRow(no: number, date: string, car: string, vin: string, year: numbe
     no, id: "demo-" + no, createdAt: date, status: tripId === "R-01" ? "in_transit" : tripId ? "loading" : "signed", car, vin, year: String(year), color,
     body: BODY[body].name, city, client: fio, phone, fio, fullPhone: phone, partner, tariff: q.tariff, cashback, delivery: q.delivery, value,
     insurance: q.insurance, total: q.total, paidDelivery: false, paidInsurance: false, payTo: "", payForm: "", tripId,
-    transfer: null, trip2Id: null, trackToken: null, signedAt: date, policyNo: "", ...extra,
+    transfer: null, trip2Id: null, trackToken: null, signedAt: date, policyNo: "", note: "", ...extra,
   };
 }
 
@@ -47,7 +47,7 @@ const rows: Row[] = [
   seedRow(682, "2026-10-21T07:15:00Z", "Toyota Corolla Cross", "ZVG11-1068109", 2023, "Белый", "cross", "Краснодар", "Бойков Андрей Алексеевич", "+79605550036", 10000, 3000000, "Роман · Монстеркар", "R-01",
     { transfer: "Новосибирск", trip2Id: "R-02" }),
   seedRow(681, "2026-10-21T06:00:00Z", "Suzuki Swift", "ZCEDS-102835", 2024, "Салатовый", "sedan", "Краснодар", "Тагаева Людмила Геннадьевна", "+79295550094", 20000, 1800000, "Роман · Монстеркар", "R-01",
-    { transfer: "Новосибирск", trip2Id: "R-02" }),
+    { transfer: "Новосибирск", trip2Id: "R-02", note: "Нет запасного ключа. Клиентка заберёт машину сама в Краснодаре" }),
   seedRow(680, "2026-10-20T12:30:00Z", "Subaru Forester", "SKE-054317", 2021, "Белый", "cross", "Москва", "Конорев Сергей Александрович", "+79935550064", 10000, 2450000, null, "R-03"),
   seedRow(679, "2026-10-20T10:20:00Z", "BMW 218i", "WBA2A32050VZ51833", 2014, "Белый", "sedan", "Кемерово", "Карпиков Алексей Игоревич", "+79025550038", 0, 1000000, null, "R-01",
     { paidDelivery: true, paidInsurance: true, payTo: "Тодоров", payForm: "нал" }),
@@ -100,9 +100,18 @@ function yardOf(r: Row): OrderRowView["yard"] {
 function view(r: Row): OrderRowView {
   const personal = me && can(me.role, "orders.personal");
   const { fio, fullPhone, ...rest } = r;
-  return { ...rest, client: personal ? fio : shortName(fio), phone: personal ? fullPhone : maskPhone(fullPhone), yard: yardOf(r) };
+  const v = { ...rest, client: personal ? fio : shortName(fio), phone: personal ? fullPhone : maskPhone(fullPhone), yard: yardOf(r) };
+  // Приёмщики не видят стоимость, оплату и партнёра (на сервере — право orders.money)
+  return me && can(me.role, "orders.money") ? v
+    : { ...v, partner: null, tariff: 0, cashback: 0, delivery: 0, value: 0, insurance: 0, total: 0, paidDelivery: false, paidInsurance: false, payTo: "", payForm: "", policyNo: "" };
 }
-const canSee = (t: DemoTrip) => !!me && (can(me.role, "trips.read") || can(me.role, "reports.read") || (can(me.role, "trips.driver") && t.driverId === me.id));
+/** Приёмщик терминала видит только машины с перегрузом к нему и рейсы, которые их везут. */
+const visible = (r: Row) => { const t = me && terminalOf(me); return !t || r.transfer === t; };
+const canSee = (t: DemoTrip) => {
+  const term = me && terminalOf(me);
+  return term ? rows.some((r) => r.transfer === term && (r.tripId === t.id || r.trip2Id === t.id)) : canSeeAll(t);
+};
+const canSeeAll = (t: DemoTrip) => !!me && (can(me.role, "trips.read") || can(me.role, "reports.read") || (can(me.role, "trips.driver") && t.driverId === me.id));
 const canEdit = (t: DemoTrip) => !!me && (can(me.role, "trips.edit") || (can(me.role, "trips.driver") && t.driverId === me.id && !t.closedAt));
 function tripView(t: DemoTrip): TripView {
   const status = t.km >= kmTo(t.dest) && t.km > 0 ? "arrived" : t.km > 0 ? "in_transit" : "loading";
@@ -168,7 +177,11 @@ export function demoStaffFetch(path: string, method: string, body: any): Res {
   if (path === "/api/staff/logout") return (me = null), ok({ ok: true });
   if (path === "/api/staff/me") return me ? ok(me) : fail(401, "Войдите в панель");
 
-  if (path.startsWith("/api/staff/acts")) return demoActsFetch(path, method, body, me, rows, trips);
+  if (path.startsWith("/api/staff/acts")) {
+    // Водитель для приёмщика терминала: телефон из карточки реестра или по учётной записи
+    const refs = trips.map((t) => ({ ...t, phone: (t.regDriverId ? demoDriverCard(t.regDriverId) : t.driverId ? demoCardOfStaff(t.driverId) : undefined)?.phone ?? "" }));
+    return demoActsFetch(path, method, body, me, rows, refs);
+  }
   const fleet = demoFleetFetch(path, method, body, { me, rows, trips, users, tripFor, isRes, tripView, report });
   if (fleet) return fleet;
   if (path === "/api/staff/quote") {
@@ -189,7 +202,7 @@ export function demoStaffFetch(path: string, method: string, body: any): Res {
   }
   if (path === "/api/staff/security") return need("security.manage") ?? ok({ events: [], suspects: [], blocked: [] });
   if (path.startsWith("/api/staff/security/")) return need("security.manage") ?? fail(400, "В демо блокировки не сохраняются");
-  if (path === "/api/staff/orders" && method === "GET") return need("orders.read") ?? ok(rows.map(view));
+  if (path === "/api/staff/orders" && method === "GET") return need("orders.read") ?? ok(rows.filter(visible).map(view));
   if (path === "/api/staff/orders" && method === "POST") {
     const denied = need("orders.create");
     if (denied) return denied;
@@ -198,7 +211,8 @@ export function demoStaffFetch(path: string, method: string, body: any): Res {
     if (Object.keys(errors).length) return fail(400, "Проверьте поля", errors);
     const no = Math.max(...rows.map((r) => r.no)) + 1;
     const r = seedRow(no, new Date().toISOString(), car.car, car.vin.toUpperCase(), Number(car.year), car.color, car.body, car.city, customer.fio,
-      normalizePhone(customer.phone), parseRub(String(body.cashback ?? 0)), parseRub(car.value), body.partner || null, null, { status: "draft", signedAt: null });
+      normalizePhone(customer.phone), parseRub(String(body.cashback ?? 0)), parseRub(car.value), body.partner || null, null,
+      { status: "draft", signedAt: null, note: String(body.note ?? "").trim() });
     rows.unshift(r);
     return ok({ id: r.id, no, quote: quote({ city: car.city, body: car.body, value: parseRub(car.value), cashback: r.cashback }),
       signUrl: `https://brookclean-reg.ru/o/${r.id}`, smsSent: true });
@@ -207,7 +221,7 @@ export function demoStaffFetch(path: string, method: string, body: any): Res {
     const r = rows.find((x) => x.no === Number(m![1]));
     if (!r) return fail(404, "Заявка не найдена");
     const b = body ?? {};
-    if (["status", "tripId", "transfer", "trip2Id"].some((k) => k in b) && !can(me!.role, "orders.edit")) return fail(403, "Нет доступа к этому полю");
+    if (["status", "tripId", "transfer", "trip2Id", "note"].some((k) => k in b) && !can(me!.role, "orders.edit")) return fail(403, "Нет доступа к этому полю");
     if (["paidDelivery", "paidInsurance", "payTo", "payForm", "policyNo"].some((k) => k in b) && !can(me!.role, "payments.edit")) return fail(403, "Нет доступа к этому полю");
     for (const id of [b.tripId, b.trip2Id]) {
       const full = id && seatError(id, r.no);

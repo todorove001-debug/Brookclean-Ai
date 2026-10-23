@@ -3,7 +3,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 import {
   BODY, EXPENSE_KINDS, NET, PAY_FORM, PAY_TO, ROLES, can, isRole, kmTo, normalizePhone, parseRub, rub, routeFor,
-  isDocKind, isSite, canTransfer, TRANSFER_CITY, validateCar, validateCustomer, CAPACITY, REPORT_STATUS, legShare, truckLine, trailerLine,
+  isDocKind, isSite, terminalOf, canTransfer, TRANSFER_CITY, validateCar, validateCustomer, CAPACITY, REPORT_STATUS, legShare, truckLine, trailerLine,
   type BodyType, type CarForm, type CustomerForm, type OrderRowView, type PartnerCabinet, type PartnerCabinetLink, type PartnerPreview, type OrderStatus, type Permission, type Quote, type Role,
   type ExpenseKind, type ReportStatus, type StaffMe, type TripCar, type TripExpense, type TripReport, type TripView, type WaitingCar,
 } from "@brookclean/shared";
@@ -64,7 +64,7 @@ interface StaffRow { id: number; name: string; login: string; pass_hash: string;
 interface OrderRow {
   id: string; no: number; created_at: string; status: OrderStatus; car: string; customer: string; phone: string;
   partner: string | null; cashback: number; quote: string; track_token: string | null; trip_id: string | null; signed_at: string | null;
-  transfer: string | null; trip2_id: string | null; policy_no: string | null; delivered_at: string | null;
+  transfer: string | null; trip2_id: string | null; policy_no: string | null; delivered_at: string | null; note: string;
 }
 export interface TripRow {
   id: string; dest: string; truck: string; driver: string; load_date: string | null; km: number;
@@ -185,7 +185,8 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
     if (o.transfer && db.prepare("SELECT 1 FROM acts WHERE order_id = ? AND stage = 'term_in' AND closed_at IS NOT NULL").get(o.id)) return formed(o.trip2_id) ? null : "nsk";
     return formed(o.trip_id) ? null : "vl";
   }
-  function rowView(o: OrderRow, personal: boolean): OrderRowView {
+  /** money = false: суммы, оплата, партнёр и полис скрыты (приёмщики не видят стоимость). */
+  function rowView(o: OrderRow, personal: boolean, money = true): OrderRowView {
     const car = JSON.parse(o.car) as CarForm;
     const customer = JSON.parse(o.customer) as CustomerForm;
     const q = JSON.parse(o.quote) as Quote;
@@ -198,13 +199,20 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
       partner: o.partner, tariff: q.tariff, cashback: q.cashback, delivery: q.delivery, value: parseRub(car.value),
       insurance: q.insurance, total: q.total, paidDelivery: !!p?.paid_delivery, paidInsurance: !!p?.paid_insurance,
       payTo: p?.pay_to ?? "", payForm: p?.pay_form ?? "", tripId: o.trip_id, transfer: o.transfer, trip2Id: o.trip2_id, trackToken: o.track_token, signedAt: o.signed_at,
-      policyNo: o.policy_no ?? "", yard: yardOf(o),
+      policyNo: o.policy_no ?? "", yard: yardOf(o), note: o.note ?? "",
+      ...(!money && { partner: null, tariff: 0, cashback: 0, delivery: 0, value: 0, insurance: 0, total: 0, paidDelivery: false, paidInsurance: false, payTo: "", payForm: "", policyNo: "" }),
     };
   }
+  /** Приёмщик терминала видит только машины с перегрузом на своей площадке. */
+  const visibleTo = (me: StaffMe, o: Pick<OrderRow, "transfer">) => {
+    const t = terminalOf(me);
+    return !t || o.transfer === t;
+  };
 
   app.get("/api/staff/orders", { preHandler: need("orders.read") }, async (req) => {
     const rows = db.prepare("SELECT * FROM orders ORDER BY no DESC").all() as unknown as OrderRow[];
-    return rows.map((o) => rowView(o, can(req.staff!.role, "orders.personal")));
+    const me = req.staff!;
+    return rows.filter((o) => visibleTo(me, o)).map((o) => rowView(o, can(me.role, "orders.personal"), can(me.role, "orders.money")));
   });
 
   // Расчёт для формы «Оформить заявку»: тарифы есть только на сервере
@@ -215,7 +223,7 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
   });
 
   // Заявку оформляет менеджер, клиент получает SMS со ссылкой и подписывает сам
-  app.post<{ Body: { car: CarForm; customer: CustomerForm; cashback?: number; partner?: string } }>(
+  app.post<{ Body: { car: CarForm; customer: CustomerForm; cashback?: number; partner?: string; note?: string } }>(
     "/api/staff/orders", { preHandler: need("orders.create") }, async (req, reply) => {
       const { car, customer } = req.body ?? ({} as never);
       if (!car || !customer) return reply.code(400).send({ error: "Нет данных заявки" });
@@ -226,10 +234,10 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
       const id = randomUUID();
       const no = nextOrderNo(db);
       const phone = normalizePhone(customer.phone);
-      db.prepare(`INSERT INTO orders (id, no, created_at, status, car, customer, phone, partner, cashback, quote, created_by)
-                  VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?)`)
+      db.prepare(`INSERT INTO orders (id, no, created_at, status, car, customer, phone, partner, cashback, quote, created_by, note)
+                  VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(id, no, now().toISOString(), JSON.stringify(car), JSON.stringify({ ...customer, phone }), phone,
-          req.body.partner?.trim() || null, cashback, JSON.stringify(q), req.staff!.id);
+          req.body.partner?.trim() || null, cashback, JSON.stringify(q), req.staff!.id, String(req.body.note ?? "").trim().slice(0, 500));
       const signUrl = `${ctx.publicUrl}/o/${id}`;
       let smsSent = true;
       try {
@@ -245,13 +253,13 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
   /** Город, до которого машину везёт первый рейс: терминал перегруза или сам город получателя. */
   const legEnd = (o: Pick<OrderRow, "car" | "transfer">) => o.transfer ?? (JSON.parse(o.car) as CarForm).city;
 
-  app.patch<{ Params: { no: string }; Body: Partial<{ status: OrderStatus; tripId: string | null; transfer: string | null; trip2Id: string | null; paidDelivery: boolean; paidInsurance: boolean; payTo: string; payForm: string; policyNo: string }> }>(
+  app.patch<{ Params: { no: string }; Body: Partial<{ status: OrderStatus; tripId: string | null; transfer: string | null; trip2Id: string | null; paidDelivery: boolean; paidInsurance: boolean; payTo: string; payForm: string; policyNo: string; note: string }> }>(
     "/api/staff/orders/:no", { preHandler: need("orders.read") }, async (req, reply) => {
       const o = db.prepare("SELECT * FROM orders WHERE no = ?").get(Number(req.params.no)) as OrderRow | undefined;
       if (!o) return reply.code(404).send({ error: "Заявка не найдена" });
       const b = req.body ?? {};
       const role = req.staff!.role;
-      const touchesOrder = "status" in b || "tripId" in b || "transfer" in b || "trip2Id" in b;
+      const touchesOrder = "status" in b || "tripId" in b || "transfer" in b || "trip2Id" in b || "note" in b;
       const touchesPay = ["paidDelivery", "paidInsurance", "payTo", "payForm", "policyNo"].some((k) => k in b);
       if ((touchesOrder && !can(role, "orders.edit")) || (touchesPay && !can(role, "payments.edit")))
         return reply.code(403).send({ error: "Нет доступа к этому полю" });
@@ -263,6 +271,7 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
           .run(b.status!, b.status!, now().toISOString(), o.id);
         if (b.status === "delivered") await ctx.requestReview(o.no, req.log);
       }
+      if ("note" in b) db.prepare("UPDATE orders SET note = ? WHERE id = ?").run(String(b.note ?? "").trim().slice(0, 500), o.id);
       // Перегруз в Новосибирске: первый рейс до терминала, приёмщик терминала принимает и грузит на следующий рейс
       if ("transfer" in b) {
         const transfer = b.transfer || null;
@@ -326,12 +335,19 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
       audit(req, "order.update", { no: o.no, ...b });
       const fresh = db.prepare("SELECT * FROM orders WHERE id = ?").get(o.id) as unknown as OrderRow;
       if (fresh.trip_id) scheduleSync(fresh.trip_id);
-      return rowView(fresh, can(role, "orders.personal"));
+      return rowView(fresh, can(role, "orders.personal"), can(role, "orders.money"));
     });
 
   // --- Рейсы ---
   // Менеджер видит и меняет все рейсы; водитель — только свои, и только пока рейс не закрыт.
-  const canSeeTrip = (me: StaffMe, t: TripRow) => can(me.role, "trips.read") || can(me.role, "reports.read") || (can(me.role, "trips.driver") && t.driver_id === me.id);
+  // Приёмщик терминала видит только рейсы, которые везут машины через его площадку или от неё
+  const canSeeTrip = (me: StaffMe, t: TripRow) => {
+    const term = terminalOf(me);
+    if (term && !can(me.role, "reports.read"))
+      return !!db.prepare("SELECT 1 FROM orders WHERE transfer = ? AND (trip_id = ? OR trip2_id = ?)").get(term, t.id, t.id);
+    return canSeeTripAll(me, t);
+  };
+  const canSeeTripAll = (me: StaffMe, t: TripRow) => can(me.role, "trips.read") || can(me.role, "reports.read") || (can(me.role, "trips.driver") && t.driver_id === me.id);
   const canEditTrip = (me: StaffMe, t: TripRow) =>
     can(me.role, "trips.edit") || (can(me.role, "trips.driver") && t.driver_id === me.id && !t.closed_at);
 
@@ -587,7 +603,7 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
     return b.length > 1000 && b[0] === 0xff && b[1] === 0xd8 ? b : null;
   };
   app.post<{ Body: { kind: string; image: string; prev?: string } }>(
-    "/api/staff/recognize", { preHandler: needAny("trips.edit", "trips.driver"), bodyLimit: 16 * 1024 * 1024 }, async (req, reply) => {
+    "/api/staff/recognize", { preHandler: needAny("trips.edit", "trips.driver", "drivers.edit", "drivers.site"), bodyLimit: 16 * 1024 * 1024 }, async (req, reply) => {
       if (!ctx.vision) return reply.code(503).send({ error: "Распознавание не настроено на сервере. Заполните поля по фото." });
       const kind = req.body?.kind;
       if (!(kind === "receipt" || kind === "damage" || isDocKind(kind))) return reply.code(400).send({ error: "Неизвестный вид фото" });

@@ -13,6 +13,7 @@ export function NewOrderScreen() {
   const [customer, setCustomer] = useState(EMPTY_CUSTOMER);
   const [cashback, setCashback] = useState("");
   const [partner, setPartner] = useState("");
+  const [note, setNote] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -39,7 +40,7 @@ export function NewOrderScreen() {
     setMessage("");
     setErrors({});
     try {
-      setDone(await staffApi.createOrder({ car, customer, cashback: parseRub(cashback), partner }));
+      setDone(await staffApi.createOrder({ car, customer, cashback: parseRub(cashback), partner, note }));
     } catch (e) {
       const err = e as ApiError;
       setMessage(err.message);
@@ -109,6 +110,11 @@ export function NewOrderScreen() {
           <Field id="partner" label="Партнёр (если есть)" value={partner} onChange={setPartner} errors={errors} />
           <Field id="cashback" label="Кэшбэк партнёру, ₽" value={cashback} onChange={setCashback} errors={errors} inputMode="numeric"
             hint="Прибавляется к перевозке, в договоре отдельно не указывается" />
+        </section>
+        <section className="card">
+          <h2>Примечание</h2>
+          <Field id="note" label="Для приёмщиков и водителя (если есть)" value={note} onChange={setNote} errors={errors}
+            hint="Например: нет запасного ключа, клиент заберёт сам. Клиент примечание не видит" />
         </section>
         {q ? <QuoteCard city={car.city} body={car.body} q={q} /> : <section className="card"><p className="muted">Считаем стоимость…</p></section>}
         {message && <div className="callout warn" role="alert">{message}</div>}

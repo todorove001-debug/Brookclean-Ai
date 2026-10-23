@@ -24,6 +24,11 @@ export const SITES = ["Владивосток", "Новосибирск"] as con
 export type Site = (typeof SITES)[number];
 export const TRANSFER_CITY = "Новосибирск";
 export const isSite = (s: unknown): s is Site => SITES.includes(s as Site);
+/** Главная площадка: здесь машины принимают у клиентов и держат на стоянке. Остальные площадки — терминалы перегруза. */
+export const HUB: Site = "Владивосток";
+/** Приёмщик терминала: видит только машины, которые идут через его площадку, без цен; у него свои водители. */
+export const terminalOf = (me: { role: string; site: string | null }): string | null =>
+  me.role === "acceptor" && me.site && me.site !== HUB ? me.site : null;
 
 /**
  * Передачи машины, которые оформляет приёмщик. Каждая — свой раздел сквозного акта: свои фото, видео и подписи.
@@ -204,6 +209,7 @@ export interface ActView {
   orderStatus: string;
   contractDate: string;
   car: { car: string; vin: string; year: string; color: string; city: string };
+  note: string;
   client: string;
   acceptor: string;
   details: ActCar;
@@ -237,7 +243,7 @@ export interface ActRow {
   group: "todo" | "incoming" | "yard" | "done";
   transfer: string | null;
   /** Перегруз: рейс до терминала и сколько ему осталось, рейс дальше. */
-  trip: { id: string; truck: string; driver: string; kmLeft: number } | null;
+  trip: { id: string; truck: string; driver: string; kmLeft: number; phone: string; trailer: string; carrier: string } | null;
   trip2: { id: string; truck: string; driver: string } | null;
   car: string;
   vin: string;
@@ -252,6 +258,8 @@ export interface ActRow {
   pending: number;
   closedAt: string | null;
   signed: boolean;
+  /** Примечание менеджера к заявке. */
+  note: string;
 }
 
 /** Что мешает подписать акт: фото, видео, непроверенные находки ИИ, обязательные поля. */

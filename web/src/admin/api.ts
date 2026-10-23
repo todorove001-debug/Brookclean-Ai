@@ -14,8 +14,8 @@ export interface NewTripBody {
   loadDate?: string; odometerStart?: number | null; advance?: number;
 }
 export type TripPatch = Partial<{ odometerStart: number | null; odometerEnd: number | null; closed: boolean }>;
-export type OrderPatch = Partial<{ status: OrderStatus; tripId: string | null; transfer: string | null; trip2Id: string | null; paidDelivery: boolean; paidInsurance: boolean; payTo: string; payForm: string; policyNo: string }>;
-export type DriverPatch = Partial<DriverInput> & { active?: boolean };
+export type OrderPatch = Partial<{ status: OrderStatus; tripId: string | null; transfer: string | null; trip2Id: string | null; paidDelivery: boolean; paidInsurance: boolean; payTo: string; payForm: string; policyNo: string; note: string }>;
+export type DriverPatch = Partial<DriverInput> & { active?: boolean; site?: string };
 
 export type ActPatch = Partial<{
   details: Partial<ActCar>; cond: Condition[]; condOther: string; notes: string; giveName: string; takeName: string;
@@ -32,7 +32,7 @@ export const staffApi = {
   orders: () => call<OrderRowView[]>("/api/staff/orders"),
   quote: (car: CarForm, cashback: number) => call<Quote>("/api/staff/quote", { body: { car, cashback } }),
   patchOrder: (no: number, patch: OrderPatch) => call<OrderRowView>(`/api/staff/orders/${no}`, { method: "PATCH", body: patch }),
-  createOrder: (body: { car: CarForm; customer: CustomerForm; cashback?: number; partner?: string }) =>
+  createOrder: (body: { car: CarForm; customer: CustomerForm; cashback?: number; partner?: string; note?: string }) =>
     call<{ id: string; no: number; quote: Quote; signUrl: string; smsSent: boolean }>("/api/staff/orders", { body }),
   trips: () => call<TripView[]>("/api/staff/trips"),
   createTrip: (body: NewTripBody) => call<TripView>("/api/staff/trips", { body }),
@@ -85,7 +85,7 @@ export const staffApi = {
 
   // Автопарк
   registry: () => call<DriverCard[]>("/api/staff/registry"),
-  createDriver: (body: Partial<DriverInput>) => call<DriverCard>("/api/staff/registry", { body }),
+  createDriver: (body: Partial<DriverInput> & { site?: string }) => call<DriverCard>("/api/staff/registry", { body }),
   patchDriver: (id: number, body: DriverPatch) => call<DriverCard>(`/api/staff/registry/${id}`, { method: "PATCH", body }),
   importDrivers: (drivers: Array<DriverInput & { importKey: string }>) => call<{ added: number; skipped: number }>("/api/staff/registry/import", { body: { drivers } }),
   myCard: () => call<DriverCard | null>("/api/staff/registry/me"),

@@ -2,7 +2,7 @@
 // распределение машин, таблица доставок по рейсу с обраткой и самостоятельная регистрация сотрудников.
 import type { FastifyInstance, FastifyReply, FastifyRequest, preHandlerHookHandler } from "fastify";
 import {
-  CAPACITY, DOC_KINDS, TRANSFER_CITY, can, docsFilled, isDocKind, isSite, kmTo, licExpired, normalizePhone, routeFor,
+  CAPACITY, DOC_KINDS, HUB, TRANSFER_CITY, can, terminalOf, docsFilled, isDocKind, isSite, kmTo, licExpired, normalizePhone, routeFor,
   type CarForm, type DeliveryRow, type Deliveries, type DistributionItem, type DriverCard, type DriverDocs, type DriverInput,
   type OrderRowView, type Permission, type Role, type StaffMe, type TripReport, type TripView,
 } from "@brookclean/shared";
@@ -58,13 +58,15 @@ export function migrateFleet(db: DB) {
   add("orders", "delivered_at", "TEXT");
   add("staff", "pending", "INTEGER NOT NULL DEFAULT 0");
   add("staff", "phone", "TEXT");
+  add("drivers", "site", `TEXT NOT NULL DEFAULT '${HUB}'`);
+  add("orders", "note", "TEXT NOT NULL DEFAULT ''");
 }
 
 export interface DriverRow {
   id: number; name: string; phone: string; own: number; grp: string;
   tractor_model: string; tractor_plate: string; trailer_model: string; trailer_plate: string;
   company_name: string; company_inn: string; company_phone: string; docs: string;
-  staff_id: number | null; import_key: string | null; active: number; created_at: string;
+  staff_id: number | null; import_key: string | null; active: number; created_at: string; site: string;
 }
 
 type StaffView = { id: number; name: string; login: string; role: Role; active: boolean; createdAt: string; site: string | null; pending: boolean; phone: string | null };
@@ -115,7 +117,7 @@ export function registerFleet(app: FastifyInstance, ctx: FleetContext) {
     const staff = d.staff_id ? db.prepare("SELECT active, pending FROM staff WHERE id = ?").get(d.staff_id) as { active: number; pending: number } | undefined : undefined;
     const trip = db.prepare("SELECT id FROM trips WHERE reg_driver_id = ? AND closed_at IS NULL ORDER BY load_date DESC LIMIT 1").get(d.id) as { id: string } | undefined;
     return {
-      id: d.id, name: d.name, phone: d.phone, own: !!d.own, group: d.grp, tractorModel: d.tractor_model, tractorPlate: d.tractor_plate,
+      id: d.id, site: d.site, name: d.name, phone: d.phone, own: !!d.own, group: d.grp, tractorModel: d.tractor_model, tractorPlate: d.tractor_plate,
       trailerModel: d.trailer_model, trailerPlate: d.trailer_plate, companyName: d.company_name, companyInn: d.company_inn, companyPhone: d.company_phone,
       docs, staffId: d.staff_id, pending: !!staff?.pending, active: !!d.active, fromExcel: !!d.import_key, createdAt: d.created_at,
       tripId: trip?.id ?? null, docsFilled: docsFilled(docs), licExpired: licExpired(docs, now()),
@@ -123,13 +125,13 @@ export function registerFleet(app: FastifyInstance, ctx: FleetContext) {
   }
   const getCard = (id: number) => db.prepare("SELECT * FROM drivers WHERE id = ?").get(id) as DriverRow | undefined;
 
-  function insertCard(b: Partial<DriverInput>, importKey: string | null = null, staffId: number | null = null) {
+  function insertCard(b: Partial<DriverInput>, importKey: string | null = null, staffId: number | null = null, site: string = HUB) {
     const r = db.prepare(`INSERT INTO drivers (name, phone, own, grp, tractor_model, tractor_plate, trailer_model, trailer_plate,
-                          company_name, company_inn, company_phone, docs, staff_id, import_key, created_at)
-                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+                          company_name, company_inn, company_phone, docs, staff_id, import_key, created_at, site)
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(str(b.name), str(b.phone, 30), b.own === false ? 0 : 1, str(b.group), str(b.tractorModel), str(b.tractorPlate, 20), str(b.trailerModel),
         str(b.trailerPlate, 20), str(b.companyName), str(b.companyInn, 12), str(b.companyPhone, 30), JSON.stringify(cleanDocs(b.docs)), staffId, importKey,
-        now().toISOString());
+        now().toISOString(), site);
     return Number(r.lastInsertRowid);
   }
   function updateCard(id: number, b: Partial<DriverInput> & { active?: boolean }, self: boolean) {
@@ -147,20 +149,46 @@ export function registerFleet(app: FastifyInstance, ctx: FleetContext) {
     if (!self && b.active !== undefined) db.prepare("UPDATE drivers SET active = ? WHERE id = ?").run(Number(!!b.active), id);
   }
 
-  app.get("/api/staff/registry", { preHandler: needAny("drivers.edit", "trips.edit") }, async () =>
-    (db.prepare("SELECT * FROM drivers ORDER BY active DESC, own DESC, name").all() as unknown as DriverRow[]).map(cardView));
+  // Менеджер видит всех водителей; приёмщик терминала — только свой список, водители Владивостока ему не видны
+  const registryAccess = needAny("drivers.edit", "drivers.site");
+  /** undefined — все площадки, строка — только эта, null — нет доступа (приёмщик Владивостока). */
+  function scopeOf(me: StaffMe): string | null | undefined {
+    if (can(me.role, "drivers.edit") || can(me.role, "trips.edit")) return undefined;
+    return can(me.role, "drivers.site") ? terminalOf(me) : null;
+  }
+  function scoped(req: FastifyRequest, reply: FastifyReply): string | undefined | false {
+    const s = scopeOf(req.staff!);
+    if (s === null) {
+      reply.code(403).send({ error: "Свой список водителей есть только у терминала перегруза" });
+      return false;
+    }
+    return s;
+  }
+  const inScope = (d: DriverRow, scope: string | undefined) => scope === undefined || d.site === scope;
 
-  app.post<{ Body: Partial<DriverInput> }>("/api/staff/registry", { preHandler: need("drivers.edit") }, async (req, reply) => {
+  app.get("/api/staff/registry", { preHandler: needAny("drivers.edit", "trips.edit", "drivers.site") }, async (req, reply) => {
+    const scope = scoped(req, reply);
+    if (scope === false) return;
+    return (db.prepare("SELECT * FROM drivers ORDER BY active DESC, own DESC, name").all() as unknown as DriverRow[])
+      .filter((d) => inScope(d, scope)).map(cardView);
+  });
+
+  app.post<{ Body: Partial<DriverInput> & { site?: string } }>("/api/staff/registry", { preHandler: registryAccess }, async (req, reply) => {
+    const scope = scoped(req, reply);
+    if (scope === false) return;
     if (str(req.body?.name).length < 3) return reply.code(400).send({ error: "Укажите ФИО водителя" });
-    const id = insertCard(req.body ?? {});
+    const id = insertCard(req.body ?? {}, null, null, scope ?? (isSite(req.body?.site) ? req.body.site : HUB));
     audit(req, "driver.create", { id });
     return cardView(getCard(id)!);
   });
 
-  app.patch<{ Params: { id: string }; Body: Partial<DriverInput> & { active?: boolean } }>(
-    "/api/staff/registry/:id", { preHandler: need("drivers.edit") }, async (req, reply) => {
+  app.patch<{ Params: { id: string }; Body: Partial<DriverInput> & { active?: boolean; site?: string } }>(
+    "/api/staff/registry/:id", { preHandler: registryAccess }, async (req, reply) => {
+      const scope = scoped(req, reply);
+      if (scope === false) return;
       const d = getCard(Number(req.params.id));
-      if (!d) return reply.code(404).send({ error: "Водитель не найден" });
+      if (!d || !inScope(d, scope)) return reply.code(404).send({ error: "Водитель не найден" });
+      if (scope === undefined && isSite(req.body?.site)) db.prepare("UPDATE drivers SET site = ? WHERE id = ?").run(req.body.site, d.id);
       if (req.body?.name !== undefined && str(req.body.name).length < 3) return reply.code(400).send({ error: "Укажите ФИО водителя" });
       updateCard(d.id, req.body ?? {}, false);
       audit(req, "driver.update", { id: d.id, fields: Object.keys(req.body ?? {}) });
@@ -169,7 +197,9 @@ export function registerFleet(app: FastifyInstance, ctx: FleetContext) {
 
   // Импорт из Excel: файл читает браузер, сюда приходят готовые карточки. Повторный импорт того же файла ничего не дублирует.
   app.post<{ Body: { drivers: Array<Partial<DriverInput> & { importKey?: string }> } }>(
-    "/api/staff/registry/import", { preHandler: need("drivers.edit"), bodyLimit: 4 * 1024 * 1024 }, async (req, reply) => {
+    "/api/staff/registry/import", { preHandler: registryAccess, bodyLimit: 4 * 1024 * 1024 }, async (req, reply) => {
+      const scope = scoped(req, reply);
+      if (scope === false) return;
       const list = req.body?.drivers;
       if (!Array.isArray(list) || !list.length || list.length > 2000) return reply.code(400).send({ error: "В файле нет водителей" });
       let added = 0, skipped = 0;
@@ -179,7 +209,7 @@ export function registerFleet(app: FastifyInstance, ctx: FleetContext) {
           skipped++;
           continue;
         }
-        insertCard(d, key);
+        insertCard(d, key, null, scope ?? HUB);
         added++;
       }
       audit(req, "driver.import", { added, skipped });

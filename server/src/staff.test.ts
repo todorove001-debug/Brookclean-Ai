@@ -85,11 +85,13 @@ test("менеджер оформляет заявку, клиент подпи�
   assert.equal(paid.json().status, "paid");
   assert.equal(paid.json().client, "Жаворонкова Людмила Викторовна");
 
-  // Приёмщик видит заявку, но без полного ФИО и телефона
+  // Приёмщик видит клиента полностью (звонит ему при выдаче), но не видит стоимость и оплату
   const oh = { cookie: (await login("olga", "acceptor-1")).cookie };
   const rows = (await app.inject({ url: "/api/staff/orders", headers: oh })).json();
-  assert.equal(rows[0].client, "Жаворонкова Л. В.");
-  assert.equal(rows[0].phone, "+7 908 ***-**-68");
+  assert.equal(rows[0].client, "Жаворонкова Людмила Викторовна");
+  assert.equal(rows[0].delivery, 0);
+  assert.equal(rows[0].total, 0);
+  assert.equal(rows[0].payTo, "");
 });
 
 test("рейсовый отчёт: CSV и загрузка в Google Диск", async () => {
@@ -236,4 +238,44 @@ test("кабинет партнёра: своя ссылка с кэшбэком
   assert.equal(cab.clients.length, 1);
   assert.equal(cab.clients[0].client, "Жаворонкова Л. В.");
   assert.equal(cab.total, 15000);
+});
+
+test("приёмщик терминала: только машины с перегрузом к нему, свои водители", async () => {
+  const { app, db, login } = setup();
+  const h = { cookie: (await login("owner@brookclean.ru", "owner-pass-1")).cookie };
+  await app.inject({ method: "POST", url: "/api/staff/users", headers: h, payload: { name: "Андрей", login: "andrey", password: "terminal-1", role: "acceptor", site: "Новосибирск" } });
+  await app.inject({ method: "POST", url: "/api/staff/users", headers: h, payload: { name: "Ольга", login: "olga", password: "acceptor-1", role: "acceptor", site: "Владивосток" } });
+  const th = { cookie: (await login("andrey", "terminal-1")).cookie };
+  const vh = { cookie: (await login("olga", "acceptor-1")).cookie };
+
+  const mk = async (city: string) => (await app.inject({ method: "POST", url: "/api/staff/orders", headers: h,
+    payload: { car: { ...car, city }, customer, note: "Без запасного ключа" } })).json().no as number;
+  const far = await mk("Краснодар");
+  await mk("Красноярск");
+  db.prepare("UPDATE orders SET status = 'signed'").run();
+  const trip = (await app.inject({ method: "POST", url: "/api/staff/trips", headers: h, payload: { dest: "Новосибирск", truck: "Volvo FH", driver: "Сергей" } })).json();
+  assert.equal((await app.inject({ method: "PATCH", url: `/api/staff/orders/${far}`, headers: h, payload: { transfer: "Новосибирск", tripId: trip.id } })).statusCode, 200);
+
+  // Стоянка Владивостока ему не видна: только машина с перегрузом, без цены, с примечанием
+  const rows = (await app.inject({ url: "/api/staff/orders", headers: th })).json();
+  assert.deepEqual(rows.map((r: { no: number }) => r.no), [far]);
+  assert.equal(rows[0].delivery, 0);
+  assert.equal(rows[0].note, "Без запасного ключа");
+  assert.equal((await app.inject({ url: "/api/staff/orders", headers: vh })).json().length, 2);
+  // Рейс к терминалу и данные водителя
+  assert.deepEqual((await app.inject({ url: "/api/staff/trips", headers: th })).json().map((t: { id: string }) => t.id), [trip.id]);
+  const acts = (await app.inject({ url: "/api/staff/acts", headers: th })).json();
+  assert.equal(acts[0].group, "incoming");
+  assert.equal(acts[0].trip.driver, "Сергей");
+  assert.equal(acts[0].note, "Без запасного ключа");
+
+  // Свои водители терминала, отдельно от Владивостока
+  await app.inject({ method: "POST", url: "/api/staff/registry", headers: h, payload: { name: "Петров Сергей Иванович" } });
+  const mine = (await app.inject({ method: "POST", url: "/api/staff/registry", headers: th, payload: { name: "Ким Олег Сергеевич", phone: "+79130001122" } })).json();
+  assert.equal(mine.site, "Новосибирск");
+  assert.deepEqual((await app.inject({ url: "/api/staff/registry", headers: th })).json().map((d: { name: string }) => d.name), ["Ким Олег Сергеевич"]);
+  assert.equal((await app.inject({ url: "/api/staff/registry", headers: h })).json().length, 2);
+  assert.equal((await app.inject({ url: "/api/staff/registry", headers: vh })).statusCode, 403);
+  const vlId = (await app.inject({ url: "/api/staff/registry", headers: h })).json().find((d: { site: string }) => d.site === "Владивосток").id;
+  assert.equal((await app.inject({ method: "PATCH", url: `/api/staff/registry/${vlId}`, headers: th, payload: { phone: "1" } })).statusCode, 404);
 });

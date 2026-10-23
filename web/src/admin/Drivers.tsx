@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  DOC_KINDS, DOC_KEYS, can, parseDriverSheet, ROLES,
+  DOC_KINDS, DOC_KEYS, HUB, SITES, can, parseDriverSheet, ROLES, terminalOf,
   type DocKind, type DriverCard, type DriverInput, type RecognizeResult, type StaffMe,
 } from "@brookclean/shared";
 import { ApiError } from "../api.ts";
@@ -8,25 +8,40 @@ import { navigate } from "../router.ts";
 import { staffApi, type DriverPatch, type StaffUser } from "./api.ts";
 import { RecognizedFields, photoToJpeg } from "./Recognized.tsx";
 
-/** Раздел «Водители»: реестр для менеджера, своя карточка для водителя. */
+/** Пустые поля карточки заполняются из распознанного документа: ФИО из паспорта, тягач и прицеп из СТС, компания — собственник по СТС. */
+function fromDoc(k: DocKind, v: Record<string, string>, f: Partial<Record<keyof DriverInput, unknown>>): DriverPatch {
+  const out: DriverPatch = {};
+  const fill = (key: keyof DriverInput, val: string | undefined) => { if (val?.trim() && !String(f[key] ?? "").trim()) Object.assign(out, { [key]: val.trim() }); };
+  if (k === "p1") fill("name", [v.last_name, v.first_name, v.middle_name].filter(Boolean).join(" "));
+  if (k === "t1f") { fill("tractorPlate", v.plate); fill("tractorModel", v.model); }
+  if (k === "t2f") { fill("trailerPlate", v.plate); fill("trailerModel", v.model); }
+  if (k === "t1b" || k === "t2b") fill("companyName", v.owner);
+  return out;
+}
+
+/** Раздел «Водители»: реестр для менеджера, свой список у приёмщика терминала, своя карточка для водителя. */
 export function DriversScreen({ me, path }: { me: StaffMe; path: string }) {
-  if (!can(me.role, "drivers.edit")) return <MyCard />;
+  const manager = can(me.role, "drivers.edit");
+  const term = terminalOf(me);
+  if (!manager && !term) return <MyCard />;
   const open = /^\/admin\/drivers\/(\d+)/.exec(path.split("?")[0]);
-  if (open) return <DriverPage key={open[1]} id={Number(open[1])} />;
+  if (open) return <DriverPage key={open[1]} id={Number(open[1])} manager={manager} />;
   return (
     <div className="stack">
       {can(me.role, "staff.approve") && <Registrations />}
-      <Registry />
+      <Registry term={term} />
     </div>
   );
 }
 
 const FILTERS = [["all", "Все"], ["own", "Свои"], ["hired", "Наёмные"]] as const;
 
-function Registry() {
+/** term — приёмщик терминала: сервер отдаёт только водителей его площадки, новые водители попадают туда же. */
+function Registry({ term }: { term: string | null }) {
   const [list, setList] = useState<DriverCard[] | null>(null);
   const [q, setQ] = useState("");
   const [f, setF] = useState<(typeof FILTERS)[number][0]>("all");
+  const [site, setSite] = useState<string>("all");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const load = () => staffApi.registry().then(setList, (e: ApiError) => setMsg({ ok: false, text: e.message }));
@@ -51,7 +66,7 @@ function Registry() {
     const name = prompt(own ? "ФИО своего водителя" : "ФИО наёмного водителя")?.trim();
     if (!name) return;
     try {
-      const d = await staffApi.createDriver({ name, own });
+      const d = await staffApi.createDriver({ name, own, ...(!term && site !== "all" && { site }) });
       navigate(`/admin/drivers/${d.id}`);
     } catch (e) {
       setMsg({ ok: false, text: (e as ApiError).message });
@@ -60,13 +75,13 @@ function Registry() {
 
   if (!list) return <p className="muted">{msg?.text || "Загружаем водителей…"}</p>;
   const ql = q.trim().toLowerCase();
-  const shown = list.filter((d) => (f === "all" || (f === "own") === d.own) &&
+  const shown = list.filter((d) => (f === "all" || (f === "own") === d.own) && (site === "all" || d.site === site) &&
     (!ql || [d.name, d.phone, d.tractorModel, d.tractorPlate, d.trailerModel, d.trailerPlate, d.companyName, d.companyInn, d.group].join(" ").toLowerCase().includes(ql)));
   const open = (id: number) => navigate(`/admin/drivers/${id}`);
   return (
     <section className="card">
       <div className="row-between">
-        <h3>Водители · {shown.length}{shown.length !== list.length ? ` из ${list.length}` : ""}</h3>
+        <h3>{term ? `Водители терминала ${term}` : "Водители"} · {shown.length}{shown.length !== list.length ? ` из ${list.length}` : ""}</h3>
         <div className="inline">
           <label className="btn sm ghost filebtn">Импорт из Excel
             <input type="file" accept=".xlsx" onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) importFile(file); }} />
@@ -83,6 +98,12 @@ function Registry() {
             {l} · {k === "all" ? list.length : list.filter((d) => (k === "own") === d.own).length}
           </button>
         ))}
+        {!term && (
+          <select value={site} onChange={(e) => setSite(e.target.value)} aria-label="Площадка">
+            <option value="all">Все площадки</option>
+            {SITES.map((x) => <option key={x} value={x}>{x === HUB ? x : `Терминал ${x}`}</option>)}
+          </select>
+        )}
       </div>
       <div className="tablewrap">
         <table className="sheet narrow">
@@ -90,7 +111,8 @@ function Registry() {
           <tbody>
             {shown.map((d) => (
               <tr key={d.id} className={d.active ? "" : "off"}>
-                <td><button className="linkbtn" onClick={() => open(d.id)}>{d.name}</button>{d.pending && <> <span className="pill warn">ждёт доступа</span></>}</td>
+                <td><button className="linkbtn" onClick={() => open(d.id)}>{d.name}</button>{d.pending && <> <span className="pill warn">ждёт доступа</span></>}
+                  {!term && d.site !== HUB && <><br /><span className="pill info">терминал {d.site}</span></>}</td>
                 <td><span className={`pill ${d.own ? "info" : "warn"}`}>{d.own ? "свой" : "наёмный"}</span></td>
                 <td>{d.own ? d.group || "—" : <>{d.companyName || d.group || "не указана"}{d.companyInn && <><br /><small className="muted">ИНН {d.companyInn}</small></>}</>}</td>
                 <td className="mono">{d.phone || "—"}</td>
@@ -104,12 +126,13 @@ function Registry() {
           </tbody>
         </table>
       </div>
+      {term && <p className="small muted">Здесь только ваши водители: Владивосток их не видит, вы не видите водителей Владивостока. Документы, телефон и данные компании можно заполнить по фото в карточке водителя.</p>}
       <p className="small muted">При назначении водителя на рейс его тягач, прицеп и компания подставляются сами. Excel: столбцы «Транспортное средство | … | Водители | Дата рождения | Паспорт | Дата выдачи | Телефон», строки-заголовки групп («Наёмники», компания с ИНН).</p>
     </section>
   );
 }
 
-function DriverPage({ id }: { id: number }) {
+function DriverPage({ id, manager }: { id: number; manager: boolean }) {
   const [d, setD] = useState<DriverCard | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -121,7 +144,20 @@ function DriverPage({ id }: { id: number }) {
   }, [id]);
   const back = <a className="small" href="/admin/drivers" onClick={(e) => { e.preventDefault(); navigate("/admin/drivers"); }}>← К списку водителей</a>;
   if (!d) return <div className="stack">{back}<p className="muted">{error || "Загружаем…"}</p></div>;
-  return <div className="stack">{back}<CardEditor d={d} self={false} save={(b) => staffApi.patchDriver(d.id, b)} onSaved={setD} /></div>;
+  return (
+    <div className="stack">
+      {back}
+      {manager && (
+        <div className="inline">
+          <label htmlFor="dv-site" className="small">Площадка</label>
+          <select id="dv-site" value={d.site} onChange={(e) => staffApi.patchDriver(d.id, { site: e.target.value }).then(setD, (er: ApiError) => setError(er.message))}>
+            {SITES.map((x) => <option key={x} value={x}>{x === HUB ? x : `Терминал ${x}`}</option>)}
+          </select>
+        </div>
+      )}
+      <CardEditor d={d} self={false} save={(b) => staffApi.patchDriver(d.id, b)} onSaved={setD} />
+    </div>
+  );
 }
 
 function MyCard() {
@@ -131,7 +167,7 @@ function MyCard() {
     staffApi.myCard().then(setD, (e: ApiError) => setError(e.message));
   }, []);
   if (d === undefined) return <p className="muted">{error || "Загружаем…"}</p>;
-  const card = d ?? ({ id: 0, name: "", phone: "", own: true, group: "", tractorModel: "", tractorPlate: "", trailerModel: "", trailerPlate: "", companyName: "", companyInn: "",
+  const card = d ?? ({ id: 0, site: HUB, name: "", phone: "", own: true, group: "", tractorModel: "", tractorPlate: "", trailerModel: "", trailerPlate: "", companyName: "", companyInn: "",
     companyPhone: "", docs: {}, staffId: null, pending: false, active: true, fromExcel: false, createdAt: "", tripId: null, docsFilled: 0, licExpired: false } satisfies DriverCard);
   return (
     <div className="stack">
@@ -203,14 +239,12 @@ function CardEditor({ d, self, save, onSaved }: { d: DriverCard; self: boolean; 
           {input("trailerModel", "Прицеп · марка, модель")}
           {input("trailerPlate", "Прицеп · госномер", { mono: true })}
         </div>
-        {!f.own && <>
-          <h3>Компания-перевозчик</h3>
-          <div className="grid4">
-            {input("companyName", "Название")}
-            {input("companyInn", "ИНН", { inputMode: "numeric" })}
-            {input("companyPhone", "Телефон диспетчера / руководителя", { inputMode: "tel" })}
-          </div>
-        </>}
+        <h3>{f.own ? "Компания" : "Компания-перевозчик"}</h3>
+        <div className="grid4">
+          {input("companyName", "Название")}
+          {input("companyInn", "ИНН", { inputMode: "numeric" })}
+          {input("companyPhone", "Телефон диспетчера / руководителя", { inputMode: "tel" })}
+        </div>
         {msg && <div className={`callout ${msg.ok ? "ok" : "warn"}`} role="status">{msg.text}</div>}
         <div className="inline">
           <button className="btn primary" disabled={busy || !dirty} onClick={() => run(self ? { ...selfFields, docs } : { ...f, docs })}>Сохранить</button>
@@ -223,7 +257,7 @@ function CardEditor({ d, self, save, onSaved }: { d: DriverCard; self: boolean; 
         <p className="small muted">Сфотографируйте документ: ИИ прочитает поля, вы сверите их с фото. Сами фото не сохраняются, только данные.</p>
         {DOC_KEYS.map((k) => (
           <DocBlock key={k} kind={k} values={docs[k] ?? {}} onChange={(v) => setDocs((s) => ({ ...s, [k]: v }))}
-            onRecognized={(v) => run({ docs: { [k]: v } }, `${DOC_KINDS[k].label}: данные сохранены`)} />
+            onRecognized={(v) => run({ docs: { [k]: v }, ...fromDoc(k, v, f) }, `${DOC_KINDS[k].label}: данные сохранены`)} />
         ))}
         <button className="btn primary self-start" disabled={busy || !dirty} onClick={() => run(self ? { ...selfFields, docs } : { ...f, docs })}>Сохранить</button>
       </section>
