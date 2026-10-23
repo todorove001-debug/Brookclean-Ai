@@ -18,6 +18,7 @@ import type { GoogleDrive } from "./drive.ts";
 import type { Vision } from "./recognize.ts";
 import type { MediaStore } from "./media.ts";
 import { migrateActs } from "./acts.ts";
+import { migrateFleet } from "./fleet.ts";
 
 export interface AppOptions {
   db: DB;
@@ -70,6 +71,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   migrateGuard(db);
   migratePartners(db);
   migrateActs(db);
+  migrateFleet(db);
   const guard = new Guard(db, now);
 
   const publicUrl = (opts.publicUrl ?? "https://brookclean-reg.ru").replace(/\/$/, "");

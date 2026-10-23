@@ -1,3 +1,4 @@
+import type { ReportStatus } from "./fleet.ts";
 // Права сотрудников. Новый раздел панели = новое право + строка в ROLES.
 
 export const PERMISSIONS = {
@@ -17,6 +18,8 @@ export const PERMISSIONS = {
   "acts.read": "Акты приёма автомобилей",
   "acts.edit": "Приёмка: фото, видео, дефекты, подписи",
   "acts.manage": "Снимать отметки дефектов в подписанном акте",
+  "drivers.edit": "Реестр водителей: карточки, документы, импорт из Excel",
+  "staff.approve": "Подтверждать регистрацию водителей и приёмщиков",
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -26,7 +29,7 @@ export const ROLES = {
   owner: { name: "Владелец", perms: ALL },
   manager: {
     name: "Менеджер",
-    perms: ["orders.read", "orders.create", "orders.edit", "orders.personal", "trips.read", "trips.edit", "reports.read", "reviews.read", "partners.edit", "acts.read", "acts.manage"],
+    perms: ["orders.read", "orders.create", "orders.edit", "orders.personal", "trips.read", "trips.edit", "reports.read", "reviews.read", "partners.edit", "acts.read", "acts.manage", "drivers.edit", "staff.approve"],
   },
   accountant: { name: "Бухгалтер", perms: ["orders.read", "orders.personal", "payments.edit", "reports.read"] },
   acceptor: { name: "Приёмщик", perms: ["orders.read", "trips.read", "acts.read", "acts.edit"] },
@@ -78,6 +81,8 @@ export interface OrderRowView {
   trip2Id: string | null;
   trackToken: string | null;
   signedAt: string | null;
+  /** Номер страхового полиса (заполняет бухгалтер или менеджер). */
+  policyNo: string;
 }
 
 export interface TripView {
@@ -100,6 +105,20 @@ export interface TripView {
   driveError: string | null;
   driveSyncedAt: string | null;
   events: Array<{ at: string; city: string; note: string }>;
+  /** Прицеп и перевозчик (собственный или компания наёмного водителя). */
+  trailer: string;
+  carrier: string;
+  /** Карточка водителя в реестре. */
+  regDriverId: number | null;
+  /** Рейс сформирован: состав машин зафиксирован. */
+  formedAt: string | null;
+  /** Свободных мест из CAPACITY. */
+  seats: number;
+  advance: number;
+  reportStatus: ReportStatus;
+  reportComment: string;
+  submittedAt: string | null;
+  acceptedAt: string | null;
 }
 
 export const PAY_TO = ["Тодоров", "Ким", "Спасские Ворота"];
@@ -137,6 +156,10 @@ export interface TripReport {
     delivery?: number;
     insurance?: number;
     unpaid?: number;
+    /** Остаток аванса у водителя (минус — перерасход, водителю вернуть). */
+    balance: number;
+    /** Выручка рейса по тарифам: при перегрузе — доля по километрам плеча. */
+    revenue?: number;
   };
   finance: boolean;
 }
