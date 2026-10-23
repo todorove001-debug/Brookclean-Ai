@@ -1,5 +1,9 @@
-import type { CarForm, CustomerForm, ExpenseKind, OrderRowView, OrderStatus, Quote, Role, StaffMe, TripReport, TripView, WaitingCar } from "@brookclean/shared";
+import type { CarForm, CustomerForm, ExpenseKind, OrderRowView, OrderStatus, Quote, Role, SecurityReport, StaffMe, TripReport, TripView, WaitingCar } from "@brookclean/shared";
 import { call } from "../api.ts";
+import { SITE_ORIGIN } from "../router.ts";
+
+/** Панель работает на staff.<домен>: ссылки для клиентов (трекинг, партнёры) ведут на сайт клиента. */
+export const CLIENT_ORIGIN = SITE_ORIGIN.replace("://staff.", "://");
 
 export interface StaffUser { id: number; name: string; login: string; role: Role; active: boolean; createdAt: string }
 export interface ReviewRow { no: number; client: string; phone: string; rating: number; text: string; createdAt: string }
@@ -16,6 +20,7 @@ export const staffApi = {
   login: (login: string, password: string) => call<StaffMe>("/api/staff/login", { body: { login, password } }),
   logout: () => call<{ ok: true }>("/api/staff/logout", { method: "POST" }),
   orders: () => call<OrderRowView[]>("/api/staff/orders"),
+  quote: (car: CarForm, cashback: number) => call<Quote>("/api/staff/quote", { body: { car, cashback } }),
   patchOrder: (no: number, patch: OrderPatch) => call<OrderRowView>(`/api/staff/orders/${no}`, { method: "PATCH", body: patch }),
   createOrder: (body: { car: CarForm; customer: CustomerForm; cashback?: number; partner?: string }) =>
     call<{ id: string; no: number; quote: Quote; signUrl: string; smsSent: boolean }>("/api/staff/orders", { body }),
@@ -40,4 +45,8 @@ export const staffApi = {
   createUser: (body: { name: string; login: string; password: string; role: Role }) => call<StaffUser>("/api/staff/users", { body }),
   patchUser: (id: number, body: Partial<{ name: string; role: Role; active: boolean; password: string }>) =>
     call<StaffUser>(`/api/staff/users/${id}`, { method: "PATCH", body }),
+
+  security: () => call<SecurityReport>("/api/staff/security"),
+  block: (value: string, note = "") => call<SecurityReport>("/api/staff/security/block", { body: { value, note } }),
+  unblock: (value: string) => call<SecurityReport>(`/api/staff/security/block/${encodeURIComponent(value)}`, { method: "DELETE" }),
 };

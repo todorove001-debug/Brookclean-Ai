@@ -6,6 +6,7 @@ import { TripsScreen } from "./Trips.tsx";
 import { ReviewsScreen } from "./Reviews.tsx";
 import { PartnersScreen } from "./Partners.tsx";
 import { StaffScreen } from "./Staff.tsx";
+import { SecurityScreen } from "./Security.tsx";
 
 export interface AdminModule {
   id: string;
@@ -26,4 +27,5 @@ export const MODULES: AdminModule[] = [
   { id: "reviews", title: "Отзывы", perms: ["reviews.read"], component: ReviewsScreen },
   { id: "partners", title: "Партнёры", perms: ["partners.edit"], component: PartnersScreen },
   { id: "staff", title: "Сотрудники", perms: ["staff.manage"], component: StaffScreen },
+  { id: "security", title: "Защита", perms: ["security.manage"], component: SecurityScreen },
 ];

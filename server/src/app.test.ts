@@ -16,21 +16,29 @@ function setup() {
   const app = buildApp({ db: openDb(":memory:", 685), sms, adminToken: "secret" });
   const admin = { authorization: "Bearer secret" };
   const codeFromSms = () => /: (\d{4})\./.exec(sms.sent.at(-1)!.text)![1];
-  return { app, sms, admin, codeFromSms };
+  /** Вход клиента по коду из SMS: возвращает заголовок cookie. */
+  async function signIn(phone = customer.phone) {
+    await app.inject({ method: "POST", url: "/api/auth/code", payload: { phone } });
+    const code = /входа (\d{4})/.exec(sms.sent.at(-1)!.text)![1];
+    const r = await app.inject({ method: "POST", url: "/api/auth/verify", payload: { phone, code } });
+    return { cookie: String(r.headers["set-cookie"]).split(";")[0] };
+  }
+  return { app, sms, admin, codeFromSms, signIn };
 }
 
 test("оформление, подпись кодом и трекинг", async () => {
-  const { app, sms, admin, codeFromSms } = setup();
+  const { app, sms, admin, codeFromSms, signIn } = setup();
+  const h = await signIn();
 
   const link = (await app.inject({ method: "POST", url: "/api/staff/partner-links", headers: admin, payload: { partner: "Монстеркар", cashback: 5000 } })).json();
 
-  const created = await app.inject({ method: "POST", url: "/api/orders", payload: { car, customer, consents, partnerToken: link.token } });
+  const created = await app.inject({ method: "POST", url: "/api/orders", headers: h, payload: { car, customer, consents, partnerToken: link.token } });
   assert.equal(created.statusCode, 200);
   const { id, no, quote } = created.json();
   assert.equal(no, 685);
   assert.equal(quote.delivery, 125000);
   assert.equal(quote.total, 128000);
-  assert.equal(sms.sent[0].phone, "+79135551234");
+  assert.equal(sms.sent[1].phone, "+79135551234");
   assert.equal(created.json().devCode, undefined);
 
   const bad = await app.inject({ method: "POST", url: `/api/orders/${id}/sign`, payload: { code: "00000" } });
@@ -55,25 +63,28 @@ test("оформление, подпись кодом и трекинг", async 
 });
 
 test("без согласий и с ошибками заказ не создаётся; админка закрыта", async () => {
-  const { app } = setup();
-  assert.equal((await app.inject({ method: "POST", url: "/api/orders", payload: { car, customer, consents: {} } })).statusCode, 400);
-  const r = await app.inject({ method: "POST", url: "/api/orders", payload: { car: { ...car, vin: "1" }, customer, consents } });
+  const { app, signIn } = setup();
+  const h = await signIn();
+  assert.equal((await app.inject({ method: "POST", url: "/api/orders", headers: h, payload: { car, customer, consents: {} } })).statusCode, 400);
+  const r = await app.inject({ method: "POST", url: "/api/orders", headers: h, payload: { car: { ...car, vin: "1" }, customer, consents } });
   assert.equal(r.statusCode, 400);
   assert.ok(r.json().errors.vin);
   assert.equal((await app.inject({ url: "/api/staff/orders" })).statusCode, 401);
 });
 
 test("после 5 неверных кодов подпись блокируется", async () => {
-  const { app, codeFromSms } = setup();
-  const { id } = (await app.inject({ method: "POST", url: "/api/orders", payload: { car, customer, consents } })).json();
+  const { app, codeFromSms, signIn } = setup();
+  const h = await signIn();
+  const { id } = (await app.inject({ method: "POST", url: "/api/orders", headers: h, payload: { car, customer, consents } })).json();
   for (let i = 0; i < 5; i++) await app.inject({ method: "POST", url: `/api/orders/${id}/sign`, payload: { code: "99999" } });
   const r = await app.inject({ method: "POST", url: `/api/orders/${id}/sign`, payload: { code: codeFromSms() } });
   assert.equal(r.statusCode, 429);
 });
 
 test("получение автомобиля, SMS об отзыве один раз, отзыв виден менеджеру", async () => {
-  const { app, sms, admin, codeFromSms } = setup();
-  const { id, no } = (await app.inject({ method: "POST", url: "/api/orders", payload: { car, customer, consents } })).json();
+  const { app, sms, admin, codeFromSms, signIn } = setup();
+  const h = await signIn();
+  const { id, no } = (await app.inject({ method: "POST", url: "/api/orders", headers: h, payload: { car, customer, consents } })).json();
   const { trackToken } = (await app.inject({ method: "POST", url: `/api/orders/${id}/sign`, payload: { code: codeFromSms() } })).json();
 
   // Отзыв до получения не принимается

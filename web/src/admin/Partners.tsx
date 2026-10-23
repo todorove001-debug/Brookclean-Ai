@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { parseRub, rub } from "@brookclean/shared";
 import { ApiError } from "../api.ts";
-import { SITE_ORIGIN } from "../router.ts";
-import { staffApi, type PartnerLink } from "./api.ts";
+import { CLIENT_ORIGIN, staffApi, type PartnerLink } from "./api.ts";
 
 export function PartnersScreen() {
   const [links, setLinks] = useState<PartnerLink[] | null>(null);
@@ -42,7 +41,7 @@ export function PartnersScreen() {
           <thead><tr><th>Партнёр</th><th className="r">Кэшбэк</th><th>Ссылка</th><th>Создана</th></tr></thead>
           <tbody>
             {(links ?? []).map((l) => (
-              <tr key={l.token}><td>{l.partner}</td><td className="r">{rub(l.cashback)}</td><td className="mono">{SITE_ORIGIN}/?p={l.token}</td><td>{new Date(l.createdAt).toLocaleDateString("ru-RU")}</td></tr>
+              <tr key={l.token}><td>{l.partner}</td><td className="r">{rub(l.cashback)}</td><td className="mono">{CLIENT_ORIGIN}/?p={l.token}</td><td>{new Date(l.createdAt).toLocaleDateString("ru-RU")}</td></tr>
             ))}
           </tbody>
         </table>

@@ -13,6 +13,7 @@ export const PERMISSIONS = {
   "reviews.read": "Отзывы клиентов",
   "partners.edit": "Ссылки партнёров",
   "staff.manage": "Сотрудники и доступы",
+  "security.manage": "Защита цен: журнал и блокировки",
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -133,3 +134,21 @@ export interface TripReport {
 }
 
 export interface WaitingCar { no: number; car: string; vin: string; city: string; status: string }
+
+/** Записи журнала защиты цен (раздел «Защита» в панели). */
+export const SECURITY_KINDS = {
+  sms_limit: "Слишком много SMS",
+  quote_limit: "Превышен лимит расчётов",
+  many_cities: "Перебирает города",
+  captcha_failed: "Не прошёл капчу",
+  bad_code: "Подбирает код из SMS",
+  blocked: "Запрос из чёрного списка",
+} as const;
+export type SecurityKind = keyof typeof SECURITY_KINDS;
+
+export interface SecurityReport {
+  events: Array<{ id: number; at: number; ip: string; phone: string; kind: SecurityKind; detail: string }>;
+  /** Номера и IP с записями в журнале за 7 дней: сколько расчётов и разных городов. */
+  suspects: Array<{ kind: "phone" | "ip"; value: string; events: number; quotes: number; cities: number; last: number; blocked: boolean }>;
+  blocked: Array<{ value: string; at: string; note: string }>;
+}

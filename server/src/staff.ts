@@ -2,7 +2,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 import {
-  BODY, EXPENSE_KINDS, NET, PAY_FORM, PAY_TO, ROLES, can, isRole, kmTo, normalizePhone, parseRub, quote, rub, routeFor,
+  BODY, EXPENSE_KINDS, NET, PAY_FORM, PAY_TO, ROLES, can, isRole, kmTo, normalizePhone, parseRub, rub, routeFor,
   validateCar, validateCustomer,
   type CarForm, type CustomerForm, type OrderRowView, type OrderStatus, type Permission, type Quote, type Role,
   type ExpenseKind, type StaffMe, type TripCar, type TripExpense, type TripReport, type TripView, type WaitingCar,
@@ -11,6 +11,8 @@ import { nextOrderNo, nextTripNo, type DB } from "./db.ts";
 import { sha256 } from "./contract.ts";
 import { GoogleDrive, getSetting, sheetUrl, toCsv } from "./drive.ts";
 import type { SmsSender } from "./sms.ts";
+import { quote } from "./pricing.ts";
+import type { Guard } from "./guard.ts";
 
 export interface StaffContext {
   db: DB;
@@ -20,6 +22,7 @@ export interface StaffContext {
   adminToken?: string;
   drive?: GoogleDrive;
   secureCookies: boolean;
+  guard: Guard;
   requestReview: (no: number, log: { error: (e: unknown) => void }) => Promise<void>;
   randomToken: (len?: number) => string;
 }
@@ -64,7 +67,7 @@ declare module "fastify" {
   interface FastifyRequest { staff?: StaffMe }
 }
 
-function cookie(req: FastifyRequest, name: string) {
+export function cookie(req: FastifyRequest, name: string) {
   const raw = req.headers.cookie ?? "";
   for (const part of raw.split(";")) {
     const [k, ...v] = part.trim().split("=");
@@ -172,6 +175,13 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
   app.get("/api/staff/orders", { preHandler: need("orders.read") }, async (req) => {
     const rows = db.prepare("SELECT * FROM orders ORDER BY no DESC").all() as unknown as OrderRow[];
     return rows.map((o) => rowView(o, can(req.staff!.role, "orders.personal")));
+  });
+
+  // Расчёт для формы «Оформить заявку»: тарифы есть только на сервере
+  app.post<{ Body: { car: CarForm; cashback?: number } }>("/api/staff/quote", { preHandler: need("orders.create") }, async (req, reply) => {
+    const car = req.body?.car;
+    if (!car || !(car.body in BODY)) return reply.code(400).send({ error: "Выберите город и кузов" });
+    return quote({ city: car.city, body: car.body, value: parseRub(car.value), cashback: Math.max(0, Math.round(Number(req.body.cashback) || 0)) });
   });
 
   // Заявку оформляет менеджер, клиент получает SMS со ссылкой и подписывает сам
@@ -675,4 +685,22 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
   app.get("/api/staff/audit", { preHandler: need("staff.manage") }, async () =>
     db.prepare(`SELECT a.at, a.action, a.details, s.name FROM audit a LEFT JOIN staff s ON s.id = a.staff_id
                 ORDER BY a.id DESC LIMIT 200`).all());
+
+  // --- Защита цен: журнал подозрительных запросов и чёрный список ---
+  app.get("/api/staff/security", { preHandler: need("security.manage") }, async () => ctx.guard.report());
+
+  app.post<{ Body: { value: string; note?: string } }>("/api/staff/security/block", { preHandler: need("security.manage") }, async (req, reply) => {
+    const raw = String(req.body?.value ?? "").trim();
+    const value = /^[\d\s()+-]+$/.test(raw) && normalizePhone(raw) ? normalizePhone(raw) : raw;
+    if (!value) return reply.code(400).send({ error: "Укажите телефон или IP" });
+    ctx.guard.block(value, String(req.body?.note ?? "").trim().slice(0, 200), req.staff!.id || null);
+    audit(req, "security.block", { value });
+    return ctx.guard.report();
+  });
+
+  app.delete<{ Params: { value: string } }>("/api/staff/security/block/:value", { preHandler: need("security.manage") }, async (req) => {
+    ctx.guard.unblock(req.params.value);
+    audit(req, "security.unblock", { value: req.params.value });
+    return ctx.guard.report();
+  });
 }

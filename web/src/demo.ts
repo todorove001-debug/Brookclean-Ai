@@ -1,8 +1,11 @@
 // Имитация сервера для демо-сборки: те же ответы, что у server/src/app.ts, но в браузере.
 import {
-  kmTo, maskVin, normalizePhone, parseRub, quote, routeFor, validateCar, validateCustomer,
+  kmTo, maskVin, normalizePhone, parseRub, routeFor, validateCar, validateCustomer,
   type CarForm, type CustomerForm, type OrderStatus, type Quote, type TrackingView,
 } from "@brookclean/shared";
+// Только демо-страница: в обычной сборке сайта тарифов нет (проверяет web/vite.config.ts).
+// Демо-файл содержит прайс целиком, поэтому его не стоит выкладывать в открытый доступ.
+import { quote } from "../../server/src/pricing.ts";
 
 interface DemoOrder {
   id: string; no: number; status: OrderStatus; createdAt: string; car: CarForm; customer: CustomerForm; phone: string;
@@ -25,6 +28,9 @@ const persist = () => {
     /* демо работает и без хранилища */
   }
 };
+
+let demoPhone: string | null = null;
+let loginCode: { phone: string; code: string } | null = null;
 
 const rand = (n: number) => Array.from({ length: n }, () => "abcdefghijkmnpqrstuvwxyz23456789"[Math.floor(Math.random() * 32)]).join("");
 const ok = (data: unknown) => ({ status: 200, data });
@@ -74,6 +80,26 @@ export async function demoFetch(path: string, method: string, body: any): Promis
   if (path.startsWith("/api/staff/")) return (await import("./demo-staff.ts")).demoStaffFetch(path, method, body);
 
   if ((m = /^\/api\/partner-links\//.exec(path))) return fail(404, "Ссылка не найдена");
+
+  // Вход по SMS: в демо код показывается на экране
+  if (path === "/api/auth/me") return demoPhone ? ok({ phone: demoPhone }) : fail(401, "Подтвердите номер телефона");
+  if (path === "/api/auth/code") {
+    const phone = normalizePhone(String(body?.phone ?? ""));
+    if (!phone) return fail(400, "Укажите номер мобильного телефона", { phone: "Укажите номер мобильного телефона" });
+    loginCode = { phone, code: String(Math.floor(1000 + Math.random() * 9000)) };
+    return ok({ ok: true, phone, devCode: loginCode.code });
+  }
+  if (path === "/api/auth/verify") {
+    if (!loginCode || normalizePhone(String(body?.phone)) !== loginCode.phone || String(body?.code) !== loginCode.code) return fail(400, "Неверный код");
+    demoPhone = loginCode.phone;
+    return ok({ phone: demoPhone });
+  }
+  if (path === "/api/auth/logout") return (demoPhone = null), ok({ ok: true });
+  if (path === "/api/quote") {
+    if (!demoPhone) return fail(401, "Подтвердите номер телефона, чтобы увидеть цену");
+    const car = body?.car as CarForm;
+    return ok(quote({ city: car.city, body: car.body, value: parseRub(car.value) }));
+  }
 
   if (path === "/api/orders" && method === "POST") {
     const { car, customer, consents } = body as { car: CarForm; customer: CustomerForm; consents: Record<string, boolean> };

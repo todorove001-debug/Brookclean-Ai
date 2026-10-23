@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { BODY, CITIES, parseRub, quote, type BodyType, type CarForm, type CustomerForm } from "@brookclean/shared";
+import { useEffect, useState } from "react";
+import { BODY, CITIES, parseRub, type BodyType, type CarForm, type CustomerForm, type Quote } from "@brookclean/shared";
 import { ApiError } from "../api.ts";
 import { Field, QuoteCard } from "../Checkout.tsx";
 import { staffApi } from "./api.ts";
@@ -19,7 +19,18 @@ export function NewOrderScreen() {
   const [done, setDone] = useState<{ no: number; signUrl: string; smsSent: boolean } | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const q = useMemo(() => quote({ city: car.city, body: car.body, value: parseRub(car.value), cashback: parseRub(cashback) }), [car, cashback]);
+  // Тарифы есть только на сервере: расчёт запрашиваем при каждом изменении города, кузова, стоимости и кэшбэка
+  const [q, setQ] = useState<Quote | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const t = setTimeout(() => {
+      staffApi.quote({ ...car }, parseRub(cashback)).then((r) => alive && setQ(r), () => alive && setQ(null));
+    }, 250);
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
+  }, [car.city, car.body, car.value, cashback]);
   const setC = (k: keyof CarForm) => (v: string) => setCar((s) => ({ ...s, [k]: v }));
   const setU = (k: keyof CustomerForm) => (v: string) => setCustomer((s) => ({ ...s, [k]: v }));
 
@@ -99,7 +110,7 @@ export function NewOrderScreen() {
           <Field id="cashback" label="Кэшбэк партнёру, ₽" value={cashback} onChange={setCashback} errors={errors} inputMode="numeric"
             hint="Прибавляется к перевозке, в договоре отдельно не указывается" />
         </section>
-        <QuoteCard city={car.city} body={car.body} q={q} />
+        {q ? <QuoteCard city={car.city} body={car.body} q={q} /> : <section className="card"><p className="muted">Считаем стоимость…</p></section>}
         {message && <div className="callout warn" role="alert">{message}</div>}
         <button className="btn primary" disabled={busy} onClick={submit}>{busy ? "Создаём…" : "Создать и отправить клиенту"}</button>
       </div>

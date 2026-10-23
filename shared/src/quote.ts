@@ -1,4 +1,4 @@
-import { INS_RATE, tariffFor, type BodyType } from "./tariffs.ts";
+import type { BodyType } from "./tariffs.ts";
 
 export interface QuoteInput {
   city: string;
@@ -16,13 +16,6 @@ export interface Quote {
   total: number;
   /** Минивены и джипы считаются по габаритам: цена «от», подтверждает менеджер. */
   needsManager: boolean;
-}
-
-export function quote({ city, body, value, cashback = 0 }: QuoteInput): Quote {
-  const tariff = tariffFor(city, body);
-  const delivery = tariff + cashback;
-  const insurance = Math.round(value * INS_RATE);
-  return { tariff, cashback, delivery, insurance, total: delivery + insurance, needsManager: body === "van" };
 }
 
 export const rub = (n: number) => new Intl.NumberFormat("ru-RU").format(Math.round(n)) + " ₽";
