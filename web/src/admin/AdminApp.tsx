@@ -25,7 +25,9 @@ export function AdminApp({ path }: { path: string }) {
 
   const allowed = visibleModules(me);
   const slug = path.split("?")[0].split("/")[2] ?? "";
-  const current = allowed.find((m) => m.id === slug) ?? allowed[0];
+  // Приёмщик сразу попадает в свой кабинет: машины к приёмке или на перегрузку
+  const home = me.role === "acceptor" ? allowed.find((m) => m.id === "acts") : undefined;
+  const current = allowed.find((m) => m.id === slug) ?? home ?? allowed[0];
   const Screen = current?.component;
 
   return (
@@ -44,7 +46,7 @@ export function AdminApp({ path }: { path: string }) {
         {allowed.map((m) => (
           <a key={m.id} href={`/admin/${m.id}`} aria-current={m === current ? "page" : undefined}
             onClick={(e) => { e.preventDefault(); navigate(`/admin/${m.id}`); }}>
-            {m.id === "trips" && me.role === "driver" ? "Мои рейсы" : m.title}
+            {m.id === "trips" && me.role === "driver" ? "Мои рейсы" : m.id === "acts" && me.site === "Новосибирск" ? "Терминал" : m.id === "acts" && me.role === "driver" ? "Погрузка и выдача" : m.title}
           </a>
         ))}
       </nav>
@@ -59,7 +61,8 @@ const DEMO_USERS = [
   { login: "owner", label: "Владелец" },
   { login: "manager", label: "Менеджер" },
   { login: "accountant", label: "Бухгалтер" },
-  { login: "acceptor", label: "Приёмщик" },
+  { login: "acceptor", label: "Приёмщик · Владивосток" },
+  { login: "terminal", label: "Приёмщик · терминал Новосибирск" },
   { login: "driver", label: "Водитель" },
 ];
 

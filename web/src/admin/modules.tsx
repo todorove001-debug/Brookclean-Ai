@@ -7,6 +7,7 @@ import { ReviewsScreen } from "./Reviews.tsx";
 import { PartnersScreen } from "./Partners.tsx";
 import { StaffScreen } from "./Staff.tsx";
 import { SecurityScreen } from "./Security.tsx";
+import { ActsScreen } from "./Acts.tsx";
 
 export interface AdminModule {
   id: string;
@@ -23,6 +24,7 @@ export const visibleModules = (me: StaffMe) => MODULES.filter((m) => m.perms.som
 export const MODULES: AdminModule[] = [
   { id: "orders", title: "Заявки", perms: ["orders.read"], component: OrdersScreen },
   { id: "new", title: "Оформить заявку", perms: ["orders.create"], component: NewOrderScreen },
+  { id: "acts", title: "Приёмка", perms: ["acts.read", "acts.driver"], component: ActsScreen },
   { id: "trips", title: "Рейсы и отчёты", perms: ["trips.read", "trips.driver"], component: TripsScreen },
   { id: "reviews", title: "Отзывы", perms: ["reviews.read"], component: ReviewsScreen },
   { id: "partners", title: "Партнёры", perms: ["partners.edit"], component: PartnersScreen },

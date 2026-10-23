@@ -5,6 +5,8 @@ import { smsFromEnv } from "./sms.ts";
 import { GoogleDrive } from "./drive.ts";
 import { ensureOwner } from "./staff.ts";
 import { captchaFromEnv } from "./guard.ts";
+import { yandexFromEnv } from "./recognize.ts";
+import { MemoryStore, s3FromEnv } from "./media.ts";
 
 const prod = process.env.NODE_ENV === "production";
 const db = openDb(process.env.DB_FILE ?? "data/brookclean.db", Number(process.env.ORDER_NO_START ?? 685));
@@ -27,6 +29,9 @@ const app = buildApp({
   staffUrl,
   captcha: captchaFromEnv(),
   drive,
+  vision: yandexFromEnv(),
+  // Без S3 в разработке файлы живут в памяти сервера; в продакшене загрузка фото без S3 отключена
+  media: s3FromEnv() ?? (prod ? undefined : new MemoryStore()),
   webDist: fileURLToPath(new URL("../../web/dist", import.meta.url)),
   exposeSmsCode: !prod && process.env.SMS_PROVIDER === undefined,
 });

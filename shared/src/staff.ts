@@ -14,6 +14,10 @@ export const PERMISSIONS = {
   "partners.edit": "Ссылки партнёров",
   "staff.manage": "Сотрудники и доступы",
   "security.manage": "Защита цен: журнал и блокировки",
+  "acts.read": "Акты приёма автомобилей",
+  "acts.edit": "Приёмка: фото, видео, дефекты, подписи",
+  "acts.manage": "Снимать отметки дефектов в подписанном акте",
+  "acts.driver": "Передачи машин своего рейса: погрузка, выдача получателю, подписи",
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -23,11 +27,11 @@ export const ROLES = {
   owner: { name: "Владелец", perms: ALL },
   manager: {
     name: "Менеджер",
-    perms: ["orders.read", "orders.create", "orders.edit", "orders.personal", "trips.read", "trips.edit", "reports.read", "reviews.read", "partners.edit"],
+    perms: ["orders.read", "orders.create", "orders.edit", "orders.personal", "trips.read", "trips.edit", "reports.read", "reviews.read", "partners.edit", "acts.read", "acts.manage"],
   },
   accountant: { name: "Бухгалтер", perms: ["orders.read", "orders.personal", "payments.edit", "reports.read"] },
-  acceptor: { name: "Приёмщик", perms: ["orders.read", "trips.read"] },
-  driver: { name: "Водитель", perms: ["trips.driver"] },
+  acceptor: { name: "Приёмщик", perms: ["orders.read", "trips.read", "acts.read", "acts.edit"] },
+  driver: { name: "Водитель", perms: ["trips.driver", "acts.driver"] },
 } satisfies Record<string, { name: string; perms: Permission[] }>;
 
 export type Role = keyof typeof ROLES;
@@ -40,6 +44,8 @@ export interface StaffMe {
   login: string;
   role: Role;
   perms: Permission[];
+  /** Площадка приёмщика: Владивосток или терминал перегруза Новосибирск. */
+  site: string | null;
 }
 
 /** Строка таблицы заявок в панели. ФИО и телефон — только при праве orders.personal. */
@@ -68,6 +74,9 @@ export interface OrderRowView {
   payTo: string;
   payForm: string;
   tripId: string | null;
+  /** Перегруз: город терминала и рейс от терминала дальше. */
+  transfer: string | null;
+  trip2Id: string | null;
   trackToken: string | null;
   signedAt: string | null;
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { INS_RATE, PAY_FORM, PAY_TO, can, routeFor, rub, type OrderRowView, type OrderStatus, type StaffMe, type TripView } from "@brookclean/shared";
+import { INS_RATE, PAY_FORM, PAY_TO, TRANSFER_CITY, can, canTransfer, routeFor, rub, type OrderRowView, type OrderStatus, type StaffMe, type TripView } from "@brookclean/shared";
 import { ApiError } from "../api.ts";
 import { CLIENT_ORIGIN, staffApi, type OrderPatch } from "./api.ts";
 
@@ -98,7 +98,9 @@ export function OrdersScreen({ me }: { me: StaffMe }) {
           <tbody>
             {shown.map((r) => {
               const st = STATUS[r.status] ?? STATUS.signed;
-              const tripOptions = trips.filter((t) => routeFor(t.dest).includes(r.city));
+              // С перегрузом первый рейс идёт до терминала, второй — от терминала до города получателя
+              const tripOptions = trips.filter((t) => routeFor(t.dest).includes(r.transfer ?? r.city));
+              const trip2Options = r.transfer ? trips.filter((t) => routeFor(t.dest).includes(r.transfer!) && routeFor(t.dest).includes(r.city)) : [];
               return (
                 <tr key={r.no}>
                   <td className="mono">{r.no}</td>
@@ -133,6 +135,19 @@ export function OrdersScreen({ me }: { me: StaffMe }) {
                         {tripOptions.map((t) => <option key={t.id} value={t.id}>{t.id} → {t.dest}</option>)}
                       </select>
                     ) : r.tripId ?? "—"}
+                    {canEdit && r.status !== "draft" && canTransfer(r.city, routeFor) && (
+                      <label className="check small nowrap">
+                        <input type="checkbox" checked={!!r.transfer} onChange={(e) => patch(r.no, { transfer: e.target.checked ? TRANSFER_CITY : null })} />
+                        перегруз {TRANSFER_CITY}
+                      </label>
+                    )}
+                    {!canEdit && r.transfer && <div className="small">перегруз {r.transfer}{r.trip2Id ? ` → ${r.trip2Id}` : ""}</div>}
+                    {canEdit && r.transfer && (
+                      <select value={r.trip2Id ?? ""} onChange={(e) => patch(r.no, { trip2Id: e.target.value || null })} aria-label={`Рейс от терминала №${r.no}`}>
+                        <option value="">рейс дальше —</option>
+                        {trip2Options.map((t) => <option key={t.id} value={t.id}>{t.id} → {t.dest}</option>)}
+                      </select>
+                    )}
                   </td>
                   <td>{r.trackToken ? <a href={`${CLIENT_ORIGIN}/t/${r.trackToken}`} target="_blank" rel="noopener">открыть</a> : "—"}</td>
                 </tr>

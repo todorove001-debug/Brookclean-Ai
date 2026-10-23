@@ -6,6 +6,7 @@ import {
 } from "@brookclean/shared";
 import { quote } from "../../server/src/pricing.ts";
 import { partnerRequests } from "./demo-partners.ts";
+import { demoActsFetch, seedActs } from "./demo-acts.ts";
 
 type Res = { status: number; data: unknown };
 const ok = (data: unknown): Res => ({ status: 200, data });
@@ -14,11 +15,12 @@ const fail = (status: number, error: string, errors?: unknown): Res => ({ status
 interface Row extends OrderRowView { fio: string; fullPhone: string }
 
 const users = [
-  { id: 1, name: "Евгений", login: "owner", role: "owner" as Role, active: true, createdAt: "2026-10-01T00:00:00Z" },
-  { id: 2, name: "Анна", login: "manager", role: "manager" as Role, active: true, createdAt: "2026-10-02T00:00:00Z" },
-  { id: 3, name: "Ирина", login: "accountant", role: "accountant" as Role, active: true, createdAt: "2026-10-03T00:00:00Z" },
-  { id: 4, name: "Ольга", login: "acceptor", role: "acceptor" as Role, active: true, createdAt: "2026-10-04T00:00:00Z" },
-  { id: 5, name: "Сергей", login: "driver", role: "driver" as Role, active: true, createdAt: "2026-10-05T00:00:00Z" },
+  { id: 1, name: "Евгений", login: "owner", role: "owner" as Role, active: true, createdAt: "2026-10-01T00:00:00Z", site: null as string | null },
+  { id: 2, name: "Анна", login: "manager", role: "manager" as Role, active: true, createdAt: "2026-10-02T00:00:00Z", site: null },
+  { id: 3, name: "Ирина", login: "accountant", role: "accountant" as Role, active: true, createdAt: "2026-10-03T00:00:00Z", site: null },
+  { id: 4, name: "Ольга", login: "acceptor", role: "acceptor" as Role, active: true, createdAt: "2026-10-04T00:00:00Z", site: "Владивосток" },
+  { id: 5, name: "Сергей", login: "driver", role: "driver" as Role, active: true, createdAt: "2026-10-05T00:00:00Z", site: null },
+  { id: 6, name: "Андрей", login: "terminal", role: "acceptor" as Role, active: true, createdAt: "2026-10-06T00:00:00Z", site: "Новосибирск" },
 ];
 let me: StaffMe | null = null;
 
@@ -29,7 +31,7 @@ function seedRow(no: number, date: string, car: string, vin: string, year: numbe
     no, id: "demo-" + no, createdAt: date, status: tripId === "R-01" ? "in_transit" : tripId ? "loading" : "signed", car, vin, year: String(year), color,
     body: BODY[body].name, city, client: fio, phone, fio, fullPhone: phone, partner, tariff: q.tariff, cashback, delivery: q.delivery, value,
     insurance: q.insurance, total: q.total, paidDelivery: false, paidInsurance: false, payTo: "", payForm: "", tripId,
-    trackToken: null, signedAt: date, ...extra,
+    transfer: null, trip2Id: null, trackToken: null, signedAt: date, ...extra,
   };
 }
 
@@ -37,8 +39,11 @@ const rows: Row[] = [
   seedRow(685, "2026-10-21T10:05:00Z", "Mazda CX-5", "KF5P-451207", 2022, "Красный", "cross", "Иркутск", "Дорохова Елена Сергеевна", "+79025550071", 0, 2600000, null, null),
   seedRow(684, "2026-10-21T09:10:00Z", "Toyota Yaris", "KSP210-0089458", 2023, "Белый", "sedan", "Новосибирск", "Юферов Павел Юрьевич", "+79135550053", 5000, 1000000, null, "R-01"),
   seedRow(683, "2026-10-21T08:40:00Z", "Toyota Yaris", "KSP210-0094312", 2023, "Чёрный", "sedan", "Кемерово", "Юферов Павел Юрьевич", "+79135550053", 5000, 1000000, null, "R-01"),
-  seedRow(682, "2026-10-21T07:15:00Z", "Toyota Corolla Cross", "ZVG11-1068109", 2023, "Белый", "cross", "Краснодар", "Бойков Андрей Алексеевич", "+79605550036", 10000, 3000000, "Роман · Монстеркар", "R-02"),
-  seedRow(681, "2026-10-21T06:00:00Z", "Suzuki Swift", "ZCEDS-102835", 2024, "Салатовый", "sedan", "Краснодар", "Тагаева Людмила Геннадьевна", "+79295550094", 20000, 1800000, "Роман · Монстеркар", "R-02"),
+  // Перегруз в Новосибирске: до терминала рейсом R-01, дальше R-02. №682 уже на площадке терминала, №681 едет к нему
+  seedRow(682, "2026-10-21T07:15:00Z", "Toyota Corolla Cross", "ZVG11-1068109", 2023, "Белый", "cross", "Краснодар", "Бойков Андрей Алексеевич", "+79605550036", 10000, 3000000, "Роман · Монстеркар", "R-01",
+    { transfer: "Новосибирск", trip2Id: "R-02" }),
+  seedRow(681, "2026-10-21T06:00:00Z", "Suzuki Swift", "ZCEDS-102835", 2024, "Салатовый", "sedan", "Краснодар", "Тагаева Людмила Геннадьевна", "+79295550094", 20000, 1800000, "Роман · Монстеркар", "R-01",
+    { transfer: "Новосибирск", trip2Id: "R-02" }),
   seedRow(680, "2026-10-20T12:30:00Z", "Subaru Forester", "SKE-054317", 2021, "Белый", "cross", "Москва", "Конорев Сергей Александрович", "+79935550064", 10000, 2450000, null, "R-03"),
   seedRow(679, "2026-10-20T10:20:00Z", "BMW 218i", "WBA2A32050VZ51833", 2014, "Белый", "sedan", "Кемерово", "Карпиков Алексей Игоревич", "+79025550038", 0, 1000000, null, "R-01",
     { paidDelivery: true, paidInsurance: true, payTo: "Тодоров", payForm: "нал" }),
@@ -59,6 +64,7 @@ const trips: DemoTrip[] = [
   { ...blank, id: "R-03", dest: "Москва", truck: "MAN TGX · Е 905 УА 125", driver: "Дмитрий", loadDate: "2026-10-24", km: 0, events: [], expenses: [] },
 ];
 let expenseId = 10;
+seedActs(rows, trips);
 
 const reviews = [
   { no: 671, client: "Петров Илья Сергеевич", phone: "+79145550012", rating: 2, text: "Задержали на неделю, никто не предупредил.", createdAt: "2026-10-18T10:00:00Z" },
@@ -82,7 +88,7 @@ const canEdit = (t: DemoTrip) => !!me && (can(me.role, "trips.edit") || (can(me.
 function tripView(t: DemoTrip): TripView {
   const status = t.km >= kmTo(t.dest) && t.km > 0 ? "arrived" : t.km > 0 ? "in_transit" : "loading";
   const { expenses, ...rest } = t;
-  return { ...rest, status, orders: rows.filter((r) => r.tripId === t.id).map((r) => r.no).sort(), expensesTotal: expenses.reduce((s, e) => s + e.amount, 0), editable: canEdit(t) };
+  return { ...rest, status, orders: rows.filter((r) => r.tripId === t.id || r.trip2Id === t.id).map((r) => r.no).sort(), expensesTotal: expenses.reduce((s, e) => s + e.amount, 0), editable: canEdit(t) };
 }
 const STATUS_RU: Record<string, string> = { signed: "Подписан", paid: "Оплачен", loading: "Погрузка", in_transit: "В пути", arrived: "Прибыл", delivered: "Выдан" };
 function report(t: DemoTrip): TripReport {
@@ -123,12 +129,13 @@ export function demoStaffFetch(path: string, method: string, body: any): Res {
   if (path === "/api/staff/login") {
     const u = users.find((x) => x.login === String(body?.login).toLowerCase() && x.active);
     if (!u || body?.password !== "demo") return fail(401, "Неверный логин или пароль. В демо пароль: demo");
-    me = { id: u.id, name: u.name, login: u.login, role: u.role, perms: [...ROLES[u.role].perms] };
+    me = { id: u.id, name: u.name, login: u.login, role: u.role, perms: [...ROLES[u.role].perms], site: u.site };
     return ok(me);
   }
   if (path === "/api/staff/logout") return (me = null), ok({ ok: true });
   if (path === "/api/staff/me") return me ? ok(me) : fail(401, "Войдите в панель");
 
+  if (path.startsWith("/api/staff/acts")) return demoActsFetch(path, method, body, me, rows, trips);
   if (path === "/api/staff/quote") {
     const denied = need("orders.create");
     if (denied) return denied;
@@ -165,7 +172,7 @@ export function demoStaffFetch(path: string, method: string, body: any): Res {
     const r = rows.find((x) => x.no === Number(m![1]));
     if (!r) return fail(404, "Заявка не найдена");
     const b = body ?? {};
-    if (("status" in b || "tripId" in b) && !can(me!.role, "orders.edit")) return fail(403, "Нет доступа к этому полю");
+    if (["status", "tripId", "transfer", "trip2Id"].some((k) => k in b) && !can(me!.role, "orders.edit")) return fail(403, "Нет доступа к этому полю");
     if (["paidDelivery", "paidInsurance", "payTo", "payForm"].some((k) => k in b) && !can(me!.role, "payments.edit")) return fail(403, "Нет доступа к этому полю");
     Object.assign(r, b);
     if ("tripId" in b && b.tripId && (r.status === "signed" || r.status === "paid")) r.status = "loading";
@@ -256,6 +263,19 @@ export function demoStaffFetch(path: string, method: string, body: any): Res {
     t.expenses = t.expenses.filter((e) => e.id !== Number(m![2]));
     return ok(report(t));
   }
+  if (path === "/api/staff/recognize") {
+    // В демо ответ подставлен заранее; на сервере фото читает Yandex AI Studio. ФП прочитан с ошибкой, как бывает у модели.
+    return ok({
+      kind: "receipt", model: "демо", ms: 4200, fromQr: [],
+      fields: { date: "21.10.2026", time: "19:05", seller: "АЗС №12 «ДВ-Ойл»", city: "Хабаровск", category: "fuel", description: "ДТ-Л-К5, 160 л × 72,10",
+        liters: "160", amount: "11536", fn: "7380440700123456", fd: "48211", fp: "3912345678" },
+      checks: [
+        { field: "amount", level: "ok", msg: "Два прочтения совпали" },
+        { field: "fd", level: "ok", msg: "Два прочтения совпали" },
+        { field: "fp", level: "error", msg: "Два прочтения разошлись: «3912345678» и «3912346578». Сверьте с фото", suggest: "3912346578" },
+      ],
+    });
+  }
   if (path === "/api/staff/google") return need("reports.read") ?? ok({ configured: false, connected: false, folderUrl: null });
 
   if (path === "/api/staff/reviews") {
@@ -280,7 +300,8 @@ export function demoStaffFetch(path: string, method: string, body: any): Res {
     if (!body.name || !body.login) return fail(400, "Укажите имя и логин");
     if (!body.password || body.password.length < 8) return fail(400, "Пароль не короче 8 символов");
     if (!isRole(body.role)) return fail(400, "Выберите роль");
-    const u = { id: users.length + 1, name: body.name, login: body.login.toLowerCase(), role: body.role, active: true, createdAt: new Date().toISOString() };
+    const u = { id: users.length + 1, name: body.name, login: body.login.toLowerCase(), role: body.role, active: true, createdAt: new Date().toISOString(),
+      site: body.role === "acceptor" ? body.site ?? "Владивосток" : null };
     users.push(u);
     return ok(u);
   }

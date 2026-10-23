@@ -3,7 +3,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 import {
   BODY, EXPENSE_KINDS, NET, PAY_FORM, PAY_TO, ROLES, can, isRole, kmTo, normalizePhone, parseRub, rub, routeFor,
-  validateCar, validateCustomer,
+  isDocKind, isSite, canTransfer, TRANSFER_CITY, validateCar, validateCustomer,
   type CarForm, type CustomerForm, type OrderRowView, type OrderStatus, type Permission, type Quote, type Role,
   type ExpenseKind, type StaffMe, type TripCar, type TripExpense, type TripReport, type TripView, type WaitingCar,
 } from "@brookclean/shared";
@@ -14,6 +14,9 @@ import type { SmsSender } from "./sms.ts";
 import { quote } from "./pricing.ts";
 import type { Guard } from "./guard.ts";
 import { requestView } from "./partners.ts";
+import { VisionError, recognize, type Vision } from "./recognize.ts";
+import type { MediaStore } from "./media.ts";
+import { registerActs } from "./acts.ts";
 
 export interface StaffContext {
   db: DB;
@@ -22,6 +25,9 @@ export interface StaffContext {
   publicUrl: string;
   adminToken?: string;
   drive?: GoogleDrive;
+  vision?: Vision;
+  /** Фото и видео приёмки (S3). */
+  store?: MediaStore;
   secureCookies: boolean;
   guard: Guard;
   requestReview: (no: number, log: { error: (e: unknown) => void }) => Promise<void>;
@@ -53,10 +59,11 @@ export function ensureOwner(db: DB, login?: string, password?: string, name = "�
     .run(name, login.trim().toLowerCase(), hashPassword(password), new Date().toISOString());
 }
 
-interface StaffRow { id: number; name: string; login: string; pass_hash: string; role: Role; active: number; created_at: string }
+interface StaffRow { id: number; name: string; login: string; pass_hash: string; role: Role; active: number; created_at: string; site: string | null }
 interface OrderRow {
   id: string; no: number; created_at: string; status: OrderStatus; car: string; customer: string; phone: string;
   partner: string | null; cashback: number; quote: string; track_token: string | null; trip_id: string | null; signed_at: string | null;
+  transfer: string | null; trip2_id: string | null;
 }
 interface TripRow {
   id: string; dest: string; truck: string; driver: string; load_date: string | null; km: number;
@@ -90,8 +97,8 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
   const { db, now } = ctx;
   const failed = new Map<string, { n: number; until: number }>();
 
-  function meFor(s: Pick<StaffRow, "id" | "name" | "login" | "role">): StaffMe {
-    return { id: s.id, name: s.name, login: s.login, role: s.role, perms: [...ROLES[s.role].perms] };
+  function meFor(s: Pick<StaffRow, "id" | "name" | "login" | "role"> & { site?: string | null }): StaffMe {
+    return { id: s.id, name: s.name, login: s.login, role: s.role, perms: [...ROLES[s.role].perms], site: s.site ?? null };
   }
 
   function authenticate(req: FastifyRequest): StaffMe | undefined {
@@ -169,7 +176,7 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
       client: personal ? customer.fio : shortName(customer.fio), phone: personal ? o.phone : maskPhone(o.phone),
       partner: o.partner, tariff: q.tariff, cashback: q.cashback, delivery: q.delivery, value: parseRub(car.value),
       insurance: q.insurance, total: q.total, paidDelivery: !!p?.paid_delivery, paidInsurance: !!p?.paid_insurance,
-      payTo: p?.pay_to ?? "", payForm: p?.pay_form ?? "", tripId: o.trip_id, trackToken: o.track_token, signedAt: o.signed_at,
+      payTo: p?.pay_to ?? "", payForm: p?.pay_form ?? "", tripId: o.trip_id, transfer: o.transfer, trip2Id: o.trip2_id, trackToken: o.track_token, signedAt: o.signed_at,
     };
   }
 
@@ -213,13 +220,16 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
       return { id, no, quote: q, signUrl, smsSent };
     });
 
-  app.patch<{ Params: { no: string }; Body: Partial<{ status: OrderStatus; tripId: string | null; paidDelivery: boolean; paidInsurance: boolean; payTo: string; payForm: string }> }>(
+  /** Город, до которого машину везёт первый рейс: терминал перегруза или сам город получателя. */
+  const legEnd = (o: Pick<OrderRow, "car" | "transfer">) => o.transfer ?? (JSON.parse(o.car) as CarForm).city;
+
+  app.patch<{ Params: { no: string }; Body: Partial<{ status: OrderStatus; tripId: string | null; transfer: string | null; trip2Id: string | null; paidDelivery: boolean; paidInsurance: boolean; payTo: string; payForm: string }> }>(
     "/api/staff/orders/:no", { preHandler: need("orders.read") }, async (req, reply) => {
       const o = db.prepare("SELECT * FROM orders WHERE no = ?").get(Number(req.params.no)) as OrderRow | undefined;
       if (!o) return reply.code(404).send({ error: "Заявка не найдена" });
       const b = req.body ?? {};
       const role = req.staff!.role;
-      const touchesOrder = "status" in b || "tripId" in b;
+      const touchesOrder = "status" in b || "tripId" in b || "transfer" in b || "trip2Id" in b;
       const touchesPay = ["paidDelivery", "paidInsurance", "payTo", "payForm"].some((k) => k in b);
       if ((touchesOrder && !can(role, "orders.edit")) || (touchesPay && !can(role, "payments.edit")))
         return reply.code(403).send({ error: "Нет доступа к этому полю" });
@@ -230,12 +240,43 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
         db.prepare("UPDATE orders SET status = ? WHERE id = ?").run(b.status!, o.id);
         if (b.status === "delivered") await ctx.requestReview(o.no, req.log);
       }
+      // Перегруз в Новосибирске: первый рейс до терминала, приёмщик терминала принимает и грузит на следующий рейс
+      if ("transfer" in b) {
+        const transfer = b.transfer || null;
+        const city = (JSON.parse(o.car) as CarForm).city;
+        if (transfer && (transfer !== TRANSFER_CITY || !canTransfer(city, routeFor)))
+          return reply.code(400).send({ error: `Перегруз возможен в ${TRANSFER_CITY}, если город получателя дальше по маршруту` });
+        const started = db.prepare("SELECT 1 FROM acts WHERE order_id = ? AND stage IN ('term_in', 'term_out')").get(o.id);
+        if (!transfer && started) return reply.code(409).send({ error: "Машину уже принимали на терминале: перегруз не отменить" });
+        if (transfer !== o.transfer && db.prepare("SELECT 1 FROM acts WHERE order_id = ? AND stage = 'vygruzka'").get(o.id))
+          return reply.code(409).send({ error: "Машину уже выдают получателю: маршрут не поменять" });
+        db.prepare("UPDATE orders SET transfer = ?, trip2_id = CASE WHEN ? IS NULL THEN NULL ELSE trip2_id END WHERE id = ?").run(transfer, transfer, o.id);
+        o.transfer = transfer;
+        // Рейс, который не доходит до нового конца плеча, снимаем: менеджер выберет подходящий
+        const t = o.trip_id ? db.prepare("SELECT dest FROM trips WHERE id = ?").get(o.trip_id) as { dest: string } | undefined : undefined;
+        if (t && !routeFor(t.dest).includes(legEnd(o)) && !("tripId" in b)) {
+          db.prepare("UPDATE orders SET trip_id = NULL, status = CASE WHEN status = 'loading' THEN 'signed' ELSE status END WHERE id = ?").run(o.id);
+          scheduleSync(o.trip_id!);
+        }
+      }
+      if ("trip2Id" in b) {
+        const trip2 = b.trip2Id || null;
+        if (trip2) {
+          if (!o.transfer) return reply.code(400).send({ error: "Второй рейс нужен только при перегрузе" });
+          const t = db.prepare("SELECT dest FROM trips WHERE id = ?").get(trip2) as { dest: string } | undefined;
+          if (!t) return reply.code(400).send({ error: "Рейс не найден" });
+          const route = routeFor(t.dest), city = (JSON.parse(o.car) as CarForm).city;
+          if (!route.includes(o.transfer) || !route.includes(city)) return reply.code(400).send({ error: `Рейс должен идти через ${o.transfer} до города получателя` });
+        }
+        db.prepare("UPDATE orders SET trip2_id = ? WHERE id = ?").run(trip2, o.id);
+        if (o.trip2_id && o.trip2_id !== trip2) scheduleSync(o.trip2_id);
+      }
       if ("tripId" in b) {
         const tripId = b.tripId || null;
         if (tripId) {
           const t = db.prepare("SELECT dest FROM trips WHERE id = ?").get(tripId) as { dest: string } | undefined;
           if (!t) return reply.code(400).send({ error: "Рейс не найден" });
-          if (!routeFor(t.dest).includes((JSON.parse(o.car) as CarForm).city)) return reply.code(400).send({ error: "Город заявки не на маршруте рейса" });
+          if (!routeFor(t.dest).includes(legEnd(o))) return reply.code(400).send({ error: "Город заявки не на маршруте рейса" });
         }
         db.prepare("UPDATE orders SET trip_id = ?, status = CASE WHEN status IN ('signed','paid') AND ? IS NOT NULL THEN 'loading' ELSE status END WHERE id = ?")
           .run(tripId, tripId, o.id);
@@ -268,7 +309,7 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
     can(me.role, "trips.edit") || (can(me.role, "trips.driver") && t.driver_id === me.id && !t.closed_at);
 
   function tripView(t: TripRow, me: StaffMe): TripView {
-    const orders = (db.prepare("SELECT no FROM orders WHERE trip_id = ? ORDER BY no").all(t.id) as Array<{ no: number }>).map((x) => x.no);
+    const orders = (db.prepare("SELECT no FROM orders WHERE trip_id = ? OR trip2_id = ? ORDER BY no").all(t.id, t.id) as Array<{ no: number }>).map((x) => x.no);
     const events = db.prepare("SELECT at, city, note FROM trip_events WHERE trip_id = ? ORDER BY at").all(t.id) as TripView["events"];
     const exp = (db.prepare("SELECT COALESCE(SUM(amount), 0) AS s FROM trip_expenses WHERE trip_id = ?").get(t.id) as { s: number }).s;
     return {
@@ -395,12 +436,20 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
       db.prepare("INSERT INTO trip_events (trip_id, at, city, note) VALUES (?, ?, ?, ?)")
         .run(trip.id, now().toISOString(), city, req.body?.note?.trim() || (km ? "В пути" : "Погрузка"));
       // Статусы машин рейса: в пути / прибыл — по километражу до города каждой машины
-      const orders = db.prepare("SELECT id, car, status FROM orders WHERE trip_id = ?").all(trip.id) as Array<{ id: string; car: string; status: OrderStatus }>;
+      const orders = db.prepare("SELECT id, car, status, transfer FROM orders WHERE trip_id = ?").all(trip.id) as Array<{ id: string; car: string; status: OrderStatus; transfer: string | null }>;
       for (const o of orders) {
         if (o.status === "delivered") continue;
-        const dest = kmTo((JSON.parse(o.car) as CarForm).city);
+        // С перегрузом первый рейс довозит только до терминала: машина ещё в пути
+        const dest = o.transfer ? Infinity : kmTo((JSON.parse(o.car) as CarForm).city);
         const status: OrderStatus = km >= dest ? "arrived" : km > 0 ? "in_transit" : "loading";
         db.prepare("UPDATE orders SET status = ? WHERE id = ?").run(status, o.id);
+      }
+      // Второе плечо перегруза: машины, которые терминал уже погрузил на этот рейс
+      const second = db.prepare(`SELECT o.id, o.car, o.status FROM orders o JOIN acts a ON a.order_id = o.id AND a.stage = 'term_out' AND a.closed_at IS NOT NULL
+                                 WHERE o.trip2_id = ? AND o.status != 'delivered'`).all(trip.id) as Array<{ id: string; car: string }>;
+      for (const o of second) {
+        const dest = kmTo((JSON.parse(o.car) as CarForm).city);
+        db.prepare("UPDATE orders SET status = ? WHERE id = ?").run(km >= dest ? "arrived" : "in_transit", o.id);
       }
       audit(req, "trip.position", { id: trip.id, city });
       scheduleSync(trip.id);
@@ -412,8 +461,8 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
     const trip = tripFor(req, reply, true);
     if (!trip) return;
     const route = new Set(routeFor(trip.dest));
-    const rows = db.prepare("SELECT no, car, status FROM orders WHERE trip_id IS NULL AND status IN ('signed', 'paid') ORDER BY no").all() as Array<{ no: number; car: string; status: string }>;
-    return rows.map((o) => ({ ...o, c: JSON.parse(o.car) as CarForm })).filter((o) => route.has(o.c.city))
+    const rows = db.prepare("SELECT no, car, status, transfer FROM orders WHERE trip_id IS NULL AND status IN ('signed', 'paid') ORDER BY no").all() as Array<{ no: number; car: string; status: string; transfer: string | null }>;
+    return rows.map((o) => ({ ...o, c: JSON.parse(o.car) as CarForm })).filter((o) => route.has(o.transfer ?? o.c.city))
       .map((o): WaitingCar => ({ no: o.no, car: `${o.c.car} ${o.c.year}`, vin: o.c.vin.toUpperCase(), city: o.c.city, status: o.status }));
   });
 
@@ -425,7 +474,7 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
     if (req.body.load) {
       if (o.trip_id) return reply.code(409).send({ error: "Машина уже в рейсе " + o.trip_id });
       if (!["signed", "paid"].includes(o.status)) return reply.code(409).send({ error: "Машину можно грузить только по подписанному договору" });
-      if (!routeFor(trip.dest).includes((JSON.parse(o.car) as CarForm).city)) return reply.code(400).send({ error: "Город машины не на маршруте" });
+      if (!routeFor(trip.dest).includes(legEnd(o))) return reply.code(400).send({ error: "Город машины не на маршруте" });
       db.prepare("UPDATE orders SET trip_id = ?, status = 'loading' WHERE id = ?").run(trip.id, o.id);
     } else {
       if (o.trip_id !== trip.id) return reply.code(409).send({ error: "Машина не в этом рейсе" });
@@ -464,11 +513,43 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
     return buildReport(getTrip(trip.id)!, req.staff!);
   });
 
+  // --- Распознавание фото: модель предлагает поля, сохраняет человек ---
+  const recognizeLog = new Map<number, number[]>();
+  const RECOGNIZE_PER_HOUR = 120;
+  const jpegOf = (v: unknown) => {
+    const b = Buffer.from(String(v ?? "").replace(/^data:image\/jpeg;base64,/, ""), "base64");
+    return b.length > 1000 && b[0] === 0xff && b[1] === 0xd8 ? b : null;
+  };
+  app.post<{ Body: { kind: string; image: string; prev?: string } }>(
+    "/api/staff/recognize", { preHandler: needAny("trips.edit", "trips.driver"), bodyLimit: 16 * 1024 * 1024 }, async (req, reply) => {
+      if (!ctx.vision) return reply.code(503).send({ error: "Распознавание не настроено на сервере. Заполните поля по фото." });
+      const kind = req.body?.kind;
+      if (!(kind === "receipt" || kind === "damage" || isDocKind(kind))) return reply.code(400).send({ error: "Неизвестный вид фото" });
+      const img = jpegOf(req.body?.image);
+      if (!img) return reply.code(400).send({ error: "Нужна фотография в JPEG" });
+      const prev = req.body?.prev ? jpegOf(req.body.prev) ?? undefined : undefined;
+
+      const id = req.staff!.id, t = Date.now();
+      const recent = (recognizeLog.get(id) ?? []).filter((x) => x > t - 3600_000);
+      if (recent.length >= RECOGNIZE_PER_HOUR) return reply.code(429).send({ error: "Слишком много фото за час. Заполните поля вручную или подождите." });
+      recognizeLog.set(id, [...recent, t]);
+
+      try {
+        const r = await recognize(ctx.vision, kind, img, { prev, now: now() });
+        audit(req, "recognize", { kind, model: r.model, ms: r.ms, errors: r.checks.filter((c) => c.level === "error").length, damages: r.damages?.length });
+        return r;
+      } catch (e) {
+        if (!(e instanceof VisionError)) throw e;
+        req.log.warn({ err: e.message }, "recognize");
+        return reply.code(502).send({ error: "Распознать не удалось: сервис не ответил. Заполните поля по фото." });
+      }
+    });
+
   // --- Рейсовый отчёт ---
   /** finance: суммы перевозки и оплата — для ролей с reports.read; водителю не показываем. */
   function buildReport(t: TripRow, me: StaffMe | null): TripReport {
     const finance = !me || can(me.role, "reports.read");
-    const orders = db.prepare("SELECT * FROM orders WHERE trip_id = ? ORDER BY no").all(t.id) as unknown as OrderRow[];
+    const orders = db.prepare("SELECT * FROM orders WHERE trip_id = ? OR trip2_id = ? ORDER BY no").all(t.id, t.id) as unknown as OrderRow[];
     const cars = orders.map((o): TripCar => {
       const r = rowView(o, false);
       const base: TripCar = { no: r.no, car: r.car, vin: r.vin, year: r.year, color: r.color, city: r.city, km: kmTo(r.city), client: r.client, phone: r.phone, status: STATUS_RU[r.status] ?? r.status };
@@ -481,7 +562,7 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
     const byKind: TripReport["totals"]["byKind"] = {};
     for (const e of expenses) byKind[e.kind] = (byKind[e.kind] ?? 0) + e.amount;
     const sum = (f: (c: TripCar) => number) => cars.reduce((s, c) => s + f(c), 0);
-    const view = me ? tripView(t, me) : tripView(t, { id: 0, name: "", login: "", role: "owner", perms: [] });
+    const view = me ? tripView(t, me) : tripView(t, { id: 0, name: "", login: "", role: "owner", perms: [], site: null });
     return {
       trip: view, cars, expenses, finance,
       totals: {
@@ -664,20 +745,23 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
     });
 
   // --- Сотрудники ---
-  const staffView = (s: StaffRow) => ({ id: s.id, name: s.name, login: s.login, role: s.role, active: !!s.active, createdAt: s.created_at });
+  const staffView = (s: StaffRow) => ({ id: s.id, name: s.name, login: s.login, role: s.role, active: !!s.active, createdAt: s.created_at, site: s.site });
 
   app.get("/api/staff/users", { preHandler: need("staff.manage") }, async () =>
     (db.prepare("SELECT * FROM staff ORDER BY active DESC, name").all() as unknown as StaffRow[]).map(staffView));
 
-  app.post<{ Body: { name: string; login: string; password: string; role: Role } }>(
+  /** Площадка нужна только приёмщику: Владивосток или терминал Новосибирск. */
+  const siteFor = (role: Role, site: unknown) => (role === "acceptor" ? (isSite(site) ? site : "Владивосток") : null);
+
+  app.post<{ Body: { name: string; login: string; password: string; role: Role; site?: string } }>(
     "/api/staff/users", { preHandler: need("staff.manage") }, async (req, reply) => {
       const { name, login, password, role } = req.body ?? ({} as never);
       if (!name?.trim() || !login?.trim()) return reply.code(400).send({ error: "Укажите имя и логин" });
       if (!password || password.length < 8) return reply.code(400).send({ error: "Пароль не короче 8 символов" });
       if (!isRole(role)) return reply.code(400).send({ error: "Выберите роль" });
       try {
-        const r = db.prepare("INSERT INTO staff (name, login, pass_hash, role, created_at) VALUES (?, ?, ?, ?, ?)")
-          .run(name.trim(), login.trim().toLowerCase(), hashPassword(password), role, now().toISOString());
+        const r = db.prepare("INSERT INTO staff (name, login, pass_hash, role, created_at, site) VALUES (?, ?, ?, ?, ?, ?)")
+          .run(name.trim(), login.trim().toLowerCase(), hashPassword(password), role, now().toISOString(), siteFor(role, req.body.site));
         audit(req, "staff.create", { login, role });
         return staffView(db.prepare("SELECT * FROM staff WHERE id = ?").get(r.lastInsertRowid) as unknown as StaffRow);
       } catch {
@@ -685,7 +769,7 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
       }
     });
 
-  app.patch<{ Params: { id: string }; Body: Partial<{ name: string; role: Role; active: boolean; password: string }> }>(
+  app.patch<{ Params: { id: string }; Body: Partial<{ name: string; role: Role; active: boolean; password: string; site: string }> }>(
     "/api/staff/users/:id", { preHandler: need("staff.manage") }, async (req, reply) => {
       const id = Number(req.params.id);
       const s = db.prepare("SELECT * FROM staff WHERE id = ?").get(id) as StaffRow | undefined;
@@ -698,6 +782,7 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
       if (b.password !== undefined && b.password.length < 8) return reply.code(400).send({ error: "Пароль не короче 8 символов" });
       if (b.name?.trim()) db.prepare("UPDATE staff SET name = ? WHERE id = ?").run(b.name.trim(), id);
       if (b.role) db.prepare("UPDATE staff SET role = ? WHERE id = ?").run(b.role, id);
+      if (b.role || b.site !== undefined) db.prepare("UPDATE staff SET site = ? WHERE id = ?").run(siteFor(b.role ?? s.role, b.site ?? s.site), id);
       if (b.active !== undefined) db.prepare("UPDATE staff SET active = ? WHERE id = ?").run(Number(b.active), id);
       if (b.password) db.prepare("UPDATE staff SET pass_hash = ? WHERE id = ?").run(hashPassword(b.password), id);
       // Выключенный сотрудник или новый пароль — старые входы больше не действуют
@@ -727,4 +812,6 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
     audit(req, "security.unblock", { value: req.params.value });
     return ctx.guard.report();
   });
+
+  registerActs(app, { db, now, store: ctx.store, vision: ctx.vision, need, needAny, audit, onDelivered: ctx.requestReview });
 }
