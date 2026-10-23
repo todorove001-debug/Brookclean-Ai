@@ -203,6 +203,8 @@ export function buildApp(opts: AppOptions): FastifyInstance {
       guard.log("blocked", req.ip, phone, "расчёт");
       return void reply.code(403).send({ error: BLOCKED_ERROR });
     }
+    // Лимит автомобилей на сегодня исчерпан: цену не показываем, только карточка партнёра
+    if (!canOrder(db, phone, now())) return void reply.code(403).send({ error: PARTNER_ERROR, needPartner: true });
     if (!car || !CITIES.includes(car.city) || !(car.body in BODY)) return void reply.code(400).send({ error: "Выберите город" });
     // Партнёрам с проверенными реквизитами лимит вариантов не нужен
     const denied = isPartner(db, phone) ? undefined : guard.quoteDenied(phone, req.ip, car.city, car.body as BodyType);

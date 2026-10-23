@@ -39,6 +39,11 @@ test("обычный клиент: один автомобиль в сутки, 
   const h = await signIn();
   assert.equal((await order(h, "KSP210-0089458")).statusCode, 200);
   assert.equal((await app.inject({ url: "/api/auth/me", headers: h })).json().canOrder, false);
+  // Цену второго автомобиля не показываем: сразу карточка партнёра
+  const price = await app.inject({ method: "POST", url: "/api/quote", headers: h, payload: { car: { ...car, city: "Москва" } } });
+  assert.equal(price.statusCode, 403);
+  assert.equal(price.json().needPartner, true);
+  assert.equal(JSON.stringify(price.json()).includes("000"), false);
   const second = await order(h, "KSP210-0089459");
   assert.equal(second.statusCode, 403);
   assert.equal(second.json().needPartner, true);
@@ -57,6 +62,7 @@ test("обычный клиент: один автомобиль в сутки, 
   const me = (await app.inject({ url: "/api/auth/me", headers: h })).json();
   assert.equal(me.partner, "approved");
   assert.equal(me.canOrder, true);
+  assert.equal((await app.inject({ method: "POST", url: "/api/quote", headers: h, payload: { car } })).statusCode, 200);
   assert.equal((await order(h, "KSP210-0089459")).statusCode, 200);
   assert.equal((await order(h, "KSP210-0089460")).statusCode, 200);
 });
