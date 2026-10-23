@@ -64,6 +64,7 @@ const DEMO_USERS = [
   { login: "acceptor", label: "Приёмщик · Владивосток" },
   { login: "terminal", label: "Приёмщик · терминал Новосибирск" },
   { login: "driver", label: "Водитель" },
+  { login: "partner", label: "Партнёр" },
 ];
 
 function Login({ onDone }: { onDone: (me: StaffMe) => void }) {

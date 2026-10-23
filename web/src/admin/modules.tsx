@@ -9,6 +9,8 @@ import { StaffScreen } from "./Staff.tsx";
 import { SecurityScreen } from "./Security.tsx";
 import { ActsScreen } from "./Acts.tsx";
 import { DriversScreen } from "./Drivers.tsx";
+import { DeliveriesHub } from "./Deliveries.tsx";
+import { MyPartnerScreen } from "./MyPartner.tsx";
 
 export interface AdminModule {
   id: string;
@@ -23,13 +25,15 @@ export interface AdminModule {
 export const visibleModules = (me: StaffMe) => MODULES.filter((m) => m.perms.some((p) => me.perms.includes(p)));
 
 export const MODULES: AdminModule[] = [
-  { id: "orders", title: "Заявки", perms: ["orders.read"], component: OrdersScreen },
+  { id: "orders", title: "Стоянка и заявки", perms: ["orders.read"], component: OrdersScreen },
+  { id: "deliveries", title: "Доставки", perms: ["reports.read"], component: DeliveriesHub },
   { id: "new", title: "Оформить заявку", perms: ["orders.create"], component: NewOrderScreen },
   { id: "acts", title: "Приёмка", perms: ["acts.read"], component: ActsScreen },
   { id: "trips", title: "Рейсы и отчёты", perms: ["trips.read", "trips.driver"], component: TripsScreen },
   { id: "drivers", title: "Водители", perms: ["drivers.edit", "trips.driver"], component: DriversScreen },
   { id: "reviews", title: "Отзывы", perms: ["reviews.read"], component: ReviewsScreen },
   { id: "partners", title: "Партнёры", perms: ["partners.edit"], component: PartnersScreen },
+  { id: "my-partner", title: "Кабинет партнёра", perms: ["partner.self"], component: MyPartnerScreen },
   { id: "staff", title: "Сотрудники", perms: ["staff.manage"], component: StaffScreen },
   { id: "security", title: "Защита", perms: ["security.manage"], component: SecurityScreen },
 ];

@@ -1,10 +1,11 @@
+import type { Notifier } from "./notify.ts";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import fastifyStatic from "@fastify/static";
 import { randomBytes, randomInt, randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  BODY, CARRIER, CITIES, contractData, contractDate, kmTo, maskVin, normalizePhone, parseRub, routeFor, validateCar, validateCompany, validateCustomer,
+  BODY, CARRIER, CITIES, rub, contractData, contractDate, kmTo, maskVin, normalizePhone, parseRub, routeFor, validateCar, validateCompany, validateCustomer,
   type BodyType, type CarForm, type CompanyForm, type ContractData, type CustomerForm, type OrderStatus, type Quote, type TrackingView,
 } from "@brookclean/shared";
 import { quote } from "./pricing.ts";
@@ -38,6 +39,8 @@ export interface AppOptions {
   captcha?: CaptchaVerifier;
   /** Только для разработки: возвращать код SMS в ответе API. */
   exposeSmsCode?: boolean;
+  /** Уведомления менеджеру (Telegram) о новых договорах. */
+  notify?: Notifier;
   now?: () => Date;
 }
 
@@ -351,6 +354,11 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     db.prepare("UPDATE orders SET status = 'signed', signed_at = ?, signature = ?, track_token = ? WHERE id = ?")
       .run(signedAt.toISOString(), JSON.stringify(signature), token, o.id);
     db.prepare("DELETE FROM sms_codes WHERE order_id = ?").run(o.id);
+    if (opts.notify) {
+      const car = JSON.parse(o.car) as CarForm, q = JSON.parse(o.quote) as Quote;
+      opts.notify.send(`Подписан договор №${o.no}: ${car.car} ${car.year} → ${car.city}, ${rub(q.total)}${o.partner ? `, партнёр ${o.partner}, кэшбэк ${rub(o.cashback)}` : ""}`)
+        .catch((e) => req.log.error(e));
+    }
     // Код из SMS только что подтвердил владельца номера: отдаём подписанный договор для PDF
     return { ...publicOrder(getOrder(o.id)!), contract: payload.data };
   });

@@ -14,6 +14,7 @@ export const STATUS: Record<string, { text: string; cls: string }> = {
 };
 const MANUAL: OrderStatus[] = ["signed", "paid", "loading", "in_transit", "arrived", "delivered"];
 const SV_SHARE = 0.4;
+const YARDS = [["vl", "Стоянка Владивосток"], ["nsk", `Терминал ${TRANSFER_CITY}`], ["all", "Все заявки"]] as const;
 const fmtPhone = (p: string) => (/^\+7\d{10}$/.test(p) ? `+7 ${p.slice(2, 5)} ${p.slice(5, 8)}-${p.slice(8, 10)}-${p.slice(10)}` : p); // доля страховки «Спасские Ворота»
 
 export function OrdersScreen({ me }: { me: StaffMe }) {
@@ -22,6 +23,7 @@ export function OrdersScreen({ me }: { me: StaffMe }) {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
   const [unpaid, setUnpaid] = useState(false);
+  const [yard, setYard] = useState<"vl" | "nsk" | "all">("vl");
   const [error, setError] = useState("");
   const canEdit = can(me.role, "orders.edit");
   const canPay = can(me.role, "payments.edit");
@@ -32,12 +34,13 @@ export function OrdersScreen({ me }: { me: StaffMe }) {
   }, [me.role]);
 
   const shown = useMemo(() => (rows ?? []).filter((r) => {
+    if (yard !== "all" && r.yard !== yard) return false;
     if (status && r.status !== status) return false;
     if (unpaid && r.paidDelivery && r.paidInsurance) return false;
     if (!q) return true;
     const s = q.toLowerCase();
     return [r.no, r.car, r.vin, r.city, r.client, r.phone, r.partner ?? ""].some((v) => String(v).toLowerCase().includes(s));
-  }), [rows, q, status, unpaid]);
+  }), [rows, q, status, unpaid, yard]);
 
   async function patch(no: number, p: OrderPatch) {
     setError("");
@@ -60,13 +63,23 @@ export function OrdersScreen({ me }: { me: StaffMe }) {
   return (
     <div className="stack">
       {can(me.role, "reports.read") && <div className="kpis">
-        <div className="kpi"><b>{shown.length}</b><span>заявок</span></div>
+        <div className="kpi"><b>{shown.length}</b><span>{yard === "all" ? "заявок" : yard === "nsk" ? "машин на терминале" : "машин на стоянке"}</span></div>
         <div className="kpi"><b>{rub(owed)}</b><span>ожидает оплаты</span></div>
         <div className="kpi"><b>{rub(sum((r) => r.insurance * SV_SHARE))}</b><span>страховка · Спасские Ворота 40%</span></div>
         <div className="kpi"><b>{rub(sum((r) => r.insurance * (1 - SV_SHARE)))}</b><span>страховка · ИП Тодоров 60%</span></div>
         <div className="kpi"><b>{rub(sum((r) => r.cashback))}</b><span>кэшбэк партнёрам</span></div>
       </div>}
 
+      <div className="filters">
+        {YARDS.map(([k, label]) => (
+          <button key={k} className={`btn sm ${yard === k ? "dark" : "ghost"}`} aria-pressed={yard === k} onClick={() => setYard(k)}>
+            {label} · {k === "all" ? rows.length : rows.filter((r) => r.yard === k).length}
+          </button>
+        ))}
+      </div>
+      <p className="small muted">{yard === "all" ? "Реестр всех договоров." : yard === "nsk"
+        ? `Машины, принятые на терминал ${TRANSFER_CITY}, ждут рейса дальше.`
+        : "Машины ждут рейса во Владивостоке. Когда рейс сформирован, они уходят со стоянки в таблицу доставок этого рейса (раздел «Доставки»)."}</p>
       <div className="filters">
         <input className="search" placeholder="Поиск: №, авто, VIN, город, клиент" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Поиск" />
         <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Статус">

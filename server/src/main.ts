@@ -1,3 +1,4 @@
+import { telegramFromEnv } from "./notify.ts";
 import { fileURLToPath } from "node:url";
 import { openDb } from "./db.ts";
 import { buildApp } from "./app.ts";
@@ -34,6 +35,7 @@ const app = buildApp({
   media: s3FromEnv() ?? (prod ? undefined : new MemoryStore()),
   webDist: fileURLToPath(new URL("../../web/dist", import.meta.url)),
   exposeSmsCode: !prod && process.env.SMS_PROVIDER === undefined,
+  notify: telegramFromEnv(),
 });
 
 const port = Number(process.env.PORT ?? 3000);

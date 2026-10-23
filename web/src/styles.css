@@ -327,3 +327,7 @@ table.sheet.narrow { min-width: 640px; }
 .kpi.neg b { color: var(--err); }
 .kpi.pos b { color: var(--ok); }
 .callout.info { background: var(--route-soft); color: var(--route); }
+.plist .pi { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--line); font-size: 14px; }
+.plist .pi > b { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.plist .pi.total { border-bottom: 0; color: var(--muted); }
+.plist .pi.total b { color: var(--ink); }

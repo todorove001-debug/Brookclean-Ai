@@ -1,4 +1,4 @@
-import type { BackhaulRow, Deliveries, DistributionItem, DriverCard, DriverInput, ActCar, ActRow, ActView, Condition, StageId, CarForm, CustomerForm, ExpenseKind, OrderRowView, OrderStatus, PartnerRequestView, Quote, RecognizeKind, RecognizeResult, Role, SecurityReport, StaffMe, TripReport, TripView, WaitingCar } from "@brookclean/shared";
+import type { BodyType, BackhaulRow, Deliveries, DistributionItem, DriverCard, DriverInput, ActCar, ActRow, ActView, Condition, StageId, CarForm, CustomerForm, ExpenseKind, OrderRowView, OrderStatus, PartnerCabinet, PartnerPreview, PartnerRequestView, Quote, RecognizeKind, RecognizeResult, Role, SecurityReport, StaffMe, TripReport, TripView, WaitingCar } from "@brookclean/shared";
 import { call } from "../api.ts";
 import { SITE_ORIGIN } from "../router.ts";
 
@@ -56,6 +56,9 @@ export const staffApi = {
   reviewPartner: (id: number, status: "approved" | "rejected") =>
     call<PartnerRequestView>(`/api/staff/partner-requests/${id}`, { method: "PATCH", body: { status } }),
   createPartnerLink: (partner: string, cashback: number) => call<{ token: string; url: string }>("/api/staff/partner-links", { body: { partner, cashback } }),
+  myPartner: () => call<PartnerCabinet>("/api/staff/my-partner"),
+  partnerPreview: (city: string, body: BodyType, cashback: number) => call<PartnerPreview>("/api/staff/my-partner/preview", { body: { city, body, cashback } }),
+  createMyLink: (cashback: number, note: string) => call<{ token: string; url: string }>("/api/staff/my-partner/links", { body: { cashback, note } }),
   users: () => call<StaffUser[]>("/api/staff/users"),
   createUser: (body: { name: string; login: string; password: string; role: Role; site?: string }) => call<StaffUser>("/api/staff/users", { body }),
   patchUser: (id: number, body: Partial<{ name: string; role: Role; active: boolean; password: string; site: string }>) =>

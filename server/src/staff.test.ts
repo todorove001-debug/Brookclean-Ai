@@ -209,3 +209,31 @@ test("водитель заводит свой рейс, грузит машин
   assert.equal(r2.id, "R-02");
   assert.equal((await app.inject({ url: "/api/staff/trips", headers: ph })).json()[0].id, "R-02");
 });
+
+test("кабинет партнёра: своя ссылка с кэшбэком и свои клиенты", async () => {
+  const { app, db, login } = setup();
+  const h = { cookie: (await login("owner@brookclean.ru", "owner-pass-1")).cookie };
+  await app.inject({ method: "POST", url: "/api/staff/users", headers: h, payload: { name: "Монстеркар", login: "monster", password: "partner-pass-1", role: "partner" } });
+  const ph = { cookie: (await login("monster", "partner-pass-1")).cookie };
+  assert.equal((await app.inject({ url: "/api/staff/orders", headers: ph })).statusCode, 403);
+
+  const pre = (await app.inject({ method: "POST", url: "/api/staff/my-partner/preview", headers: ph, payload: { city: "Красноярск", body: "sedan", cashback: 15000 } })).json();
+  assert.deepEqual(pre, { tariff: 110000, cashback: 15000, total: 125000 });
+  assert.equal((await app.inject({ method: "POST", url: "/api/staff/my-partner/links", headers: ph, payload: { cashback: 500000 } })).statusCode, 400);
+  const link = (await app.inject({ method: "POST", url: "/api/staff/my-partner/links", headers: ph, payload: { cashback: 15000, note: "Тагаева" } })).json();
+  assert.equal((await app.inject({ url: `/api/partner-links/${link.token}` })).json().partner, "Монстеркар");
+
+  // Заказ другого партнёра и черновик в кабинет не попадают
+  const mk = async (partner: string) => (await app.inject({ method: "POST", url: "/api/staff/orders", headers: h, payload: { car, customer, cashback: 15000, partner } })).json().id as string;
+  const mine = await mk("Монстеркар");
+  await mk("Другой");
+  await mk("Монстеркар");
+  db.prepare("UPDATE orders SET status = 'signed' WHERE id = ?").run(mine);
+
+  const cab = (await app.inject({ url: "/api/staff/my-partner", headers: ph })).json();
+  assert.equal(cab.links.length, 1);
+  assert.equal(cab.links[0].note, "Тагаева");
+  assert.equal(cab.clients.length, 1);
+  assert.equal(cab.clients[0].client, "Жаворонкова Л. В.");
+  assert.equal(cab.total, 15000);
+});

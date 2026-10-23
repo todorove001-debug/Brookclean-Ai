@@ -1,3 +1,4 @@
+import type { OrderStatus } from "./order.ts";
 import type { ReportStatus } from "./fleet.ts";
 // Права сотрудников. Новый раздел панели = новое право + строка в ROLES.
 
@@ -20,6 +21,7 @@ export const PERMISSIONS = {
   "acts.manage": "Снимать отметки дефектов в подписанном акте",
   "drivers.edit": "Реестр водителей: карточки, документы, импорт из Excel",
   "staff.approve": "Подтверждать регистрацию водителей и приёмщиков",
+  "partner.self": "Кабинет партнёра: свои ссылки с кэшбэком и свои клиенты",
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -34,6 +36,7 @@ export const ROLES = {
   accountant: { name: "Бухгалтер", perms: ["orders.read", "orders.personal", "payments.edit", "reports.read"] },
   acceptor: { name: "Приёмщик", perms: ["orders.read", "trips.read", "acts.read", "acts.edit"] },
   driver: { name: "Водитель", perms: ["trips.driver"] },
+  partner: { name: "Партнёр", perms: ["partner.self"] },
 } satisfies Record<string, { name: string; perms: Permission[] }>;
 
 export type Role = keyof typeof ROLES;
@@ -83,6 +86,8 @@ export interface OrderRowView {
   signedAt: string | null;
   /** Номер страхового полиса (заполняет бухгалтер или менеджер). */
   policyNo: string;
+  /** Где машина ждёт рейса: стоянка Владивостока, терминал перегруза или уже в сформированном рейсе (null). */
+  yard: "vl" | "nsk" | null;
 }
 
 export interface TripView {
@@ -183,3 +188,9 @@ export interface SecurityReport {
   suspects: Array<{ kind: "phone" | "ip"; value: string; events: number; quotes: number; cities: number; last: number; blocked: boolean }>;
   blocked: Array<{ value: string; at: string; note: string }>;
 }
+
+/** Кабинет партнёра: имя партнёра в ссылках и заявках совпадает с именем сотрудника. */
+export interface PartnerCabinetLink { token: string; url: string; cashback: number; note: string | null; createdAt: string }
+export interface PartnerClient { no: number; car: string; city: string; client: string; status: OrderStatus; cashback: number; signedAt: string | null }
+export interface PartnerCabinet { name: string; links: PartnerCabinetLink[]; clients: PartnerClient[]; total: number }
+export interface PartnerPreview { tariff: number; cashback: number; total: number }

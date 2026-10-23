@@ -4,14 +4,14 @@ import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypt
 import {
   BODY, EXPENSE_KINDS, NET, PAY_FORM, PAY_TO, ROLES, can, isRole, kmTo, normalizePhone, parseRub, rub, routeFor,
   isDocKind, isSite, canTransfer, TRANSFER_CITY, validateCar, validateCustomer, CAPACITY, REPORT_STATUS, legShare, truckLine, trailerLine,
-  type CarForm, type CustomerForm, type OrderRowView, type OrderStatus, type Permission, type Quote, type Role,
+  type BodyType, type CarForm, type CustomerForm, type OrderRowView, type PartnerCabinet, type PartnerCabinetLink, type PartnerPreview, type OrderStatus, type Permission, type Quote, type Role,
   type ExpenseKind, type ReportStatus, type StaffMe, type TripCar, type TripExpense, type TripReport, type TripView, type WaitingCar,
 } from "@brookclean/shared";
 import { nextOrderNo, nextTripNo, type DB } from "./db.ts";
 import { sha256 } from "./contract.ts";
 import { GoogleDrive, getSetting, sheetUrl, toCsv } from "./drive.ts";
 import type { SmsSender } from "./sms.ts";
-import { quote } from "./pricing.ts";
+import { quote, tariffFor } from "./pricing.ts";
 import type { Guard } from "./guard.ts";
 import { requestView } from "./partners.ts";
 import { VisionError, recognize, type Vision } from "./recognize.ts";
@@ -86,6 +86,9 @@ export function cookie(req: FastifyRequest, name: string) {
   }
   return undefined;
 }
+
+/** Потолок кэшбэка, который партнёр сам ставит в ссылку. Больше — через менеджера. */
+export const MAX_PARTNER_CASHBACK = 100_000;
 
 const shortName = (fio: string) => {
   const [f, i, o] = fio.trim().split(/\s+/);
@@ -175,6 +178,13 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
   });
 
   // --- Заявки ---
+  const formed = (tripId: string | null) => !!tripId && !!(db.prepare("SELECT formed_at FROM trips WHERE id = ?").get(tripId) as { formed_at: string | null } | undefined)?.formed_at;
+  /** Стоянка как в листе «Стоянка»: машина ждёт рейса, пока её рейс не сформирован. */
+  function yardOf(o: OrderRow): OrderRowView["yard"] {
+    if (o.status === "draft" || o.status === "delivered") return null;
+    if (o.transfer && db.prepare("SELECT 1 FROM acts WHERE order_id = ? AND stage = 'term_in' AND closed_at IS NOT NULL").get(o.id)) return formed(o.trip2_id) ? null : "nsk";
+    return formed(o.trip_id) ? null : "vl";
+  }
   function rowView(o: OrderRow, personal: boolean): OrderRowView {
     const car = JSON.parse(o.car) as CarForm;
     const customer = JSON.parse(o.customer) as CustomerForm;
@@ -188,7 +198,7 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
       partner: o.partner, tariff: q.tariff, cashback: q.cashback, delivery: q.delivery, value: parseRub(car.value),
       insurance: q.insurance, total: q.total, paidDelivery: !!p?.paid_delivery, paidInsurance: !!p?.paid_insurance,
       payTo: p?.pay_to ?? "", payForm: p?.pay_form ?? "", tripId: o.trip_id, transfer: o.transfer, trip2Id: o.trip2_id, trackToken: o.track_token, signedAt: o.signed_at,
-      policyNo: o.policy_no ?? "",
+      policyNo: o.policy_no ?? "", yard: yardOf(o),
     };
   }
 
@@ -321,7 +331,7 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
 
   // --- Рейсы ---
   // Менеджер видит и меняет все рейсы; водитель — только свои, и только пока рейс не закрыт.
-  const canSeeTrip = (me: StaffMe, t: TripRow) => can(me.role, "trips.read") || (can(me.role, "trips.driver") && t.driver_id === me.id);
+  const canSeeTrip = (me: StaffMe, t: TripRow) => can(me.role, "trips.read") || can(me.role, "reports.read") || (can(me.role, "trips.driver") && t.driver_id === me.id);
   const canEditTrip = (me: StaffMe, t: TripRow) =>
     can(me.role, "trips.edit") || (can(me.role, "trips.driver") && t.driver_id === me.id && !t.closed_at);
 
@@ -368,7 +378,7 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
     return t;
   }
 
-  const tripsAccess = needAny("trips.read", "trips.driver");
+  const tripsAccess = needAny("trips.read", "trips.driver", "reports.read");
   const tripsWrite = needAny("trips.edit", "trips.driver");
 
   app.get("/api/staff/trips", { preHandler: tripsAccess }, async (req) =>
@@ -786,6 +796,39 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
       .run(token, partner.trim(), Math.round(Number(cashback)), now().toISOString());
     audit(req, "partner.link", { partner, cashback });
     return { token, path: `/?p=${token}`, url: `${ctx.publicUrl}/?p=${token}` };
+  });
+
+  // --- Кабинет партнёра: свои ссылки с кэшбэком и свои клиенты. Партнёр в ссылках = имя сотрудника ---
+  app.get("/api/staff/my-partner", { preHandler: need("partner.self") }, async (req): Promise<PartnerCabinet> => {
+    const name = req.staff!.name;
+    const links = (db.prepare("SELECT token, cashback, note, created_at AS createdAt FROM partner_links WHERE partner = ? ORDER BY created_at DESC")
+      .all(name) as Omit<PartnerCabinetLink, "url">[]).map((l) => ({ ...l, url: `${ctx.publicUrl}/?p=${l.token}` }));
+    // Черновики не считаем: кэшбэк появляется, когда клиент подписал договор
+    const clients = (db.prepare("SELECT no, status, car, customer, cashback, signed_at FROM orders WHERE partner = ? AND status != 'draft' ORDER BY no DESC")
+      .all(name) as { no: number; status: OrderStatus; car: string; customer: string; cashback: number; signed_at: string | null }[])
+      .map((o) => {
+        const car = JSON.parse(o.car) as CarForm;
+        return { no: o.no, car: car.car, city: car.city, client: shortName((JSON.parse(o.customer) as CustomerForm).fio), status: o.status, cashback: o.cashback, signedAt: o.signed_at };
+      });
+    return { name, links, clients, total: clients.reduce((s, c) => s + c.cashback, 0) };
+  });
+
+  app.post<{ Body: { city: string; body: BodyType; cashback: number } }>("/api/staff/my-partner/preview", { preHandler: need("partner.self") }, async (req, reply) => {
+    const { city, body } = req.body ?? ({} as never);
+    const cashback = Math.round(Number(req.body?.cashback) || 0);
+    const tariff = body in BODY ? tariffFor(city, body) : 0;
+    if (!tariff) return reply.code(400).send({ error: "Выберите город и кузов" });
+    return { tariff, cashback, total: tariff + cashback } satisfies PartnerPreview;
+  });
+
+  app.post<{ Body: { cashback: number; note?: string } }>("/api/staff/my-partner/links", { preHandler: need("partner.self") }, async (req, reply) => {
+    const cashback = Number(req.body?.cashback);
+    if (!(cashback >= 0 && cashback <= MAX_PARTNER_CASHBACK)) return reply.code(400).send({ error: `Кэшбэк от 0 до ${rub(MAX_PARTNER_CASHBACK)}` });
+    const token = ctx.randomToken(10), note = req.body?.note?.trim().slice(0, 80) || null;
+    db.prepare("INSERT INTO partner_links (token, partner, cashback, created_at, note) VALUES (?, ?, ?, ?, ?)")
+      .run(token, req.staff!.name, Math.round(cashback), now().toISOString(), note);
+    audit(req, "partner.self.link", { cashback, note });
+    return { token, url: `${ctx.publicUrl}/?p=${token}` };
   });
 
   // --- Заявки на партнёрство: клиент присылает реквизиты, менеджер проверяет ---

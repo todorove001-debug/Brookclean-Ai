@@ -1,17 +1,43 @@
 import { useEffect, useState } from "react";
-import { CAPACITY, PAY_FORM, PAY_TO, SV_SHARE, can, rub, type BackhaulRow, type Deliveries, type DeliveryRow, type StaffMe } from "@brookclean/shared";
+import { CAPACITY, PAY_FORM, PAY_TO, SV_SHARE, can, rub, type BackhaulRow, type Deliveries, type DeliveryRow, type StaffMe, type TripView } from "@brookclean/shared";
 import { ApiError } from "../api.ts";
 import { navigate } from "../router.ts";
 import { staffApi, type OrderPatch } from "./api.ts";
 
-const STATUS_RU: Record<string, [string, string]> = {
+export const STATUS_RU: Record<string, [string, string]> = {
   draft: ["ждёт подписи", "gray"], signed: ["подписан", "gray"], paid: ["оплачен", "info"], loading: ["погрузка", "warn"],
   in_transit: ["в пути", "info"], arrived: ["прибыл", "ok"], delivered: ["выдан", "ok"],
 };
 const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" }) : "");
 
+/** Раздел «Доставки»: рейсы вкладками, у каждого своя таблица. Сначала сформированные рейсы, они ушли со стоянки. */
+export function DeliveriesHub({ me, path }: { me: StaffMe; path: string }) {
+  const [trips, setTrips] = useState<TripView[] | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    staffApi.trips().then((ts) => setTrips([...ts].sort((a, b) => Number(!a.formedAt) - Number(!b.formedAt) || (b.loadDate ?? "").localeCompare(a.loadDate ?? ""))),
+      (e: ApiError) => setError(e.message));
+  }, []);
+  if (!trips) return <p className="muted">{error || "Загружаем рейсы…"}</p>;
+  if (!trips.length) return <p className="muted">Рейсов пока нет. Создайте рейс в разделе «Рейсы и отчёты».</p>;
+  const sel = decodeURIComponent(/^\/admin\/deliveries\/([^/?]+)/.exec(path)?.[1] ?? "") || trips[0].id;
+  return (
+    <div className="stack">
+      <div className="filters">
+        {trips.map((t) => (
+          <button key={t.id} className={`btn sm ${t.id === sel ? "dark" : "ghost"}`} aria-pressed={t.id === sel}
+            onClick={() => navigate(`/admin/deliveries/${encodeURIComponent(t.id)}`)}>
+            {t.id} → {t.dest}{t.loadDate ? ` · ${new Date(t.loadDate).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" })}` : ""}{t.formedAt ? "" : " · формируется"}
+          </button>
+        ))}
+      </div>
+      <DeliveriesScreen key={sel} me={me} id={sel} hub />
+    </div>
+  );
+}
+
 /** Таблица доставок по рейсу — как лист «Рейс» в Google Таблице: машины, движение, деньги, страховка, оплата, обратка. */
-export function DeliveriesScreen({ me, id }: { me: StaffMe; id: string }) {
+export function DeliveriesScreen({ me, id, hub = false }: { me: StaffMe; id: string; hub?: boolean }) {
   const [d, setD] = useState<Deliveries | null>(null);
   const [error, setError] = useState("");
   const pay = can(me.role, "payments.edit");
@@ -33,7 +59,7 @@ export function DeliveriesScreen({ me, id }: { me: StaffMe; id: string }) {
   const patch = (no: number, p: OrderPatch) => run(() => staffApi.patchOrder(no, p));
 
   const href = `/admin/trips/${encodeURIComponent(id)}`;
-  const back = <a className="small" href={href} onClick={(e) => { e.preventDefault(); navigate(href); }}>← Рейсовый отчёт {id}</a>;
+  const back = hub ? null : <a className="small" href={href} onClick={(e) => { e.preventDefault(); navigate(href); }}>← Рейсовый отчёт {id}</a>;
   if (!d) return <div className="stack">{back}<p className="muted">{error || "Загружаем таблицу…"}</p></div>;
 
   const { trip: t, rows } = d;
