@@ -122,6 +122,17 @@ a.btn { display: flex; align-items: center; justify-content: center; text-align:
 .doc td:first-child { width: 38%; color: var(--muted); }
 .doc .new { background: var(--warn-soft); border-left: 3px solid var(--accent); padding: 6px 8px; font-size: 13px; }
 .doc .fold { color: var(--muted); font-style: italic; font-size: 13px; }
+.doc .pre { white-space: pre-line; }
+.doc .c { text-align: center; }
+.doc .r { text-align: right; }
+.doc .h { font-weight: 700; margin-top: 6px; }
+.doc .fill { background: var(--warn-soft); font-weight: 600; padding: 0 2px; border-radius: 2px; }
+.doc hr { border: 0; border-top: 1px dashed var(--line); margin: 10px 0; width: 100%; }
+.doc tr.strong td { font-weight: 700; color: inherit; }
+.doc .parties { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; font-size: 13px; }
+.doc .parties > div:only-child { grid-column: 1 / -1; }
+.doc .sign { margin-top: 10px; }
+@media (max-width: 420px) { .doc .parties { grid-template-columns: 1fr; } }
 .check { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; cursor: pointer; }
 .check input { width: 20px; height: 20px; margin-top: 1px; accent-color: var(--accent); flex: none; }
 

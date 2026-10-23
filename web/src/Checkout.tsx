@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import {
-  BODY, CARRIER, CITIES, GAME_URL, ORIGIN, parseRub, rub, rubWords, validateCar, validateCustomer,
-  type BodyType, type CarForm, type CustomerForm, type Quote,
+  BODY, CITIES, GAME_URL, consentDoc, contractData, contractDoc, parseRub, rub, validateCar, validateCustomer,
+  type BodyType, type CarForm, type CompanyForm, type ContractData, type CustomerForm, type Quote,
 } from "@brookclean/shared";
+import { ContractView } from "./ContractView.tsx";
 import { api, ApiError, type ClientMe, type Order } from "./api.ts";
 import { PartnerCard } from "./Partner.tsx";
 import { Captcha } from "./Captcha.tsx";
@@ -36,6 +37,8 @@ export function Checkout() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [signed, setSigned] = useState<Order | null>(null);
+  // Реквизиты одобренного партнёра: в договоре Заказчиком будет его компания
+  const [company, setCompany] = useState<CompanyForm | null>(null);
 
   useEffect(() => save("draft-car", car), [car]);
   useEffect(() => save("draft-customer", customer), [customer]);
@@ -52,6 +55,8 @@ export function Checkout() {
 
   useEffect(() => {
     if (auth) setCustomer((c) => (c.phone === auth.phone ? c : { ...c, phone: auth.phone }));
+    if (auth?.partner === "approved") api.partnerRequest().then((r) => setCompany(r?.status === "approved" ? r.company : null), () => {});
+    else setCompany(null);
   }, [auth]);
 
   // Цену запрашиваем у сервера при каждом новом варианте «город + кузов + стоимость»
@@ -289,7 +294,7 @@ export function Checkout() {
       )}
 
       {step === 3 && quote && (
-        <Documents car={car} customer={customer} q={quote} agree={agree} setAgree={setAgree} />
+        <Documents data={contractData(null, null, car, customer, quote, company)} agree={agree} setAgree={setAgree} />
       )}
 
       {step === 4 && (
@@ -364,8 +369,8 @@ export function QuoteCard({ city, body, q }: { city: string; body: BodyType; q: 
   );
 }
 
-export function Documents({ car, customer, q, agree, setAgree }: {
-  car: CarForm; customer: CustomerForm; q: Quote;
+export function Documents({ data, agree, setAgree }: {
+  data: ContractData;
   agree: { contract: boolean; pep: boolean; personalData: boolean };
   setAgree: (a: { contract: boolean; pep: boolean; personalData: boolean }) => void;
 }) {
@@ -374,45 +379,49 @@ export function Documents({ car, customer, q, agree, setAgree }: {
       <input type="checkbox" checked={agree[k]} onChange={(e) => setAgree({ ...agree, [k]: e.target.checked })} /> {text}
     </label>
   );
-  const today = new Date().toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
   return (
     <>
       <section className="card">
         <h2>Проверьте документы</h2>
-        <div className="eyebrow">1 · Договор перевозки</div>
-        <div className="doc" tabIndex={0} aria-label="Текст договора">
-          <p className="t">Договор перевозки груза автомобильным транспортом</p>
-          <p className="row-between"><span>г. Владивосток</span><span>{today}</span></p>
-          <p>{CARRIER.name} (ИНН {CARRIER.inn}), именуемый далее «Перевозчик», и гражданин <b>{customer.fio}</b>, именуемый далее «Заказчик», заключили настоящий Договор о нижеследующем.</p>
-          <p className="fold">Разделы 1–5 (предмет договора, порядок перевозки и расчётов, условия перевозки, ответственность сторон) — по утверждённому шаблону договора.</p>
-          <p className="new"><b>6.8.</b> Стороны признают простой электронной подписью Заказчика код подтверждения, направленный в SMS на номер {customer.phone}. Документ, подписанный таким кодом, равнозначен документу на бумаге с собственноручной подписью (ст. 6, 9 Федерального закона № 63-ФЗ).</p>
-          <p className="t">Приложение №1 · Информация о грузе и условиях доставки</p>
-          <table>
-            <tbody>
-              <tr><td>Марка, модель</td><td>{car.car} ({car.year}, {car.color})</td></tr>
-              <tr><td>VIN (№ рамы, кузова)</td><td className="mono">{car.vin.toUpperCase()}</td></tr>
-              <tr><td>Пункт отправления</td><td>{ORIGIN}</td></tr>
-              <tr><td>Пункт назначения</td><td>{car.city} — адрес терминала выдачи</td></tr>
-              <tr><td>Сроки доставки</td><td>10–60 дней с момента выхода автомобиля на маршрут из Владивостока</td></tr>
-              <tr><td>Стоимость перевозки</td><td>{rubWords(q.delivery)}</td></tr>
-              <tr><td>Страхование груза</td><td>{rubWords(q.insurance)}</td></tr>
-              <tr><td><b>Итого</b></td><td><b>{rubWords(q.total)}</b></td></tr>
-            </tbody>
-          </table>
-          <p className="fold">Заказчик: паспорт {customer.passportSeries} {customer.passportNumber}, выдан {customer.passportIssued}; адрес: {customer.address}.</p>
-        </div>
+        <p className="muted small">
+          Полный текст договора с приложениями. Ваши данные выделены цветом.
+          {data.company && <> Заказчик по договору — {data.company.name}, вы подписываете как представитель.</>}
+        </p>
+        <div className="eyebrow">1 · Договор перевозки и приложения № 1–2</div>
+        <ContractView doc={contractDoc(data)} label="Текст договора" />
+        <PdfButton data={data} label="Скачать проект договора (PDF)" />
         {check("contract", "Я прочитал договор перевозки и согласен с его условиями")}
         {check("pep", "Согласен подписывать документы кодом из SMS (простая электронная подпись)")}
       </section>
       <section className="card">
-        <div className="eyebrow">2 · Отдельный документ</div>
-        <div className="doc short" tabIndex={0} aria-label="Согласие на обработку персональных данных">
-          <p className="t">Согласие на обработку персональных данных</p>
-          <p>Я, <b>{customer.fio}</b>, действуя свободно, своей волей и в своём интересе, в соответствии с Федеральным законом № 152-ФЗ даю согласие {CARRIER.name} (ИНН {CARRIER.inn}) на обработку моих персональных данных: ФИО, паспортные данные, телефон, адрес, сведения о транспортном средстве.</p>
-          <p>Цели: заключение и исполнение договора перевозки, организация транспортировки, связь со мной, оформление документов. Передача водителям, логистическим и страховым компаниям — только для исполнения договора.</p>
-        </div>
+        <div className="eyebrow">2 · Приложение № 3, отдельный документ</div>
+        <ContractView doc={consentDoc(data)} label="Согласие на обработку персональных данных" short />
         {check("personalData", "Даю согласие на обработку персональных данных")}
       </section>
+    </>
+  );
+}
+
+/** Кнопка скачивания PDF: договор, приложения и согласие одним файлом. */
+export function PdfButton({ data, signature, label }: { data: ContractData; signature?: Order["signature"]; label: string }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const click = async () => {
+    setBusy(true);
+    setErr("");
+    try {
+      const { downloadContractPdf } = await import("./contractPdf.ts");
+      await downloadContractPdf(data, signature ?? undefined);
+    } catch {
+      setErr("Не удалось собрать PDF. Попробуйте ещё раз.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <button type="button" className="btn ghost sm" onClick={click} disabled={busy}>{busy ? "Готовим PDF…" : label}</button>
+      {err && <span className="err">{err}</span>}
     </>
   );
 }
@@ -436,6 +445,7 @@ export function Done({ order, onRestart }: { order: Order; onRestart: () => void
             SHA-256 документа: {order.signature.documentSha256}
           </div>
         )}
+        {order.contract && <PdfButton data={order.contract} signature={order.signature} label="Скачать договор (PDF)" />}
       </section>
       <section className="card">
         <h3>Где сейчас ваш автомобиль</h3>

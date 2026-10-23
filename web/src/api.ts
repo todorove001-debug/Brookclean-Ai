@@ -1,5 +1,5 @@
 import { DEMO } from "./router.ts";
-import type { CarForm, CompanyForm, CustomerForm, PartnerRequestView, PartnerStatus, Quote, TrackingView } from "@brookclean/shared";
+import type { CarForm, CompanyForm, ContractData, CustomerForm, PartnerRequestView, PartnerStatus, Quote, TrackingView } from "@brookclean/shared";
 
 export class ApiError extends Error {
   constructor(message: string, public status: number, public errors?: Record<string, string>, public captcha?: string, public needPartner = false) {
@@ -49,6 +49,8 @@ export interface Order {
   trackToken: string | null;
   signedAt: string | null;
   signature: Signature | null;
+  /** Данные договора: у черновика паспорт скрыт, у подписанного — только самому клиенту. */
+  contract?: ContractData;
 }
 
 /** Вошедший клиент: партнёр ли он и можно ли сегодня оформить ещё автомобиль. */
@@ -68,7 +70,7 @@ export const api = {
     call<{ id: string; no: number; quote: Quote; devCode?: string }>("/api/orders", { body }),
   resend: (id: string) => call<{ ok: true; devCode?: string }>(`/api/orders/${id}/resend`, { method: "POST" }),
   sign: (id: string, code: string) => call<Order>(`/api/orders/${id}/sign`, { body: { code } }),
-  order: (id: string) => call<Order & { documentCustomer?: CustomerForm }>(`/api/orders/${id}`),
+  order: (id: string) => call<Order>(`/api/orders/${id}`),
   signWithConsents: (id: string, code: string, consents: Record<string, boolean>) =>
     call<Order>(`/api/orders/${id}/sign`, { body: { code, consents } }),
   track: (token: string) => call<TrackingView>(`/api/t/${encodeURIComponent(token)}`),

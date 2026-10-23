@@ -1,6 +1,6 @@
 // Имитация сервера для демо-сборки: те же ответы, что у server/src/app.ts, но в браузере.
 import {
-  kmTo, maskVin, normalizePhone, parseRub, routeFor, validateCar, validateCompany, validateCustomer,
+  contractData, contractDate, kmTo, maskVin, normalizePhone, parseRub, routeFor, validateCar, validateCompany, validateCustomer,
   type CarForm, type CompanyForm, type CustomerForm, type OrderStatus, type Quote, type TrackingView,
 } from "@brookclean/shared";
 // Только демо-страница: в обычной сборке сайта тарифов нет (проверяет web/vite.config.ts).
@@ -155,7 +155,10 @@ export async function demoFetch(path: string, method: string, body: any): Promis
     o.signedAt = new Date().toISOString();
     o.trackToken = rand(16);
     persist();
-    return ok(publicOrder(o, await sha256(JSON.stringify({ no: o.no, car: o.car, customer: o.customer, quote: o.quote }))));
+    // Как на сервере: у одобренного партнёра Заказчик в договоре — его компания
+    const p = demoPartner(o.phone);
+    const contract = contractData(o.no, contractDate(new Date(o.createdAt)), o.car, o.customer, o.quote, p?.status === "approved" ? p.company : null);
+    return ok({ ...publicOrder(o, await sha256(JSON.stringify(contract))), contract });
   }
 
   if ((m = /^\/api\/t\/(\w+)(\/received|\/review)?$/.exec(path))) {

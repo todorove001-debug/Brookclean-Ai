@@ -50,6 +50,15 @@ test("оформление, подпись кодом и трекинг", async 
   assert.equal(order.status, "signed");
   assert.match(order.signature.documentSha256, /^[0-9a-f]{64}$/);
   assert.equal(order.trackToken.length, 16);
+  // Подписанный договор с паспортом: сразу после подписи и потом только вошедшему клиенту
+  assert.equal(order.contract.customer.passportNumber, "345678");
+  assert.match(order.contract.date, /^\d{4}-\d{2}-\d{2}$/);
+  assert.equal(order.contract.company, null);
+  assert.equal(order.contract.price.delivery, 125000);
+  const anon = (await app.inject({ url: `/api/orders/${id}` })).json();
+  assert.equal(JSON.stringify(anon).includes("345678"), false);
+  assert.equal(anon.contract, undefined);
+  assert.equal((await app.inject({ url: `/api/orders/${id}`, headers: h })).json().contract.customer.passportNumber, "345678");
 
   await app.inject({ method: "PUT", url: "/api/staff/trips/R-01", headers: admin, payload: { dest: "Новосибирск", truck: "Volvo FH" } });
   await app.inject({ method: "PATCH", url: `/api/staff/orders/${no}`, headers: admin, payload: { tripId: "R-01" } });

@@ -26,12 +26,20 @@ export const NET: Record<string, readonly [string | null, number]> = {
 };
 export const KM_PER_DAY = 600;
 
-export const ORIGIN = "Уссурийск, ул. Штабского, г-ж 14Г, склад СВХ ООО «Логистический Терминал»";
+export const ORIGIN = "Владивосток, ул. Чукотская 1";
 export const CARRIER = {
   name: "ИП Тодоров Евгений Константинович",
   short: "Е.К. Тодоров",
   inn: "253717132973",
   phone: "+7 950 281 55 55",
+  // Реквизиты для раздела 7 договора
+  fullName: "Индивидуальный предприниматель Тодоров Евгений Константинович",
+  address: "690080, г. Владивосток, ул. Беляева, д. 4, кв. 40",
+  ogrnip: "318253600033233",
+  account: "40802810150000418525",
+  bank: "ДАЛЬНЕВОСТОЧНЫЙ БАНК ПАО СБЕРБАНК",
+  bik: "040813608",
+  corrAccount: "30101810600000000608",
 };
 
 export const GAME_URL = "https://brookcleangame.online";

@@ -4,8 +4,8 @@ import { randomBytes, randomInt, randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  BODY, CARRIER, CITIES, kmTo, maskVin, normalizePhone, parseRub, routeFor, validateCar, validateCompany, validateCustomer,
-  type BodyType, type CarForm, type CompanyForm, type CustomerForm, type OrderStatus, type Quote, type TrackingView,
+  BODY, CARRIER, CITIES, contractData, contractDate, kmTo, maskVin, normalizePhone, parseRub, routeFor, validateCar, validateCompany, validateCustomer,
+  type BodyType, type CarForm, type CompanyForm, type ContractData, type CustomerForm, type OrderStatus, type Quote, type TrackingView,
 } from "@brookclean/shared";
 import { quote } from "./pricing.ts";
 import { Guard, migrateGuard, type CaptchaVerifier } from "./guard.ts";
@@ -56,8 +56,6 @@ interface OrderRow {
   created_by: number | null;
 }
 
-const ruDate = (d: Date) => d.toLocaleDateString("ru-RU", { timeZone: "Asia/Vladivostok" });
-
 export function buildApp(opts: AppOptions): FastifyInstance {
   const { db, sms } = opts;
   const now = opts.now ?? (() => new Date());
@@ -79,9 +77,19 @@ export function buildApp(opts: AppOptions): FastifyInstance {
       customer: { fio: customer.fio, phone: o.phone },
       quote: JSON.parse(o.quote) as Quote,
       trackToken: o.track_token, signedAt: o.signed_at,
-      signature: o.signature ? JSON.parse(o.signature) : null,
+      // Журнал подписи без подписанных данных: в них паспорт, их видит только сам клиент (signedContract)
+      signature: o.signature ? (({ payload: _, ...s }) => s)(JSON.parse(o.signature)) : null,
     };
   }
+
+  /** Данные для договора: у одобренного партнёра Заказчик — компания из его карточки. */
+  function orderContract(o: OrderRow): ContractData {
+    const company = isPartner(db, o.phone) ? partnerRequest(db, o.phone)!.company : null;
+    return contractData(o.no, contractDate(new Date(o.created_at)), JSON.parse(o.car), JSON.parse(o.customer), JSON.parse(o.quote), company);
+  }
+
+  /** То, что клиент подписал: из журнала подписи, чтобы PDF совпадал с подписанным. */
+  const signedContract = (o: OrderRow) => (o.signature ? (JSON.parse(o.signature).payload?.data as ContractData | undefined) : undefined);
 
   app.get("/api/health", async () => ({ ok: true }));
 
@@ -319,9 +327,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     }
 
     const signedAt = now();
-    const car = JSON.parse(o.car) as CarForm;
-    const customer = JSON.parse(o.customer) as CustomerForm;
-    const payload = contractPayload(o.no, ruDate(new Date(o.created_at)), car, customer, JSON.parse(o.quote));
+    const payload = contractPayload(orderContract(o));
     const signature = {
       method: "ПЭП: код из SMS",
       phone: o.phone,
@@ -335,19 +341,19 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     db.prepare("UPDATE orders SET status = 'signed', signed_at = ?, signature = ?, track_token = ? WHERE id = ?")
       .run(signedAt.toISOString(), JSON.stringify(signature), token, o.id);
     db.prepare("DELETE FROM sms_codes WHERE order_id = ?").run(o.id);
-    return publicOrder(getOrder(o.id)!);
+    // Код из SMS только что подтвердил владельца номера: отдаём подписанный договор для PDF
+    return { ...publicOrder(getOrder(o.id)!), contract: payload.data };
   });
 
   app.get<{ Params: { id: string } }>("/api/orders/:id", async (req, reply) => {
     const o = getOrder(req.params.id);
     if (!o) return reply.code(404).send({ error: "Заказ не найден" });
-    if (o.status !== "draft") return publicOrder(o);
+    // Подписанный договор целиком (с паспортом) видит только вошедший владелец номера
+    if (o.status !== "draft") return { ...publicOrder(o), contract: clientPhone(req) === o.phone ? signedContract(o) : undefined };
     // Неподписанная заявка: данные для текста договора, паспорт частично скрыт
-    const c = JSON.parse(o.customer) as CustomerForm;
-    return {
-      ...publicOrder(o),
-      documentCustomer: { ...c, passportNumber: "••••" + c.passportNumber.slice(-2) },
-    };
+    const contract = orderContract(o);
+    const c = contract.customer;
+    return { ...publicOrder(o), contract: { ...contract, customer: { ...c, passportNumber: "••••" + c.passportNumber.slice(-2) } } };
   });
 
   // --- Трекинг по ссылке: без ФИО и телефона ---
