@@ -1,8 +1,8 @@
 import { DEMO } from "./router.ts";
-import type { CarForm, CustomerForm, Quote, TrackingView } from "@brookclean/shared";
+import type { CarForm, CompanyForm, CustomerForm, PartnerRequestView, PartnerStatus, Quote, TrackingView } from "@brookclean/shared";
 
 export class ApiError extends Error {
-  constructor(message: string, public status: number, public errors?: Record<string, string>, public captcha?: string) {
+  constructor(message: string, public status: number, public errors?: Record<string, string>, public captcha?: string, public needPartner = false) {
     super(message);
   }
 }
@@ -12,8 +12,8 @@ export async function call<T>(path: string, init?: { method?: string; body?: unk
     const { demoFetch } = await import("./demo.ts");
     const r = await demoFetch(path, init?.method ?? (init?.body ? "POST" : "GET"), init?.body);
     await new Promise((ok) => setTimeout(ok, 250));
-    const d = r.data as { error?: string; errors?: Record<string, string>; captcha?: string };
-    if (r.status >= 400) throw new ApiError(d.error ?? "Ошибка", r.status, d.errors, d.captcha);
+    const d = r.data as { error?: string; errors?: Record<string, string>; captcha?: string; needPartner?: boolean };
+    if (r.status >= 400) throw new ApiError(d.error ?? "Ошибка", r.status, d.errors, d.captcha, !!d.needPartner);
     return r.data as T;
   }
   let res: Response;
@@ -27,7 +27,7 @@ export async function call<T>(path: string, init?: { method?: string; body?: unk
     throw new ApiError("Нет связи с сервером. Проверьте интернет.", 0);
   }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(data.error ?? "Ошибка сервера", res.status, data.errors, data.captcha);
+  if (!res.ok) throw new ApiError(data.error ?? "Ошибка сервера", res.status, data.errors, data.captcha, !!data.needPartner);
   return data as T;
 }
 
@@ -51,11 +51,16 @@ export interface Order {
   signature: Signature | null;
 }
 
+/** Вошедший клиент: партнёр ли он и можно ли сегодня оформить ещё автомобиль. */
+export interface ClientMe { phone: string; partner: PartnerStatus | null; canOrder: boolean; ordersPerDay: number }
+
 export const api = {
   // Вход по SMS: цену сервер показывает только подтверждённому номеру
-  me: () => call<{ phone: string }>("/api/auth/me"),
+  me: () => call<ClientMe>("/api/auth/me"),
   loginCode: (phone: string, captcha?: string) => call<{ ok: true; phone: string; devCode?: string }>("/api/auth/code", { body: { phone, captcha } }),
-  verify: (phone: string, code: string) => call<{ phone: string }>("/api/auth/verify", { body: { phone, code } }),
+  verify: (phone: string, code: string) => call<ClientMe>("/api/auth/verify", { body: { phone, code } }),
+  partnerRequest: () => call<PartnerRequestView | null>("/api/partner"),
+  applyPartner: (company: CompanyForm) => call<PartnerRequestView>("/api/partner", { body: { company } }),
   logout: () => call<{ ok: true }>("/api/auth/logout", { method: "POST" }),
   quote: (car: CarForm, partnerToken?: string) => call<Quote>("/api/quote", { body: { car, partnerToken } }),
   partnerLink: (token: string) => call<{ partner: string; cashback: number }>(`/api/partner-links/${encodeURIComponent(token)}`),

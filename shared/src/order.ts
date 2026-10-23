@@ -82,3 +82,51 @@ export function maskVin(v: string): string {
 }
 
 export const parseRub = (v: string) => Number(digits(v)) || 0;
+
+/** Карточка партнёра: реквизиты компании. Партнёр может оформлять больше одного автомобиля в сутки. */
+export interface CompanyForm {
+  name: string;
+  inn: string;
+  kpp: string;
+  ogrn: string;
+  address: string;
+  bank: string;
+  bik: string;
+  account: string;
+  corrAccount: string;
+  contact: string;
+  email: string;
+}
+
+export const EMPTY_COMPANY: CompanyForm = {
+  name: "", inn: "", kpp: "", ogrn: "", address: "", bank: "", bik: "", account: "", corrAccount: "", contact: "", email: "",
+};
+
+export function validateCompany(f: CompanyForm): Errors<CompanyForm> {
+  const e: Errors<CompanyForm> = {};
+  const inn = digits(f.inn);
+  if (f.name.trim().length < 3) e.name = "Название, например ООО «Ромашка» или ИП Иванов И. И.";
+  if (!/^(\d{10}|\d{12})$/.test(inn)) e.inn = "10 цифр у организации, 12 у ИП";
+  if (inn.length === 10 && !/^\d{9}$/.test(digits(f.kpp))) e.kpp = "9 цифр";
+  if (!/^(\d{13}|\d{15})$/.test(digits(f.ogrn))) e.ogrn = "ОГРН 13 цифр, ОГРНИП 15";
+  if (f.address.trim().length < 8) e.address = "Юридический адрес";
+  if (f.bank.trim().length < 3) e.bank = "Название банка";
+  if (!/^\d{9}$/.test(digits(f.bik))) e.bik = "9 цифр";
+  if (!/^\d{20}$/.test(digits(f.account))) e.account = "20 цифр";
+  if (!/^\d{20}$/.test(digits(f.corrAccount))) e.corrAccount = "20 цифр";
+  if (f.contact.trim().split(/\s+/).length < 2) e.contact = "Фамилия и имя контактного лица";
+  if (f.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim())) e.email = "Проверьте email";
+  return e;
+}
+
+export type PartnerStatus = "pending" | "approved" | "rejected";
+
+/** Заявка на партнёрство в панели. */
+export interface PartnerRequestView {
+  id: number;
+  phone: string;
+  createdAt: string;
+  status: PartnerStatus;
+  company: CompanyForm;
+  reviewedAt: string | null;
+}

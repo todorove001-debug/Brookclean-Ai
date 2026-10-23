@@ -13,6 +13,7 @@ import { GoogleDrive, getSetting, sheetUrl, toCsv } from "./drive.ts";
 import type { SmsSender } from "./sms.ts";
 import { quote } from "./pricing.ts";
 import type { Guard } from "./guard.ts";
+import { requestView } from "./partners.ts";
 
 export interface StaffContext {
   db: DB;
@@ -638,6 +639,29 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
     audit(req, "partner.link", { partner, cashback });
     return { token, path: `/?p=${token}`, url: `${ctx.publicUrl}/?p=${token}` };
   });
+
+  // --- Заявки на партнёрство: клиент присылает реквизиты, менеджер проверяет ---
+  app.get("/api/staff/partner-requests", { preHandler: need("partners.edit") }, async () =>
+    (db.prepare("SELECT * FROM partner_requests ORDER BY status = 'pending' DESC, created_at DESC").all() as never[]).map(requestView));
+
+  app.patch<{ Params: { id: string }; Body: { status: "approved" | "rejected" } }>(
+    "/api/staff/partner-requests/:id", { preHandler: need("partners.edit") }, async (req, reply) => {
+      const status = req.body?.status;
+      if (status !== "approved" && status !== "rejected") return reply.code(400).send({ error: "Одобрить или отклонить" });
+      const r = db.prepare("SELECT * FROM partner_requests WHERE id = ?").get(Number(req.params.id)) as { phone: string; status: string } | undefined;
+      if (!r) return reply.code(404).send({ error: "Заявка не найдена" });
+      db.prepare("UPDATE partner_requests SET status = ?, reviewed_at = ?, reviewed_by = ? WHERE id = ?")
+        .run(status, now().toISOString(), req.staff!.id || null, Number(req.params.id));
+      audit(req, "partner.request", { id: Number(req.params.id), status });
+      if (status === "approved" && r.status !== "approved") {
+        try {
+          await ctx.sms.send(r.phone, `Brookclean: реквизиты проверены, теперь вы можете оформлять несколько автомобилей в день: ${ctx.publicUrl}`);
+        } catch (err) {
+          req.log.error(err);
+        }
+      }
+      return requestView(db.prepare("SELECT * FROM partner_requests WHERE id = ?").get(Number(req.params.id)) as never);
+    });
 
   // --- Сотрудники ---
   const staffView = (s: StaffRow) => ({ id: s.id, name: s.name, login: s.login, role: s.role, active: !!s.active, createdAt: s.created_at });

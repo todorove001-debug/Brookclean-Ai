@@ -3,7 +3,8 @@ import {
   BODY, CARRIER, CITIES, GAME_URL, ORIGIN, parseRub, rub, rubWords, validateCar, validateCustomer,
   type BodyType, type CarForm, type CustomerForm, type Quote,
 } from "@brookclean/shared";
-import { api, ApiError, type Order } from "./api.ts";
+import { api, ApiError, type ClientMe, type Order } from "./api.ts";
+import { PartnerCard } from "./Partner.tsx";
 import { Captcha } from "./Captcha.tsx";
 import { load, rememberOrder, remove, save } from "./storage.ts";
 import { SITE_ORIGIN, navigate, searchParam } from "./router.ts";
@@ -24,7 +25,9 @@ export function Checkout() {
   const [agree, setAgree] = useState({ contract: false, pep: false, personalData: false });
   const [partner, setPartner] = useState<{ token: string; partner: string; cashback: number } | null>(null);
   // Подтверждённый номер: без него сервер цену не показывает
-  const [auth, setAuth] = useState<{ phone: string } | null | undefined>(undefined);
+  const [auth, setAuth] = useState<ClientMe | null | undefined>(undefined);
+  // Лимит один автомобиль в сутки исчерпан: предлагаем карточку партнёра
+  const [partnerCard, setPartnerCard] = useState(false);
   const [login, setLogin] = useState<{ phone: string; sent: boolean; devCode?: string; captcha?: string; captchaToken?: string }>({ phone: "", sent: false });
   const [loginCode, setLoginCode] = useState("");
   const [q, setQ] = useState<{ key: string; quote: Quote } | null>(null);
@@ -81,6 +84,7 @@ export function Checkout() {
       if (!Object.keys(e).length) go(1);
     } else if (step === 1) {
       if (!auth) await (login.sent ? verify() : requestCode());
+      else if (quote && !auth.canOrder) setPartnerCard(true);
       else if (quote) go(2);
     } else if (step === 2) {
       const e = validateCustomer(customer);
@@ -101,7 +105,10 @@ export function Checkout() {
     } catch (e) {
       const err = e as ApiError;
       setMessage(err.message);
-      if (err.status === 401) {
+      if (err.needPartner) {
+        setAuth((a) => a && { ...a, canOrder: false });
+        setPartnerCard(true);
+      } else if (err.status === 401) {
         setAuth(null);
         go(1);
       } else if (err.errors) {
@@ -164,11 +171,12 @@ export function Checkout() {
   });
 
   if (signed) return <Done order={signed} onRestart={() => navigate("/?new=" + Date.now())} />;
+  if (partnerCard && auth) return <PartnerCard ordersPerDay={auth.ordersPerDay} onBack={() => { setPartnerCard(false); setMessage(""); go(1); }} />;
 
   const setC = (k: keyof CarForm) => (v: string) => setCar((s) => ({ ...s, [k]: v }));
   const setU = (k: keyof CustomerForm) => (v: string) => setCustomer((s) => ({ ...s, [k]: v }));
   const allAgreed = agree.contract && agree.pep && agree.personalData;
-  const priceLabel = !auth ? (login.sent ? "Войти" : "Получить код") : "Оформить";
+  const priceLabel = !auth ? (login.sent ? "Войти" : "Получить код") : auth.canOrder ? "Оформить" : "Карточка партнёра";
   const labels = ["Узнать цену", priceLabel, "Далее", "К подписанию", draft ? "Подписать" : "Получить код"];
   const disabled = busy || auth === undefined ||
     (step === 1 && (auth ? !quote : login.sent ? loginCode.length !== 4 : !login.phone || (!!login.captcha && !login.captchaToken))) ||
@@ -248,6 +256,12 @@ export function Checkout() {
         <>
           {quote ? <QuoteCard city={car.city} body={car.body} q={quote} /> : (
             <section className="card"><p className="muted">{busy ? "Считаем стоимость…" : "Не удалось посчитать стоимость."}</p></section>
+          )}
+          {!auth.canOrder && (
+            <div className="callout warn">
+              Сегодня на этот номер уже оформлен автомобиль. Обычный клиент может оформить один автомобиль в сутки,
+              для большего заполните карточку партнёра с реквизитами компании.
+            </div>
           )}
           <p className="muted small">Номер {auth.phone} подтверждён. <button className="linkbtn" onClick={signOut} disabled={busy}>Сменить номер</button></p>
         </>

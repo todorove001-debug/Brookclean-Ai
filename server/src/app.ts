@@ -4,11 +4,12 @@ import { randomBytes, randomInt, randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  BODY, CARRIER, CITIES, kmTo, maskVin, normalizePhone, parseRub, routeFor, validateCar, validateCustomer,
-  type BodyType, type CarForm, type CustomerForm, type OrderStatus, type Quote, type TrackingView,
+  BODY, CARRIER, CITIES, kmTo, maskVin, normalizePhone, parseRub, routeFor, validateCar, validateCompany, validateCustomer,
+  type BodyType, type CarForm, type CompanyForm, type CustomerForm, type OrderStatus, type Quote, type TrackingView,
 } from "@brookclean/shared";
 import { quote } from "./pricing.ts";
 import { Guard, migrateGuard, type CaptchaVerifier } from "./guard.ts";
+import { CLIENT_ORDERS_PER_DAY, canOrder, isPartner, migratePartners, partnerRequest } from "./partners.ts";
 import { nextOrderNo, type DB } from "./db.ts";
 import { contractPayload, sha256 } from "./contract.ts";
 import type { SmsSender } from "./sms.ts";
@@ -39,6 +40,7 @@ const MAX_SENDS = 5;
 const CLIENT_COOKIE = "bc_client";
 const CLIENT_SESSION_DAYS = 30;
 /** Ответ для номеров и адресов из чёрного списка: без подробностей, чтобы не подсказывать обход. */
+const PARTNER_ERROR = "Обычный клиент может оформить один автомобиль в сутки. Чтобы оформлять больше, заполните карточку партнёра.";
 const BLOCKED_ERROR = `Онлайн-расчёт сейчас недоступен. Позвоните нам: ${CARRIER.phone}`;
 
 const TOKEN_ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789";
@@ -61,6 +63,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   const now = opts.now ?? (() => new Date());
   const app = Fastify({ logger: process.env.NODE_ENV === "production", trustProxy: process.env.TRUST_PROXY ?? "127.0.0.1" });
   migrateGuard(db);
+  migratePartners(db);
   const guard = new Guard(db, now);
 
   const publicUrl = (opts.publicUrl ?? "https://brookclean-reg.ru").replace(/\/$/, "");
@@ -99,9 +102,14 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     return row?.phone;
   }
 
+  /** Номер, статус партнёра и можно ли сегодня оформить ещё один автомобиль. */
+  const clientView = (phone: string) => ({
+    phone, partner: partnerRequest(db, phone)?.status ?? null, canOrder: canOrder(db, phone, now()), ordersPerDay: CLIENT_ORDERS_PER_DAY,
+  });
+
   app.get("/api/auth/me", async (req, reply) => {
     const phone = clientPhone(req);
-    return phone ? { phone } : reply.code(401).send({ error: "Подтвердите номер телефона" });
+    return phone ? clientView(phone) : reply.code(401).send({ error: "Подтвердите номер телефона" });
   });
 
   app.post<{ Body: { phone: string; captcha?: string } }>("/api/auth/code", async (req, reply) => {
@@ -154,7 +162,30 @@ export function buildApp(opts: AppOptions): FastifyInstance {
       .run(sha256(token), phone, t, t + CLIENT_SESSION_DAYS * 86_400_000);
     reply.header("set-cookie",
       `${CLIENT_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${CLIENT_SESSION_DAYS * 86400}${secureCookies ? "; Secure" : ""}`);
-    return { phone };
+    return clientView(phone);
+  });
+
+  // --- Карточка партнёра: реквизиты компании, после проверки менеджером — больше одного автомобиля в сутки ---
+  app.get("/api/partner", async (req, reply) => {
+    const phone = clientPhone(req);
+    if (!phone) return reply.code(401).send({ error: "Подтвердите номер телефона" });
+    return partnerRequest(db, phone) ?? null;
+  });
+
+  app.post<{ Body: { company: CompanyForm } }>("/api/partner", async (req, reply) => {
+    const phone = clientPhone(req);
+    if (!phone) return reply.code(401).send({ error: "Подтвердите номер телефона" });
+    const company = req.body?.company;
+    if (!company) return reply.code(400).send({ error: "Нет реквизитов" });
+    const errors = validateCompany(company);
+    if (Object.keys(errors).length) return reply.code(400).send({ error: "Проверьте реквизиты", errors });
+    if (isPartner(db, phone)) return reply.code(409).send({ error: "Вы уже партнёр" });
+    const clean = Object.fromEntries(Object.entries(company).map(([k, v]) => [k, String(v ?? "").trim().slice(0, 300)]));
+    db.prepare(`INSERT INTO partner_requests (phone, created_at, status, company) VALUES (?, ?, 'pending', ?)
+                ON CONFLICT(phone) DO UPDATE SET created_at = excluded.created_at, status = 'pending', company = excluded.company,
+                reviewed_at = NULL, reviewed_by = NULL`)
+      .run(phone, now().toISOString(), JSON.stringify(clean));
+    return partnerRequest(db, phone);
   });
 
   app.post("/api/auth/logout", async (req, reply) => {
@@ -173,7 +204,8 @@ export function buildApp(opts: AppOptions): FastifyInstance {
       return void reply.code(403).send({ error: BLOCKED_ERROR });
     }
     if (!car || !CITIES.includes(car.city) || !(car.body in BODY)) return void reply.code(400).send({ error: "Выберите город" });
-    const denied = guard.quoteDenied(phone, req.ip, car.city, car.body as BodyType);
+    // Партнёрам с проверенными реквизитами лимит вариантов не нужен
+    const denied = isPartner(db, phone) ? undefined : guard.quoteDenied(phone, req.ip, car.city, car.body as BodyType);
     if (denied) return void reply.code(429).send({ error: denied });
     return quote({ city: car.city, body: car.body, value: parseRub(car.value), cashback: partnerCashback(partnerToken)?.cashback });
   }
@@ -206,9 +238,10 @@ export function buildApp(opts: AppOptions): FastifyInstance {
       // Договор подписывается кодом на тот же номер, которым клиент вошёл
       if (phone !== sessionPhone)
         return reply.code(400).send({ error: "Проверьте поля", errors: { phone: "Укажите номер, который вы подтвердили кодом" } });
+      if (!canOrder(db, phone, now())) return reply.code(403).send({ error: PARTNER_ERROR, needPartner: true });
       const q = quoteFor(req, reply, car, partnerToken);
       if (!q) return reply;
-      const denied = guard.smsDenied(phone, req.ip, false);
+      const denied = guard.smsDenied(phone, req.ip, false, isPartner(db, phone));
       if (denied) return reply.code(429).send({ error: denied });
       const partner = partnerCashback(partnerToken);
       const id = randomUUID();
@@ -250,7 +283,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     if (c && now().getTime() - c.sent_at < RESEND_AFTER_MS)
       return reply.code(429).send({ error: "Повторно код можно запросить через минуту" });
     if (c && c.sends >= MAX_SENDS) return reply.code(429).send({ error: "Слишком много попыток. Позвоните нам." });
-    const denied = guard.smsDenied(o.phone, req.ip, false);
+    const denied = guard.smsDenied(o.phone, req.ip, false, isPartner(db, o.phone));
     if (denied) return reply.code(429).send({ error: denied });
     try {
       const devCode = await sendCode(o.id, o.no, o.phone);
@@ -274,6 +307,9 @@ export function buildApp(opts: AppOptions): FastifyInstance {
       | { code_hash: string; expires_at: number; attempts: number } | undefined;
     if (!c || now().getTime() > c.expires_at) return reply.code(410).send({ error: "Код устарел, запросите новый" });
     if (c.attempts >= MAX_ATTEMPTS) return reply.code(429).send({ error: "Слишком много попыток, запросите новый код" });
+    // Два черновика, открытых параллельно, не дают обойти лимит: проверяем ещё раз при подписи
+    if (o.created_by === null && !canOrder(db, o.phone, now(), o.id))
+      return reply.code(403).send({ error: PARTNER_ERROR, needPartner: true });
     const code = String(req.body?.code ?? "").replace(/\D/g, "");
     if (sha256(o.id + code) !== c.code_hash) {
       db.prepare("UPDATE sms_codes SET attempts = attempts + 1 WHERE order_id = ?").run(o.id);

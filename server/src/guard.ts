@@ -109,10 +109,11 @@ export class Guard {
   }
 
   /** Проверка перед любой SMS клиенту. Возвращает текст ошибки или undefined. */
-  smsDenied(phone: string, ip: string, login: boolean): string | undefined {
+  /** partner: проверенный партнёр оформляет много машин, лимит SMS на номер к нему не применяется. */
+  smsDenied(phone: string, ip: string, login: boolean, partner = false): string | undefined {
     const tooMany =
-      this.recent("sms_log", "phone", phone, HOUR) >= LIMITS.smsPerPhoneHour ||
-      this.recent("sms_log", "phone", phone, DAY) >= LIMITS.smsPerPhoneDay ||
+      (!partner && this.recent("sms_log", "phone", phone, HOUR) >= LIMITS.smsPerPhoneHour) ||
+      (!partner && this.recent("sms_log", "phone", phone, DAY) >= LIMITS.smsPerPhoneDay) ||
       (login && (this.recent("sms_log", "ip", ip, HOUR, "AND kind = 'login'") >= LIMITS.loginSmsPerIpHour ||
         this.recent("sms_log", "ip", ip, DAY, "AND kind = 'login'") >= LIMITS.loginSmsPerIpDay));
     if (!tooMany) return undefined;

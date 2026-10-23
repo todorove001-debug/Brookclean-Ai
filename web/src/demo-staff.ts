@@ -5,6 +5,7 @@ import {
   type TripCar, type TripExpense, type TripReport, type TripView,
 } from "@brookclean/shared";
 import { quote } from "../../server/src/pricing.ts";
+import { partnerRequests } from "./demo-partners.ts";
 
 type Res = { status: number; data: unknown };
 const ok = (data: unknown): Res => ({ status: 200, data });
@@ -133,6 +134,16 @@ export function demoStaffFetch(path: string, method: string, body: any): Res {
     if (denied) return denied;
     const car = body.car as CarForm;
     return ok(quote({ city: car.city, body: car.body, value: parseRub(car.value), cashback: Number(body.cashback) || 0 }));
+  }
+  if (path === "/api/staff/partner-requests") return need("partners.edit") ?? ok(partnerRequests);
+  if ((m = /^\/api\/staff\/partner-requests\/(\d+)$/.exec(path))) {
+    const denied = need("partners.edit");
+    if (denied) return denied;
+    const r = partnerRequests.find((x) => x.id === Number(m![1]));
+    if (!r) return fail(404, "Заявка не найдена");
+    r.status = body.status;
+    r.reviewedAt = new Date().toISOString();
+    return ok(r);
   }
   if (path === "/api/staff/security") return need("security.manage") ?? ok({ events: [], suspects: [], blocked: [] });
   if (path.startsWith("/api/staff/security/")) return need("security.manage") ?? fail(400, "В демо блокировки не сохраняются");
