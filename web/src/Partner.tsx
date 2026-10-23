@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { CARRIER, EMPTY_COMPANY, validateCompany, type CompanyForm, type PartnerRequestView } from "@brookclean/shared";
 import { api, ApiError } from "./api.ts";
+import { navigate } from "./router.ts";
+import { myOrders } from "./storage.ts";
 import { Field } from "./Checkout.tsx";
 
 /** Карточка партнёра: реквизиты компании. После проверки менеджером можно оформлять больше одного автомобиля в сутки. */
-export function PartnerCard({ ordersPerDay, onBack }: { ordersPerDay: number; onBack: () => void }) {
+export function PartnerCard({ ordersPerDay }: { ordersPerDay: number }) {
   const [req, setReq] = useState<PartnerRequestView | null | undefined>(undefined);
   const [f, setF] = useState<CompanyForm>(EMPTY_COMPANY);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -39,6 +41,9 @@ export function PartnerCard({ ordersPerDay, onBack }: { ordersPerDay: number; on
   const field = (k: keyof CompanyForm, label: string, extra: Record<string, unknown> = {}) =>
     <Field id={k} label={label} value={f[k]} onChange={set(k)} errors={errors} {...extra} />;
 
+  // Вернуться к форме автомобиля нельзя: лимит на сегодня исчерпан. Только к уже оформленным доставкам
+  const back = myOrders().length > 0 && <button className="btn ghost" onClick={() => navigate("/my")}>Мои доставки</button>;
+
   if (req === undefined) return <section className="card"><p className="muted">Загрузка…</p></section>;
 
   if (req?.status === "pending") return (
@@ -47,7 +52,7 @@ export function PartnerCard({ ordersPerDay, onBack }: { ordersPerDay: number; on
       <h2>Карточка партнёра отправлена</h2>
       <p>Менеджер проверит реквизиты {req.company.name} и пришлёт SMS. После этого вы сможете оформлять несколько автомобилей в день.</p>
       <p className="muted small">Срочно? Позвоните: {CARRIER.phone}</p>
-      <button className="btn ghost" onClick={onBack}>Назад</button>
+      {back}
     </section>
   );
 
@@ -81,7 +86,7 @@ export function PartnerCard({ ordersPerDay, onBack }: { ordersPerDay: number; on
         {field("email", "Email (необязательно)", { inputMode: "email", autoComplete: "email" })}
         {message && <div className="callout warn" role="alert">{message}</div>}
         <button className="btn primary" disabled={busy} onClick={submit}>{busy ? "Отправляем…" : "Отправить на проверку"}</button>
-        <button className="btn ghost" onClick={onBack}>Назад</button>
+        {back}
       </section>
     </>
   );

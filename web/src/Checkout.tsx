@@ -43,7 +43,11 @@ export function Checkout() {
   useEffect(() => {
     const p = searchParam("p");
     if (p) api.partnerLink(p).then((r) => setPartner({ token: p, ...r })).catch(() => {});
-    api.me().then(setAuth, () => setAuth(null));
+    // Лимит на сегодня исчерпан: сразу карточка партнёра, форму автомобиля и цену не показываем
+    api.me().then((me) => {
+      setAuth(me);
+      if (!me.canOrder) setPartnerCard(true);
+    }, () => setAuth(null));
   }, []);
 
   useEffect(() => {
@@ -176,7 +180,8 @@ export function Checkout() {
   });
 
   if (signed) return <Done order={signed} onRestart={() => navigate("/?new=" + Date.now())} />;
-  if (partnerCard && auth) return <PartnerCard ordersPerDay={auth.ordersPerDay} onBack={() => { setPartnerCard(false); setMessage(""); go(0); }} />;
+  if (partnerCard && auth) return <PartnerCard ordersPerDay={auth.ordersPerDay} />;
+  if (auth === undefined) return <section className="card"><p className="muted">Загрузка…</p></section>;
 
   const setC = (k: keyof CarForm) => (v: string) => setCar((s) => ({ ...s, [k]: v }));
   const setU = (k: keyof CustomerForm) => (v: string) => setCustomer((s) => ({ ...s, [k]: v }));
