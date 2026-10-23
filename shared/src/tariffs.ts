@@ -26,7 +26,7 @@ export const NET: Record<string, readonly [string | null, number]> = {
 };
 export const KM_PER_DAY = 600;
 
-export const ORIGIN = "Уссурийск, ул. Штабского, г-ж 14Г, склад СВХ ООО «Логистический Терминал»";
+export const ORIGIN = "Владивосток, ул. Чукотская 1";
 export const CARRIER = {
   name: "ИП Тодоров Евгений Константинович",
   short: "Е.К. Тодоров",
