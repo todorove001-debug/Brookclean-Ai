@@ -19,6 +19,9 @@ export function migratePartners(db: DB) {
       reviewed_by INTEGER
     );
   `);
+  // Пометка партнёра «для себя», к какому клиенту ссылка
+  const cols = (db.prepare("PRAGMA table_info(partner_links)").all() as { name: string }[]).map((c) => c.name);
+  if (!cols.includes("note")) db.exec("ALTER TABLE partner_links ADD COLUMN note TEXT");
 }
 
 interface Row { id: number; phone: string; created_at: string; status: PartnerStatus; company: string; reviewed_at: string | null }

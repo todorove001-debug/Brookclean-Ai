@@ -322,3 +322,12 @@ table.sheet.narrow { min-width: 640px; }
 .aiitem select, .defitem select { max-width: 100%; }
 .videos .shot-ph { aspect-ratio: 16 / 9; }
 .field .check input { width: 20px; height: 20px; min-height: 0; padding: 0; border: 0; background: none; margin-top: 1px; flex: none; }
+
+/* Автопарк: итоги отчёта, статусы */
+.kpi.neg b { color: var(--err); }
+.kpi.pos b { color: var(--ok); }
+.callout.info { background: var(--route-soft); color: var(--route); }
+.plist .pi { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--line); font-size: 14px; }
+.plist .pi > b { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.plist .pi.total { border-bottom: 0; color: var(--muted); }
+.plist .pi.total b { color: var(--ink); }

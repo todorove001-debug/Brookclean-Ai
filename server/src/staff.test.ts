@@ -85,11 +85,13 @@ test("менеджер оформляет заявку, клиент подпи�
   assert.equal(paid.json().status, "paid");
   assert.equal(paid.json().client, "Жаворонкова Людмила Викторовна");
 
-  // Приёмщик видит заявку, но без полного ФИО и телефона
+  // Приёмщик видит клиента полностью (звонит ему при выдаче), но не видит стоимость и оплату
   const oh = { cookie: (await login("olga", "acceptor-1")).cookie };
   const rows = (await app.inject({ url: "/api/staff/orders", headers: oh })).json();
-  assert.equal(rows[0].client, "Жаворонкова Л. В.");
-  assert.equal(rows[0].phone, "+7 908 ***-**-68");
+  assert.equal(rows[0].client, "Жаворонкова Людмила Викторовна");
+  assert.equal(rows[0].delivery, 0);
+  assert.equal(rows[0].total, 0);
+  assert.equal(rows[0].payTo, "");
 });
 
 test("рейсовый отчёт: CSV и загрузка в Google Диск", async () => {
@@ -208,4 +210,79 @@ test("водитель заводит свой рейс, грузит машин
   const r2 = (await app.inject({ method: "POST", url: "/api/staff/trips", headers: h, payload: { dest: "Омск", truck: "Scania", driverId: drivers.find((d: { name: string }) => d.name === "Пётр").id } })).json();
   assert.equal(r2.id, "R-02");
   assert.equal((await app.inject({ url: "/api/staff/trips", headers: ph })).json()[0].id, "R-02");
+});
+
+test("кабинет партнёра: своя ссылка с кэшбэком и свои клиенты", async () => {
+  const { app, db, login } = setup();
+  const h = { cookie: (await login("owner@brookclean.ru", "owner-pass-1")).cookie };
+  await app.inject({ method: "POST", url: "/api/staff/users", headers: h, payload: { name: "Монстеркар", login: "monster", password: "partner-pass-1", role: "partner" } });
+  const ph = { cookie: (await login("monster", "partner-pass-1")).cookie };
+  assert.equal((await app.inject({ url: "/api/staff/orders", headers: ph })).statusCode, 403);
+
+  const pre = (await app.inject({ method: "POST", url: "/api/staff/my-partner/preview", headers: ph, payload: { city: "Красноярск", body: "sedan", cashback: 15000 } })).json();
+  assert.deepEqual(pre, { tariff: 110000, cashback: 15000, total: 125000 });
+  assert.equal((await app.inject({ method: "POST", url: "/api/staff/my-partner/links", headers: ph, payload: { cashback: 500000 } })).statusCode, 400);
+  const link = (await app.inject({ method: "POST", url: "/api/staff/my-partner/links", headers: ph, payload: { cashback: 15000, note: "Тагаева" } })).json();
+  assert.equal((await app.inject({ url: `/api/partner-links/${link.token}` })).json().partner, "Монстеркар");
+
+  // Заказ другого партнёра и черновик в кабинет не попадают
+  const mk = async (partner: string) => (await app.inject({ method: "POST", url: "/api/staff/orders", headers: h, payload: { car, customer, cashback: 15000, partner } })).json().id as string;
+  const mine = await mk("Монстеркар");
+  await mk("Другой");
+  await mk("Монстеркар");
+  db.prepare("UPDATE orders SET status = 'signed' WHERE id = ?").run(mine);
+
+  const cab = (await app.inject({ url: "/api/staff/my-partner", headers: ph })).json();
+  assert.equal(cab.links.length, 1);
+  assert.equal(cab.links[0].note, "Тагаева");
+  assert.equal(cab.clients.length, 1);
+  assert.equal(cab.clients[0].client, "Жаворонкова Л. В.");
+  assert.equal(cab.total, 15000);
+});
+
+test("приёмщик терминала: только машины с перегрузом к нему, свои водители", async () => {
+  const { app, db, login } = setup();
+  const h = { cookie: (await login("owner@brookclean.ru", "owner-pass-1")).cookie };
+  await app.inject({ method: "POST", url: "/api/staff/users", headers: h, payload: { name: "Андрей", login: "andrey", password: "terminal-1", role: "acceptor", site: "Новосибирск" } });
+  await app.inject({ method: "POST", url: "/api/staff/users", headers: h, payload: { name: "Ольга", login: "olga", password: "acceptor-1", role: "acceptor", site: "Владивосток" } });
+  const th = { cookie: (await login("andrey", "terminal-1")).cookie };
+  const vh = { cookie: (await login("olga", "acceptor-1")).cookie };
+
+  const mk = async (city: string) => (await app.inject({ method: "POST", url: "/api/staff/orders", headers: h,
+    payload: { car: { ...car, city }, customer, note: "Без запасного ключа" } })).json().no as number;
+  const far = await mk("Краснодар");
+  await mk("Красноярск");
+  db.prepare("UPDATE orders SET status = 'signed'").run();
+  const trip = (await app.inject({ method: "POST", url: "/api/staff/trips", headers: h, payload: { dest: "Новосибирск", truck: "Volvo FH", driver: "Сергей" } })).json();
+  assert.equal((await app.inject({ method: "PATCH", url: `/api/staff/orders/${far}`, headers: h, payload: { transfer: "Новосибирск", tripId: trip.id } })).statusCode, 200);
+
+  // Пока машина на стоянке Владивостока (погрузка не закрыта), терминал её не видит
+  assert.deepEqual((await app.inject({ url: "/api/staff/orders", headers: th })).json(), []);
+  assert.deepEqual((await app.inject({ url: "/api/staff/trips", headers: th })).json(), []);
+  const farId = (db.prepare("SELECT id FROM orders WHERE no = ?").get(far) as { id: string }).id;
+  db.prepare("INSERT INTO acts (order_id, stage, created_at, details, give_name, take_name, closed_at) VALUES (?, 'pogruzka', ?, '{}', 'Ольга', 'Сергей', ?)")
+    .run(farId, "2026-10-21T08:00:00Z", "2026-10-21T08:30:00Z");
+
+  // Погрузили: только машина с перегрузом, без цены, с примечанием
+  const rows = (await app.inject({ url: "/api/staff/orders", headers: th })).json();
+  assert.deepEqual(rows.map((r: { no: number }) => r.no), [far]);
+  assert.equal(rows[0].delivery, 0);
+  assert.equal(rows[0].note, "Без запасного ключа");
+  assert.equal((await app.inject({ url: "/api/staff/orders", headers: vh })).json().length, 2);
+  // Рейс к терминалу и данные водителя
+  assert.deepEqual((await app.inject({ url: "/api/staff/trips", headers: th })).json().map((t: { id: string }) => t.id), [trip.id]);
+  const acts = (await app.inject({ url: "/api/staff/acts", headers: th })).json();
+  assert.equal(acts[0].group, "incoming");
+  assert.equal(acts[0].trip.driver, "Сергей");
+  assert.equal(acts[0].note, "Без запасного ключа");
+
+  // Свои водители терминала, отдельно от Владивостока
+  await app.inject({ method: "POST", url: "/api/staff/registry", headers: h, payload: { name: "Петров Сергей Иванович" } });
+  const mine = (await app.inject({ method: "POST", url: "/api/staff/registry", headers: th, payload: { name: "Ким Олег Сергеевич", phone: "+79130001122" } })).json();
+  assert.equal(mine.site, "Новосибирск");
+  assert.deepEqual((await app.inject({ url: "/api/staff/registry", headers: th })).json().map((d: { name: string }) => d.name), ["Ким Олег Сергеевич"]);
+  assert.equal((await app.inject({ url: "/api/staff/registry", headers: h })).json().length, 2);
+  assert.equal((await app.inject({ url: "/api/staff/registry", headers: vh })).statusCode, 403);
+  const vlId = (await app.inject({ url: "/api/staff/registry", headers: h })).json().find((d: { site: string }) => d.site === "Владивосток").id;
+  assert.equal((await app.inject({ method: "PATCH", url: `/api/staff/registry/${vlId}`, headers: th, payload: { phone: "1" } })).statusCode, 404);
 });

@@ -101,7 +101,7 @@ export interface ActsContext {
 
 interface OrderRow {
   id: string; no: number; created_at: string; status: string; car: string; customer: string;
-  trip_id: string | null; transfer: string | null; trip2_id: string | null;
+  trip_id: string | null; transfer: string | null; trip2_id: string | null; note: string;
 }
 interface ActRowDb {
   order_id: string; stage: StageId; created_at: string; acceptor_id: number | null; details: string; cond: string; cond_other: string; notes: string;
@@ -117,7 +117,7 @@ interface SugRow {
   id: number; order_id: string; stage: StageId; slot: string; part: string; code: DmgCode; descr: string; confidence: ActSuggestion["confidence"];
   state: ActSuggestion["state"]; x: number; y: number; by_name: string | null; at: string | null; mark_id: number | null;
 }
-interface TripRow { id: string; truck: string; driver: string; km: number; driver_id: number | null }
+interface TripRow { id: string; truck: string; driver: string; km: number; driver_id: number | null; trailer: string; carrier: string; phone: string | null }
 
 const PHOTO_TYPES = new Set(["image/jpeg"]);
 const VIDEO_TYPES: Record<string, string> = { "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm", "video/3gpp": "3gp" };
@@ -138,7 +138,9 @@ export function registerActs(app: FastifyInstance, ctx: ActsContext) {
   const orderByNo = (no: number) => db.prepare("SELECT * FROM orders WHERE no = ?").get(no) as OrderRow | undefined;
   const actOf = (orderId: string, stage: StageId) =>
     db.prepare("SELECT * FROM acts WHERE order_id = ? AND stage = ?").get(orderId, stage) as ActRowDb | undefined;
-  const tripOf = (id: string | null) => (id ? db.prepare("SELECT id, truck, driver, km, driver_id FROM trips WHERE id = ?").get(id) as TripRow | undefined : undefined);
+  // Телефон водителя: из карточки реестра, иначе из его учётной записи
+  const tripOf = (id: string | null) => (id ? db.prepare(`SELECT t.id, t.truck, t.driver, t.km, t.driver_id, t.trailer, t.carrier, COALESCE(NULLIF(d.phone, ''), s.phone) AS phone
+      FROM trips t LEFT JOIN drivers d ON d.id = t.reg_driver_id LEFT JOIN staff s ON s.id = t.driver_id WHERE t.id = ?`).get(id) as TripRow | undefined : undefined);
   const stagesOf = (o: OrderRow) => stagesFor(o.transfer);
   const prevStage = (o: OrderRow, stage: StageId) => stagesOf(o)[stagesOf(o).indexOf(stage) - 1] as StageId | undefined;
   const legTripId = (o: OrderRow, stage: StageId) => (stageLeg(stage, o.transfer) === 2 ? o.trip2_id : o.trip_id);
@@ -239,6 +241,7 @@ export function registerActs(app: FastifyInstance, ctx: ActsContext) {
     const v: ActView = {
       no: o.no, stage, sections, transfer: o.transfer, orderStatus: o.status, contractDate: contractDate(new Date(o.created_at)),
       car: { car: car.car, vin: car.vin.toUpperCase(), year: car.year, color: car.color, city: car.city },
+      note: o.note ?? "",
       client: (JSON.parse(o.customer) as CustomerForm).fio,
       acceptor: a.acceptor_id ? names.get(a.acceptor_id) ?? "" : "",
       details: first ? (JSON.parse(first.details) as ActCar) : EMPTY_CAR,
@@ -308,10 +311,10 @@ export function registerActs(app: FastifyInstance, ctx: ActsContext) {
         return {
           no: o.no, stage, group, transfer: o.transfer, car: car.car, vin: car.vin.toUpperCase(), year: car.year, color: car.color, city: car.city,
           client: (JSON.parse(o.customer) as CustomerForm).fio, orderStatus: o.status, createdAt: o.created_at,
-          trip: t ? { id: t.id, truck: t.truck, driver: t.driver, kmLeft: Math.max(0, kmTo(legEnd) - t.km) } : null,
+          trip: t ? { id: t.id, truck: t.truck, driver: t.driver, kmLeft: Math.max(0, kmTo(legEnd) - t.km), phone: t.phone ?? "", trailer: t.trailer, carrier: t.carrier } : null,
           trip2: t2 ? { id: t2.id, truck: t2.truck, driver: t2.driver } : null,
           photos: count(o, stage, "photo"), videos: count(o, stage, "video"), pending: pending(o, stage),
-          closedAt: a?.closed_at ?? null, signed: !!(a?.give_sig || a?.take_sig),
+          closedAt: a?.closed_at ?? null, signed: !!(a?.give_sig || a?.take_sig), note: o.note ?? "",
         };
       };
       const last = stagesOf(o).at(-1)!;

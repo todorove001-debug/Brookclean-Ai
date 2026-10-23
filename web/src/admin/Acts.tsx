@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import {
   CONDITIONS, DMG_CODES, PHOTO_GROUPS, PHOTO_SLOTS, PTS_TYPES, STAGES, can, isStage, photoSlotsFor, slotLabel, videoSlotsFor,
   type ActMark, type ActMedia, type ActRow, type ActSuggestion, type ActView, type Condition, type DmgCode, type StageId, type StaffMe,
@@ -62,10 +62,28 @@ function ActList({ me }: { me: StaffMe }) {
           {!list.length && <p className="muted small">{({ incoming: "Сейчас никто не едет на перегрузку.", yard: "Площадка пуста.", load: "Грузить сейчас нечего.", deliver: "Выдавать пока некого." } as Record<string, string>)[g] ?? "Новых машин нет."}</p>}
           {g === "load" && list.length > 0 && <p className="small muted">{me.role === "driver" ? "Приёмщик площадки сдаёт вам машину: снимите 4 угла и распишитесь оба на вашем телефоне." : "Машину принимает водитель автовоза: он снимает 4 угла, вы расписываетесь «Сдал» на его телефоне."}</p>}
           {g === "deliver" && list.length > 0 && me.role === "driver" && <p className="small muted">В городе получателя: полный осмотр, получатель проверяет машину и расписывается «Принял» на вашем телефоне.</p>}
+          {g === "incoming" && <IncomingTrips list={list} />}
           <div className="actlist">
             {list.map((r) => <ActRowCard key={`${r.no}-${r.stage}`} r={r} />)}
           </div>
         </section>
+      ))}
+    </div>
+  );
+}
+
+/** Кто едет на терминал: рейс, водитель с телефоном, тягач, прицеп, перевозчик и сколько машин везёт. */
+function IncomingTrips({ list }: { list: ActRow[] }) {
+  const trips = [...new Map(list.filter((r) => r.trip).map((r) => [r.trip!.id, r.trip!])).values()];
+  if (!trips.length) return null;
+  return (
+    <div className="stack" style={{ gap: 8, marginBottom: 10 }}>
+      {trips.map((t) => (
+        <div key={t.id} className="callout info">
+          <b>Рейс {t.id}</b> · {list.filter((r) => r.trip?.id === t.id).length} авто · {t.kmLeft ? `${t.kmLeft.toLocaleString("ru-RU")} км до терминала` : "на терминале"}
+          <br />Водитель: <b>{t.driver || "не назначен"}</b>{t.phone && <> · <a href={`tel:${t.phone}`}>{t.phone}</a></>}
+          <br />Тягач: {t.truck || "—"}{t.trailer && <> · прицеп {t.trailer}</>}{t.carrier && <> · перевозчик {t.carrier}</>}
+        </div>
       ))}
     </div>
   );
@@ -80,6 +98,7 @@ function ActRowCard({ r }: { r: ActRow }) {
         <div><b>№{r.no} · {r.car}</b> {r.year}, {r.color}</div>
         <small className="muted"><span className="mono">{r.vin}</span> · {r.client} · в {r.city}</small>
         {r.group === "incoming" && <small className="muted">{r.trip ? `Рейс ${r.trip.id} · ${r.trip.truck} · ${r.trip.driver || "водитель не назначен"}` : "Рейс до терминала не назначен"}</small>}
+        {r.note && <small>Примечание: {r.note}</small>}
         {r.group === "yard" && <small className="muted">{r.trip2 ? `Дальше рейсом ${r.trip2.id} · ${r.trip2.driver || "водитель не назначен"}` : "Рейс дальше не назначен: его ставит менеджер"}</small>}
         {r.group === "load" && <small className="muted">{r.trip ? `Рейс ${r.trip.id} · ${r.trip.truck} · ${r.trip.driver || "водитель не назначен"}` : "Рейс не назначен: машина на стоянке"}</small>}
         {r.group === "deliver" && r.trip && <small className="muted">Рейс {r.trip.id} · получатель {r.client}</small>}
@@ -174,6 +193,7 @@ function ActScreen({ me, no, stage }: { me: StaffMe; no: number; stage: StageId 
           <b>{a.car.car}</b> · <span className="mono">{a.car.vin}</span> · {a.car.year} · {a.car.color} · выдача в {a.car.city}
           {a.transfer && <> · <span className="pill warn">перегруз в {a.transfer}</span></>}
         </div>
+        {a.note && <div className="callout info">Примечание к заявке: {a.note}</div>}
         {gate && <div className="callout warn">{gate}. Этот раздел можно посмотреть, но оформлять его пока нельзя.</div>}
         {!gate && !a.canEdit && !a.closedAt && <div className="callout info">{STAGES[stage].by === "driver" ? "Эту передачу оформляет водитель рейса на своём телефоне." : `Эту передачу оформляет площадка ${STAGES[stage].site}.`}</div>}
         {!a.storage && <div className="callout warn">Хранилище фото (S3) не настроено на сервере: фото и видео загрузить нельзя.</div>}
@@ -196,6 +216,16 @@ function ActScreen({ me, no, stage }: { me: StaffMe; no: number; stage: StageId 
 
       <section className="card">
         <h3>Акт</h3>
+        <p className="small">
+          К договору № <b>{a.no}</b> от {a.contractDate.split("-").reverse().join(".")} · Заказчик: <b>{a.client}</b>
+        </p>
+        <p className="small muted">Легковой автомобиль, данные из заявки №{a.no}:</p>
+        <div className="grid4">
+          <Field label="Марка" value={a.car.car} edit={false} onSave={() => {}} />
+          <Field label="VIN" value={a.car.vin} edit={false} onSave={() => {}} />
+          <Field label="Год выпуска" value={a.car.year} edit={false} onSave={() => {}} />
+          <Field label="Цвет" value={a.car.color} edit={false} onSave={() => {}} />
+        </div>
         {stage === "priemka" ? (
           <>
             <div className="grid4">
@@ -256,7 +286,7 @@ function Field({ label, value, edit, onSave, numeric, multiline }: {
 }) {
   const [v, setV] = useState(value);
   useEffect(() => setV(value), [value]);
-  const id = "f-" + label.replace(/\W+/g, "");
+  const id = useId();
   const save = () => v.trim() !== value && onSave(v.trim());
   return (
     <div className="field">

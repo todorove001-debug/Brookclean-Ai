@@ -12,9 +12,9 @@ const fail = (status: number, error: string): Res => ({ status, data: { error } 
 
 export interface DemoOrder {
   no: number; createdAt: string; status: string; car: string; vin: string; year: string; color: string; city: string; fio: string;
-  tripId: string | null; transfer: string | null; trip2Id: string | null;
+  tripId: string | null; transfer: string | null; trip2Id: string | null; note: string;
 }
-export interface DemoTripRef { id: string; truck: string; driver: string; km: number; driverId: number | null }
+export interface DemoTripRef { id: string; truck: string; driver: string; km: number; driverId: number | null; trailer?: string; carrier?: string; phone?: string }
 
 interface Sec {
   details: ActCar; cond: Condition[]; condOther: string; notes: string; giveName: string; takeName: string;
@@ -123,7 +123,7 @@ function view(o: DemoOrder, st: StageId, me: StaffMe | null, trips: DemoTripRef[
   const trip = trips.find((t) => t.id === legTrip(o, st));
   const v: ActView = {
     no: o.no, stage: st, sections, transfer: o.transfer, orderStatus: o.status, contractDate: o.createdAt.slice(0, 10),
-    car: { car: o.car, vin: o.vin, year: o.year, color: o.color, city: o.city }, client: o.fio, acceptor: s.takeName,
+    car: { car: o.car, vin: o.vin, year: o.year, color: o.color, city: o.city }, note: o.note, client: o.fio, acceptor: s.takeName,
     details: acts.get(key(o.no, "priemka"))?.details ?? blankCar, cond: s.cond, condOther: s.condOther, notes: s.notes,
     giveName: s.giveName, takeName: s.takeName, giveRole: role("give"), takeRole: role("take"), give: s.give, take: s.take,
     disagree: s.disagree, disComment: s.disComment, absent: s.absent, absentReason: s.absentReason, closedAt: s.closedAt,
@@ -225,10 +225,10 @@ export function demoActsFetch(path: string, method: string, body: any, me: Staff
         return {
           no: o.no, stage: st, group, transfer: o.transfer, car: o.car, vin: o.vin, year: o.year, color: o.color, city: o.city, client: o.fio,
           orderStatus: o.status, createdAt: o.createdAt,
-          trip: t ? { id: t.id, truck: t.truck, driver: t.driver, kmLeft: Math.max(0, kmTo(end) - t.km) } : null,
+          trip: t ? { id: t.id, truck: t.truck, driver: t.driver, kmLeft: Math.max(0, kmTo(end) - t.km), phone: t.phone ?? "", trailer: t.trailer ?? "", carrier: t.carrier ?? "" } : null,
           trip2: t2 ? { id: t2.id, truck: t2.truck, driver: t2.driver } : null,
           photos: count("photo"), videos: count("video"), pending: s?.suggestions.filter((x) => x.state === "pending").length ?? 0,
-          closedAt: s?.closedAt ?? null, signed: !!(s?.give || s?.take),
+          closedAt: s?.closedAt ?? null, signed: !!(s?.give || s?.take), note: o.note,
         };
       };
       const last = stagesFor(o.transfer).at(-1)!;
@@ -357,3 +357,6 @@ export function demoActsFetch(path: string, method: string, body: any, me: Staff
   }
   return fail(404, "В демо это не работает");
 }
+
+/** Раздел акта закрыт (для распределения и таблицы доставок в демо). */
+export const demoActClosedAt = (no: number, st: StageId) => acts.get(key(no, st))?.closedAt ?? null;

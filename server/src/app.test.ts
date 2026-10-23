@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { openDb } from "./db.ts";
 import { buildApp } from "./app.ts";
 import { ConsoleSms } from "./sms.ts";
+import { MemoryNotifier } from "./notify.ts";
 
 const car = { car: "Toyota Yaris", vin: "KSP210-0089458", year: "2023", color: "Белый", body: "sedan", value: "1000000", city: "Новосибирск" };
 const customer = {
@@ -13,7 +14,8 @@ const consents = { contract: true, pep: true, personalData: true };
 
 function setup() {
   const sms = new ConsoleSms();
-  const app = buildApp({ db: openDb(":memory:", 685), sms, adminToken: "secret" });
+  const notify = new MemoryNotifier();
+  const app = buildApp({ db: openDb(":memory:", 685), sms, adminToken: "secret", notify });
   const admin = { authorization: "Bearer secret" };
   const codeFromSms = () => /: (\d{4})\./.exec(sms.sent.at(-1)!.text)![1];
   /** Вход клиента по коду из SMS: возвращает заголовок cookie. */
@@ -23,11 +25,11 @@ function setup() {
     const r = await app.inject({ method: "POST", url: "/api/auth/verify", payload: { phone, code } });
     return { cookie: String(r.headers["set-cookie"]).split(";")[0] };
   }
-  return { app, sms, admin, codeFromSms, signIn };
+  return { app, sms, notify, admin, codeFromSms, signIn };
 }
 
 test("оформление, подпись кодом и трекинг", async () => {
-  const { app, sms, admin, codeFromSms, signIn } = setup();
+  const { app, sms, notify, admin, codeFromSms, signIn } = setup();
   const h = await signIn();
 
   const link = (await app.inject({ method: "POST", url: "/api/staff/partner-links", headers: admin, payload: { partner: "Монстеркар", cashback: 5000 } })).json();
@@ -48,6 +50,8 @@ test("оформление, подпись кодом и трекинг", async 
   assert.equal(signed.statusCode, 200);
   const order = signed.json();
   assert.equal(order.status, "signed");
+  // Менеджеру в Telegram уходит короткое сообщение о подписи
+  assert.deepEqual(notify.sent.map((t) => t.replace(/\s/g, " ")), ["Подписан договор №685: Toyota Yaris 2023 → Новосибирск, 128 000 ₽, партнёр Монстеркар, кэшбэк 5 000 ₽"]);
   assert.match(order.signature.documentSha256, /^[0-9a-f]{64}$/);
   assert.equal(order.trackToken.length, 16);
   // Подписанный договор с паспортом: сразу после подписи и потом только вошедшему клиенту

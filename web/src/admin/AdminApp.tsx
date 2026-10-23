@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ROLES, type StaffMe } from "@brookclean/shared";
+import { ROLES, SITES, type Role, type StaffMe } from "@brookclean/shared";
 import { ApiError } from "../api.ts";
 import { DEMO, navigate } from "../router.ts";
 import { staffApi } from "./api.ts";
@@ -46,7 +46,7 @@ export function AdminApp({ path }: { path: string }) {
         {allowed.map((m) => (
           <a key={m.id} href={`/admin/${m.id}`} aria-current={m === current ? "page" : undefined}
             onClick={(e) => { e.preventDefault(); navigate(`/admin/${m.id}`); }}>
-            {m.id === "trips" && me.role === "driver" ? "Мои рейсы" : m.id === "acts" && me.site === "Новосибирск" ? "Терминал" : m.id === "acts" && me.role === "driver" ? "Погрузка и выдача" : m.title}
+            {m.id === "trips" && me.role === "driver" ? "Мои рейсы" : m.id === "drivers" && me.role === "driver" ? "Моя карточка" : m.id === "acts" && me.site === "Новосибирск" ? "Терминал" : m.id === "acts" && me.role === "driver" ? "Погрузка и выдача" : m.title}
           </a>
         ))}
       </nav>
@@ -64,9 +64,11 @@ const DEMO_USERS = [
   { login: "acceptor", label: "Приёмщик · Владивосток" },
   { login: "terminal", label: "Приёмщик · терминал Новосибирск" },
   { login: "driver", label: "Водитель" },
+  { login: "partner", label: "Партнёр" },
 ];
 
 function Login({ onDone }: { onDone: (me: StaffMe) => void }) {
+  const [reg, setReg] = useState(false);
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -84,6 +86,7 @@ function Login({ onDone }: { onDone: (me: StaffMe) => void }) {
     }
   }
 
+  if (reg) return <div className="col admin-login"><Register onDone={(phone) => { setReg(false); setLogin(phone); }} onCancel={() => setReg(false)} /></div>;
   return (
     <div className="col admin-login">
       <form className="card" onSubmit={(e) => { e.preventDefault(); submit(); }}>
@@ -98,7 +101,8 @@ function Login({ onDone }: { onDone: (me: StaffMe) => void }) {
         </div>
         {error && <div className="callout warn" role="alert">{error}</div>}
         <button className="btn primary" disabled={busy || !login || !password}>Войти</button>
-        <p className="small muted">Доступ выдаёт владелец в разделе «Сотрудники».</p>
+        <p className="small muted">Доступ выдаёт владелец в разделе «Сотрудники». Водитель или приёмщик может{" "}
+          <button type="button" className="linkbtn" onClick={() => setReg(true)}>зарегистрироваться сам</button>, менеджер подтвердит.</p>
       </form>
       {DEMO && (
         <section className="card demo-panel">
@@ -112,5 +116,67 @@ function Login({ onDone }: { onDone: (me: StaffMe) => void }) {
         </section>
       )}
     </div>
+  );
+}
+
+/** Водитель или приёмщик заводит себе вход сам; войти можно после подтверждения менеджером. */
+function Register({ onDone, onCancel }: { onDone: (phone: string) => void; onCancel: () => void }) {
+  const [f, setF] = useState({ name: "", phone: "", password: "", role: "driver" as Role, site: "Владивосток" });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [error, setError] = useState("");
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((s) => ({ ...s, [k]: e.target.value }));
+
+  async function submit() {
+    setBusy(true);
+    setError("");
+    setErrors({});
+    try {
+      await staffApi.register({ ...f, site: f.role === "acceptor" ? f.site : undefined });
+      setSent(true);
+    } catch (e) {
+      setError((e as ApiError).message);
+      setErrors((e as ApiError).errors ?? {});
+    } finally {
+      setBusy(false);
+    }
+  }
+  if (sent) return (
+    <section className="card">
+      <h2>Заявка отправлена</h2>
+      <p>Менеджер проверит её и откроет доступ. После этого войдите по номеру телефона и паролю.</p>
+      {DEMO && <p className="small muted">В демо войти можно после подтверждения в разделе «Водители» у менеджера, пароль: demo.</p>}
+      <button className="btn primary" onClick={() => onDone(f.phone)}>Ко входу</button>
+    </section>
+  );
+  const field = (k: "name" | "phone" | "password", label: string, attrs: Record<string, string> = {}) => (
+    <div className={`field${errors[k] ? " bad" : ""}`}>
+      <label htmlFor={`rg-${k}`}>{label}</label>
+      <input id={`rg-${k}`} value={f[k]} onChange={set(k)} {...attrs} />
+      {errors[k] && <span className="err">{errors[k]}</span>}
+    </div>
+  );
+  return (
+    <form className="card" onSubmit={(e) => { e.preventDefault(); submit(); }}>
+      <h2>Регистрация</h2>
+      <div className="field"><label>Кто вы</label>
+        <div className="seg" style={{ gridTemplateColumns: "1fr 1fr" }} role="group" aria-label="Роль">
+          {(["driver", "acceptor"] as const).map((r) => (
+            <button key={r} type="button" aria-pressed={f.role === r} onClick={() => setF((s) => ({ ...s, role: r }))}>{ROLES[r].name}</button>
+          ))}
+        </div>
+      </div>
+      {field("name", "ФИО полностью", { autoComplete: "name" })}
+      {field("phone", "Телефон", { inputMode: "tel", autoComplete: "tel", placeholder: "+7 914 000 00 00" })}
+      {field("password", "Пароль", { type: "password", autoComplete: "new-password" })}
+      {f.role === "acceptor" && (
+        <div className="field"><label htmlFor="rg-site">Площадка</label>
+          <select id="rg-site" value={f.site} onChange={set("site")}>{SITES.map((s) => <option key={s}>{s}</option>)}</select></div>
+      )}
+      {error && <div className="callout warn" role="alert">{error}</div>}
+      <button className="btn primary" disabled={busy}>Отправить заявку</button>
+      <button type="button" className="btn ghost" onClick={onCancel}>Назад ко входу</button>
+    </form>
   );
 }
