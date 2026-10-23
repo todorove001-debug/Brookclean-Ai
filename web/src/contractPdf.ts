@@ -2,6 +2,7 @@
 // pdfmake со шрифтом Roboto (кириллица) грузится только по нажатию кнопки.
 import { consentDoc, contractDoc, dateShort, signLine, type Block, type ContractData } from "@brookclean/shared";
 import type { Content, TDocumentDefinitions } from "pdfmake/interfaces";
+import { DEMO } from "./router.ts";
 
 export interface PdfSignature { phone: string; at: string; documentSha256: string }
 
@@ -82,5 +83,17 @@ export async function downloadContractPdf(d: ContractData, signature?: PdfSignat
   // vfs_fonts в разных сборках отдаёт шрифты напрямую или внутри pdfMake.vfs
   const f = fonts as unknown as { vfs?: Record<string, string>; pdfMake?: { vfs: Record<string, string> }; default?: Record<string, string> };
   const vfs = f.pdfMake?.vfs ?? f.vfs ?? f.default;
-  pdfMake.createPdf(contractPdfDefinition(d, signature), undefined, undefined, vfs).download(d.no ? `dogovor-${d.no}.pdf` : "dogovor-proekt.pdf");
+  const pdf = pdfMake.createPdf(contractPdfDefinition(d, signature), undefined, undefined, vfs);
+  const filename = d.no ? `dogovor-${d.no}.pdf` : "dogovor-proekt.pdf";
+  // Демо-страница открывается внутри claude.ai, где обычное скачивание запрещено: файл отдаёт сам просмотрщик
+  const downloads = DEMO ? await (window as unknown as DemoHost).claude?.use("downloads") : null;
+  if (!downloads) return pdf.download(filename);
+  const data = await new Promise<Blob>((ok) => pdf.getBlob(ok));
+  await downloads.save({ filename, data }).catch((e: { code?: string }) => {
+    if (e?.code !== "declined") throw e;
+  });
+}
+
+interface DemoHost {
+  claude?: { use(name: "downloads"): Promise<{ save(r: { filename: string; data: Blob }): Promise<unknown> } | null> };
 }
