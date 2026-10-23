@@ -1782,12 +1782,15 @@ function actor(){const u=me();return u?{who:u.name,role:ROLE[u.role]+(u.terminal
 function aiPending(h){return Object.values(h.ai||{}).reduce((n,a)=>n+(a.damages||[]).filter(d=>d.state==="pending").length,0)}
 // любое изменение раздела после подписи сбрасывает подписи: подписывают то, что видят
 function secChanged(o,st){const s=secOf(o,st);if(s.closedAt||!(s.give||s.take))return;s.give=null;s.take=null;toast("Раздел изменён — подписи сброшены, подпишите заново")}
-function chainAdd(o,st,code,x,y,src,part,photo){const c=chainOf(o),a=actor();
+// дефекты вносит только принимающая сторона; при отправке с терминала — водитель, а не приёмщик
+function marksEditor(o,st){if(st!=="term_out")return true;const u=me();return (u&&u.role==="driver")||!!secOf(o,st).driverMode}
+function markActor(o,st){const s=secOf(o,st);return st==="term_out"&&s.driverMode&&!(me()&&me().role==="driver")?{who:s.takeName,role:s.takeRole+" · на устройстве приёмщика"}:actor()}
+function chainAdd(o,st,code,x,y,src,part,photo){const c=chainOf(o),a=markActor(o,st);
   const n=c.marks.filter(m=>!m.removed&&Math.abs(m.x-x)<.03&&Math.abs(m.y-y)<.04).length;
   c.marks.push({id:++c.seq,code,part:part||"",x:Math.min(.97,x+n*.025),y:Math.min(.97,y+n*.03),first:st,removed:false,history:[{st,act:"add",code,src,photo,at:nowStamp(),...a}]});secChanged(o,st)}
-function chainRefine(o,st,id,code){const m=chainOf(o).marks.find(x=>x.id===id);if(!m||m.code===code)return;m.history.push({st,act:"refine",from:m.code,to:code,at:nowStamp(),...actor()});m.code=code;secChanged(o,st)}
-function chainRemove(o,st,id,reason,manager){const m=chainOf(o).marks.find(x=>x.id===id);m.removed=true;m.history.push({st,act:"remove",reason,manager:!!manager,at:nowStamp(),...actor()});if(!manager)secChanged(o,st)}
-function canRemoveOwn(o,st,m){const s=secOf(o,st);return !s.closedAt&&!m.removed&&m.first===st&&m.history[0].who===actor().who}
+function chainRefine(o,st,id,code){const m=chainOf(o).marks.find(x=>x.id===id);if(!m||m.code===code)return;m.history.push({st,act:"refine",from:m.code,to:code,at:nowStamp(),...markActor(o,st)});m.code=code;secChanged(o,st)}
+function chainRemove(o,st,id,reason,manager){const m=chainOf(o).marks.find(x=>x.id===id);m.removed=true;m.history.push({st,act:"remove",reason,manager:!!manager,at:nowStamp(),...(manager?actor():markActor(o,st))});if(!manager)secChanged(o,st)}
+function canRemoveOwn(o,st,m){const s=secOf(o,st);return !s.closedAt&&!m.removed&&m.first===st&&m.history[0].who===markActor(o,st).who}
 function partPos(part,photo){
   const p=(part||"").toLowerCase(),L=/лев/.test(p),R=/прав/.test(p),F=/передн|перед /.test(p),B=/задн|зад /.test(p);
   if(/бампер/.test(p))return B?[.89,.5]:[.08,.5];
@@ -1868,7 +1871,7 @@ function vSigBlock(o,st,k,enabled,why){
       :`<div class="ph" style="aspect-ratio:3/1">${esc(why)}</div><small class="muted">${esc(name)}</small>`}</div>`;
 }
 function vActSection(o,st,ro){
-  const c=chainOf(o),s=secOf(o,st),cps=checkpointsOf(o),num=secNum(o,st),hs=hoStat(o,st),gate=cpGate(o,st),edit=!ro&&!s.closedAt&&!hs.done;
+  const c=chainOf(o),s=secOf(o,st),cps=checkpointsOf(o),num=secNum(o,st),hs=hoStat(o,st),gate=cpGate(o,st),edit=!ro&&!s.closedAt&&!hs.done,medit=edit&&marksEditor(o,st),termUser=me()&&me().role==="terminal";
   const mediaOk=photoIdx(st).every(i=>hoOf(o,st).photos[i])&&hs.vreq===hs.vreqN, ai=aiPending(hoOf(o,st));
   const why=!gate.ok?gate.why:!mediaOk?"Сначала фото и видео этапа":ai?`Проверьте находки ИИ: ${ai}`:"";
   const inp=(k,l,v,attrs="")=>`<div class="field"><label for="ac-${k}">${l}</label><input id="ac-${k}" data-car="${k}" value="${esc(v||"")}" ${attrs}></div>`;
@@ -1886,10 +1889,13 @@ function vActSection(o,st,ro){
        <div class="field"><label for="ac-pts">ПТС</label><select id="ac-pts" data-car="ptsType">${["Оригинал","Выписка ЭПТС","Заверенная копия"].map(x=>`<option ${x===c.car.ptsType?"selected":""}>${x}</option>`).join("")}</select></div>${inp("ptsNo","№ ПТС / ЭПТС",c.car.ptsNo)}</div>${inp("docs","Дополнительные документы",c.car.docs)}`
       :`<div class="muted" style="font-size:13px">Гос. номер: ${esc(c.car.plate)} · ключей: ${esc(c.car.keys)} · ПТС: ${esc(c.car.ptsType)} ${esc(c.car.ptsNo)}${c.car.docs?" · "+esc(c.car.docs):""}</div>`}
     <h3>Схема и журнал дефектов</h3>
-    ${edit?`<div class="muted" style="font-size:13px">Отметки с прошлых этапов уже на схеме — проверьте машину по ним. Новый дефект: выберите код и нажмите на место на схеме. Цвет отметки — этап, на котором её поставили.</div>
+    ${edit&&st==="term_out"&&termUser?(s.driverMode
+      ?`<div class="callout warn inline" style="justify-content:space-between"><span>Повреждения сейчас вносит водитель <b>${esc(s.takeName)}</b> — отметки записываются на него.</span><button class="btn sm ghost" data-act="drvmode" data-on="0">Вернуть экран приёмщику</button></div>`
+      :`<div class="callout info inline" style="justify-content:space-between"><span>При отправке повреждения вносит только принимающий водитель <b>${esc(s.takeName)}</b>. Вы можете проверить отметки и подписать «Сдал».</span><button class="btn sm dark" data-act="drvmode" data-on="1">Передать экран водителю</button></div>`):""}
+    ${medit?`<div class="muted" style="font-size:13px">Отметки с прошлых этапов уже на схеме — проверьте машину по ним. Новый дефект: выберите код и нажмите на место на схеме. Цвет отметки — этап, на котором её поставили.</div>
       <div class="codes">${DMG_CODES.map(([k,n])=>`<button class="codebtn" data-act="mark-code" data-code="${k}" aria-pressed="${k===(S.markCode||"A1")}" title="${esc(n)}">${k}</button>`).join("")}</div>`:""}
-    ${vDiagram(o,st,edit)}
-    ${vDefects(o,st,edit?"edit":"view")}
+    ${vDiagram(o,st,medit)}
+    ${vDefects(o,st,medit?"edit":"view")}
     <details><summary class="muted" style="font-size:13px;cursor:pointer">Коды оценки состояния кузова</summary><div class="legend">${DMG_CODES.map(([k,n])=>`<div><b>${k}</b> ${esc(n)}</div>`).join("")}</div></details>
     <div class="field"><label>Условия осмотра</label><div class="inline">${COND.map(([k,l])=>`<label class="check"><input type="checkbox" data-sc="${k}" ${s.cond[k]?"checked":""} ${edit?"":"disabled"}> ${l}</label>`).join("")}</div>
       ${s.cond.other?`<input class="cellin" data-sf="condOther" value="${esc(s.condOther)}" placeholder="Иное — что именно" ${edit?"":"disabled"}>`:""}</div>
@@ -2262,7 +2268,7 @@ document.addEventListener("click",async e=>{
   const body=e.target.closest("[data-body]");if(body){S.f.body=body.dataset.body;S.example=false;return render()}
   const cp=e.target.closest("[data-copy]");if(cp)return copy(cp.dataset.copy);
   const dg=e.target.closest(".diagram:not(.ro)");
-  if(dg&&S.ho){const r=dg.getBoundingClientRect(),o=S.orders.find(x=>x.no===S.ho.no);
+  if(dg&&S.ho&&marksEditor(S.orders.find(x=>x.no===S.ho.no),S.ho.stage)){const r=dg.getBoundingClientRect(),o=S.orders.find(x=>x.no===S.ho.no);
     chainAdd(o,S.ho.stage,S.markCode||"A1",(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height,"manual");render();return}
   const sb=e.target.closest("[data-sub]");if(sb){S.sub=sb.dataset.sub;S.rx={status:"idle"};S.lastDel=null;render();window.scrollTo(0,0);return}
   const del=e.target.closest("[data-del]");if(del){const t=S.trips.find(x=>x.id===repTrip()),i=+del.dataset.del;
@@ -2363,6 +2369,7 @@ document.addEventListener("click",async e=>{
   if(act==="tp-del"){const i=+a.dataset.i;S.lastTp={...S.termPays[i],i};S.termPays.splice(i,1);render()}
   if(act==="tp-undo"){const p=S.lastTp;S.termPays.splice(p.i,0,{d:p.d,sum:p.sum,ts:p.ts,how:p.how,note:p.note});S.lastTp=null;render()}
   if(act==="drv-f"){S.drvF=a.dataset.f;render()}
+  if(act==="drvmode"){const o=S.orders.find(x=>x.no===S.ho.no);secOf(o,S.ho.stage).driverMode=a.dataset.on==="1";render();toast(a.dataset.on==="1"?"Экран у водителя: отметки повреждений записываются на него":"Экран у приёмщика")}
   if(act==="tf-pick"){S.tfTrip=a.dataset.trip;render()}
   if(act==="tf-new"){const t=newTrip(me().terminal,"Москва","");t.loadDate="";tfSplit(t);S.tfTrip=t.id;render();toast(`Рейс ${t.id} создан: выберите водителя и добавьте машины`)}
   if(act==="tf-add"){const t=S.trips.find(x=>x.id===S.tfTrip),o=S.orders.find(x=>x.no===+a.dataset.no);if(tripLoad(t)>=CAPACITY){toast("В рейсе нет мест");return}o.legs[1].trip=t.id;render()}
@@ -2418,7 +2425,7 @@ document.addEventListener("change",e=>{
       const o=S.orders.find(x=>x.no===S.ho.no);if(kind==="p"&&S.ho.stage!=="term_out"){render();aiCheckPhoto(o,S.ho.stage,+i,f);return}}
     render()}
   if(S.ho&&(el.dataset.refine||el.dataset.sn||el.dataset.car||el.dataset.sc||el.dataset.sf||el.dataset.sx)){const o=S.orders.find(x=>x.no===S.ho.no),st=S.ho.stage,s=secOf(o,st);
-    if(el.dataset.refine)chainRefine(o,st,+el.dataset.refine,el.value);
+    if(el.dataset.refine&&marksEditor(o,st))chainRefine(o,st,+el.dataset.refine,el.value);
     if(el.dataset.sn){s[el.dataset.sn]=el.value.trim();s.named=true;secChanged(o,st)}
     if(el.dataset.car){chainOf(o).car[el.dataset.car]=el.value.trim();secChanged(o,st)}
     if(el.dataset.sc){s.cond[el.dataset.sc]=el.checked;secChanged(o,st)}
