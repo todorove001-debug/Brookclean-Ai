@@ -63,7 +63,11 @@ test("обычный клиент: один автомобиль в сутки, 
   assert.equal(me.partner, "approved");
   assert.equal(me.canOrder, true);
   assert.equal((await app.inject({ method: "POST", url: "/api/quote", headers: h, payload: { car } })).statusCode, 200);
-  assert.equal((await order(h, "KSP210-0089459")).statusCode, 200);
+  const signed = await order(h, "KSP210-0089459");
+  assert.equal(signed.statusCode, 200);
+  // В договоре партнёра Заказчик — компания из карточки, клиент — её представитель
+  assert.equal(signed.json().contract.company.inn, "2536123456");
+  assert.equal(signed.json().contract.customer.fio, "Иванов Пётр Сергеевич");
   assert.equal((await order(h, "KSP210-0089460")).statusCode, 200);
 });
 

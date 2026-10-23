@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import type { CustomerForm } from "@brookclean/shared";
 import { api, ApiError, type Order } from "./api.ts";
 import { Documents, Done } from "./Checkout.tsx";
 import { rememberOrder } from "./storage.ts";
@@ -7,7 +6,7 @@ import { navigate } from "./router.ts";
 
 /** Заявку оформил менеджер: клиент открывает ссылку из SMS, читает договор и подписывает кодом. */
 export function SignOrder({ id }: { id: string }) {
-  const [order, setOrder] = useState<(Order & { documentCustomer?: CustomerForm }) | null>(null);
+  const [order, setOrder] = useState<Order | null>(null);
   const [signed, setSigned] = useState<Order | null>(null);
   const [agree, setAgree] = useState({ contract: false, pep: false, personalData: false });
   const [codeSent, setCodeSent] = useState<{ devCode?: string } | null>(null);
@@ -42,7 +41,7 @@ export function SignOrder({ id }: { id: string }) {
         <h2>Проверьте и подпишите</h2>
         <p className="small muted">Менеджер Brookclean Trucks подготовил договор по вашей заявке. Если что-то неверно, позвоните нам до подписания.</p>
       </section>
-      <Documents car={order.car} customer={order.documentCustomer!} q={order.quote} agree={agree} setAgree={setAgree} />
+      <Documents data={order.contract!} agree={agree} setAgree={setAgree} />
       <section className="card">
         <h2>Подписание</h2>
         {!codeSent ? (

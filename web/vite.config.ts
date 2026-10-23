@@ -99,7 +99,8 @@ export default defineConfig({
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/api\//],
         // Клиентский service worker не скачивает файлы панели сотрудников
-        globIgnores: ["**/node_modules/**", "admin.html", "admin-assets.json"],
+        // и тяжёлый генератор PDF (≈2 МБ): он грузится, только когда клиент нажимает «Скачать PDF»
+        globIgnores: ["**/node_modules/**", "admin.html", "admin-assets.json", "assets/pdfmake-*.js", "assets/vfs_fonts-*.js"],
         manifestTransforms: [async (entries) => ({ manifest: entries.filter((e) => !adminOnly.has(e.url)), warnings: [] })],
         runtimeCaching: [
           {

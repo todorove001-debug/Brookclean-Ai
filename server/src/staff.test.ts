@@ -69,7 +69,8 @@ test("менеджер оформляет заявку, клиент подпи�
   assert.ok(sms.sent.at(-1)!.text.includes(signUrl));
 
   const doc = (await app.inject({ url: `/api/orders/${id}` })).json();
-  assert.equal(doc.documentCustomer.passportNumber, "••••77");
+  assert.equal(doc.contract.customer.passportNumber, "••••77");
+  assert.equal(doc.contract.no, no);
 
   await app.inject({ method: "POST", url: `/api/orders/${id}/resend` });
   const code = /: (\d{4})\./.exec(sms.sent.at(-1)!.text)![1];
