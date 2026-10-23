@@ -794,7 +794,7 @@ function vTerminal(){
         <span style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">${t2?`<span class="pill info">рейс ${t2.id} · погрузка ${t2.loadDate}</span><small class="muted">${esc(t2.driver)} · ${esc(t2.truck)}</small>`:`<span class="pill warn">рейс дальше не назначен</span>`}
         ${hs.started?`<small class="muted">погрузка: фото ${hs.pc}/10</small>`:""}
         <span class="inline" style="gap:4px;justify-content:flex-end"><button class="btn sm ghost" data-act="ho-open" data-stage="term_in" data-no="${o.no}">Акт приёма</button>${t2?`<button class="btn sm primary" data-act="ho-open" data-stage="term_out" data-no="${o.no}">Отгрузка водителю</button>`:""}</span></span></div>`}).join("")||`<p class="muted" style="margin:0">Площадка пуста.</p>`}</div>
-     <div class="muted" style="font-size:12px">Рейс дальше формирует менеджер. Погрузку с терминала снимает водитель следующего рейса в своём кабинете.</div></div>
+     <div class="muted" style="font-size:12px">Рейс дальше формирует менеджер. Передачу машины водителю оформляете вы кнопкой «Отгрузка водителю»: водитель из вашей базы подписывает на вашем экране или в своём кабинете.</div></div>
      ${gone.length?`<div class="card"><h3>Отгружены</h3><div class="plist">${gone.map(o=>`<div class="pi"><span>${carLine(o)}</span><span class="pill ok">${esc(hoOf(o,"term_out").doneAt)}</span></div>`).join("")}</div></div>`:""}`;
   return vProfile();
 }
@@ -2076,6 +2076,37 @@ function vTermSettle(){
    </div>`;
 }
 
+/* демо: партия из 8 машин на площадке Новосибирска, рейс Новосибирск → Москва */
+function seedNskBatch(){
+  const fmt=ts=>{const d=new Date(ts);return pad2(d.getDate())+"."+pad2(d.getMonth()+1)+" "+pad2(d.getHours())+":"+pad2(d.getMinutes())};
+  const cars=[["Toyota Voxy","ZRR80-0456123",2019,"Белый","van","Сафонов Р. А.","+7 916 ***-**-11",2100000,52],
+    ["Honda Freed","GB5-3245678",2022,"Серый","van","Ковалёва Н. И.","+7 925 ***-**-40",1650000,50],
+    ["Toyota Corolla Fielder","NZE164-7012345",2018,"Серебристый","sedan","Ахмедов Т. Р.","+7 903 ***-**-27",1150000,49],
+    ["Mazda CX-5","KF2P-401234",2019,"Красный","cross","Белов Д. С.","+7 977 ***-**-85",2300000,30],
+    ["Nissan X-Trail","T32-061234",2020,"Чёрный","cross","Громова Е. В.","+7 915 ***-**-02",2400000,26],
+    ["Honda Vezel","RV5-1012345",2021,"Синий","cross","Лапин А. О.","+7 926 ***-**-63",2200000,8],
+    ["Toyota Prius","ZVW51-6234567",2020,"Белый","sedan","Орлова М. К.","+7 999 ***-**-14",1700000,6],
+    ["Subaru Levorg","VN5-012345",2021,"Серый","sedan","Зуев К. П.","+7 985 ***-**-39",2000000,3]];
+  const t1=newTrip("Владивосток","Новосибирск","14.10");Object.assign(t1,{status:"formed",driverId:"h1"});syncTrips(drvOf("h1"));
+  t1.events.push({t:"14.10 07:20",city:"Владивосток",note:"Погрузка"});
+  const t2=newTrip("Новосибирск","Москва","25.10");Object.assign(t2,{driverId:"n2"});syncTrips(drvOf("n2"));
+  cars.forEach(([car,vin,year,color,body,client,phone,value,hrs],i)=>{
+    const no=660+i, o={no,date:(10+Math.floor(i/3))+".10.2026",car,vin,year,color,body,city:"Москва",client,phone,tariff:tariffFor("Москва",body),cashback:[0,5000,10000][i%3],value,partner:"—",trip:null,
+      payDel:i%4!==3,payIns:i%4!==3,payTo:i%4!==3?"Тодоров (Т-Банк)":"",payForm:i%4!==3?"карта":"",signedAt:(10+Math.floor(i/3))+".10.2026 ПЭП",token:tok(no),policy:(61400+i)+"/СГ-2026",
+      transfer:TRANSFER_CITY,legs:[{trip:t1.id,from:"Владивосток",to:TRANSFER_CITY},{trip:t2.id,from:TRANSFER_CITY,to:"Москва"}]};
+    S.orders.push(o);
+    const tin=Date.now()-hrs*36e5;
+    [["priemka","13.10 "+pad2(9+i)+":10"],["pogruzka","14.10 0"+(6+i%3)+":4"+i],["term_in",fmt(tin)]].forEach(([st,at])=>{
+      const h=hoOf(o,st);h.date=at.slice(0,5)+"."+new Date().getFullYear();h.place=STAGES[st].place(o);
+      photoIdx(st).forEach(k=>h.photos[k]={demo:true,name:"x.jpg",type:"image/jpeg"});
+      vidSpec(o,st).forEach(x=>{if(x.req)h.videos[x.i]={demo:true,name:"x.mp4",type:"video/mp4"}});
+      h.act=[{demo:true,name:"x.jpg",type:"image/jpeg"}];h.doneAt=at;if(st==="term_in")h.doneTs=tin;sealSec(o,st,at)});
+    if(i===3){const c=chainOf(o);c.marks.push({id:++c.seq,code:"A1",part:"заднее правое крыло",x:.33,y:.17,first:"priemka",removed:false,history:[{st:"priemka",act:"add",code:"A1",src:"ai",photo:3,at:"13.10 12:14",who:"Ли Ольга Викторовна",role:"Терминал · Владивосток"}]})}
+  });
+  t1.km=NET[TRANSFER_CITY][1];stampPassing(t1);
+  t1.events.push({t:fmt(Date.now()-53*36e5),city:TRANSFER_CITY,note:"Отметка водителя"});
+}
+
 /* менеджер: проверка отчётов */
 function vMgrReports(){
   const t=S.trips.find(x=>x.id===S.report.trip)||S.trips[0], s=stats(t), st=REP_ST[t.report.status];
@@ -2388,6 +2419,7 @@ document.addEventListener("submit",e=>{e.preventDefault();if(e.target.id==="logi
 /* ===== Старт ===== */
 seed();
 seedScenario();
+seedNskBatch();
 S.auth.reg=blankReg();
 const h=(location.hash||"").slice(1);if(["client","track","cab"].includes(h))S.view=h;else if(h==="manager"||h==="partner")S.view="cab";
 render();
