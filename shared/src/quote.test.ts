@@ -1,18 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { quote, rubWords, words } from "./quote.ts";
+import { rubWords, words } from "./quote.ts";
 import { maskVin, normalizePhone, validateCar } from "./order.ts";
 import { routeFor } from "./tariffs.ts";
-
-test("расчёт: тариф + кэшбэк + страховка 0,3%", () => {
-  const q = quote({ city: "Новосибирск", body: "sedan", value: 1_600_000, cashback: 5000 });
-  assert.equal(q.tariff, 120000);
-  assert.equal(q.delivery, 125000);
-  assert.equal(q.insurance, 4800);
-  assert.equal(q.total, 129800);
-  assert.equal(q.needsManager, false);
-  assert.equal(quote({ city: "Москва", body: "van", value: 1_000_000 }).needsManager, true);
-});
 
 // Intl ставит неразрывные пробелы между разрядами
 const sp = (s: string) => s.replace(/\s/g, " ");

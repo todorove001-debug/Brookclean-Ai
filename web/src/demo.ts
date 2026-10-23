@@ -1,8 +1,12 @@
 // Имитация сервера для демо-сборки: те же ответы, что у server/src/app.ts, но в браузере.
 import {
-  kmTo, maskVin, normalizePhone, parseRub, quote, routeFor, validateCar, validateCustomer,
-  type CarForm, type CustomerForm, type OrderStatus, type Quote, type TrackingView,
+  kmTo, maskVin, normalizePhone, parseRub, routeFor, validateCar, validateCompany, validateCustomer,
+  type CarForm, type CompanyForm, type CustomerForm, type OrderStatus, type Quote, type TrackingView,
 } from "@brookclean/shared";
+// Только демо-страница: в обычной сборке сайта тарифов нет (проверяет web/vite.config.ts).
+// Демо-файл содержит прайс целиком, поэтому его не стоит выкладывать в открытый доступ.
+import { quote } from "../../server/src/pricing.ts";
+import { demoPartner, partnerRequests } from "./demo-partners.ts";
 
 interface DemoOrder {
   id: string; no: number; status: OrderStatus; createdAt: string; car: CarForm; customer: CustomerForm; phone: string;
@@ -25,6 +29,15 @@ const persist = () => {
     /* демо работает и без хранилища */
   }
 };
+
+let demoPhone: string | null = null;
+const DAY = 86_400_000;
+const clientMe = (phone: string) => ({
+  phone, partner: demoPartner(phone)?.status ?? null, ordersPerDay: 1,
+  canOrder: demoPartner(phone)?.status === "approved" ||
+    !orders.some((o) => o.phone === phone && o.signedAt && Date.now() - Date.parse(o.signedAt) < DAY),
+});
+let loginCode: { phone: string; code: string } | null = null;
 
 const rand = (n: number) => Array.from({ length: n }, () => "abcdefghijkmnpqrstuvwxyz23456789"[Math.floor(Math.random() * 32)]).join("");
 const ok = (data: unknown) => ({ status: 200, data });
@@ -75,11 +88,45 @@ export async function demoFetch(path: string, method: string, body: any): Promis
 
   if ((m = /^\/api\/partner-links\//.exec(path))) return fail(404, "Ссылка не найдена");
 
+  // Вход по SMS: в демо код показывается на экране
+  if (path === "/api/auth/me") return demoPhone ? ok(clientMe(demoPhone)) : fail(401, "Подтвердите номер телефона");
+  if (path === "/api/auth/code") {
+    const phone = normalizePhone(String(body?.phone ?? ""));
+    if (!phone) return fail(400, "Укажите номер мобильного телефона", { phone: "Укажите номер мобильного телефона" });
+    loginCode = { phone, code: String(Math.floor(1000 + Math.random() * 9000)) };
+    return ok({ ok: true, phone, devCode: loginCode.code });
+  }
+  if (path === "/api/auth/verify") {
+    if (!loginCode || normalizePhone(String(body?.phone)) !== loginCode.phone || String(body?.code) !== loginCode.code) return fail(400, "Неверный код");
+    demoPhone = loginCode.phone;
+    return ok(clientMe(demoPhone));
+  }
+  if (path === "/api/partner") {
+    if (!demoPhone) return fail(401, "Подтвердите номер телефона");
+    if (method === "GET") return ok(demoPartner(demoPhone) ?? null);
+    const company = body?.company as CompanyForm;
+    const errors = validateCompany(company);
+    if (Object.keys(errors).length) return fail(400, "Проверьте реквизиты", errors);
+    const prev = demoPartner(demoPhone);
+    const r = { id: prev?.id ?? partnerRequests.length + 1, phone: demoPhone, createdAt: new Date().toISOString(), status: "pending" as const, company, reviewedAt: null };
+    if (prev) Object.assign(prev, r);
+    else partnerRequests.push(r);
+    return ok(r);
+  }
+  if (path === "/api/auth/logout") return (demoPhone = null), ok({ ok: true });
+  if (path === "/api/quote") {
+    if (!demoPhone) return fail(401, "Подтвердите номер телефона, чтобы увидеть цену");
+    const car = body?.car as CarForm;
+    return ok(quote({ city: car.city, body: car.body, value: parseRub(car.value) }));
+  }
+
   if (path === "/api/orders" && method === "POST") {
     const { car, customer, consents } = body as { car: CarForm; customer: CustomerForm; consents: Record<string, boolean> };
     const errors = { ...validateCar(car), ...validateCustomer(customer) };
     if (Object.keys(errors).length) return fail(400, "Проверьте поля", errors);
     if (!consents?.contract || !consents?.pep || !consents?.personalData) return fail(400, "Нужны все три согласия");
+    if (demoPhone && !clientMe(demoPhone).canOrder)
+      return { status: 403, data: { error: "Обычный клиент может оформить один автомобиль в сутки. Чтобы оформлять больше, заполните карточку партнёра.", needPartner: true } };
     const o: DemoOrder = {
       id: rand(16), no: 685 + orders.length, status: "draft", createdAt: new Date().toISOString(), car, customer,
       phone: normalizePhone(customer.phone), quote: quote({ city: car.city, body: car.body, value: parseRub(car.value) }),

@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { INS_RATE, PAY_FORM, PAY_TO, can, routeFor, rub, type OrderRowView, type OrderStatus, type StaffMe, type TripView } from "@brookclean/shared";
 import { ApiError } from "../api.ts";
-import { SITE_ORIGIN } from "../router.ts";
-import { staffApi, type OrderPatch } from "./api.ts";
+import { CLIENT_ORIGIN, staffApi, type OrderPatch } from "./api.ts";
 
 export const STATUS: Record<string, { text: string; cls: string }> = {
   draft: { text: "Ждёт подписи", cls: "gray" },
@@ -135,7 +134,7 @@ export function OrdersScreen({ me }: { me: StaffMe }) {
                       </select>
                     ) : r.tripId ?? "—"}
                   </td>
-                  <td>{r.trackToken ? <a href={`${SITE_ORIGIN}/t/${r.trackToken}`} target="_blank" rel="noopener">открыть</a> : "—"}</td>
+                  <td>{r.trackToken ? <a href={`${CLIENT_ORIGIN}/t/${r.trackToken}`} target="_blank" rel="noopener">открыть</a> : "—"}</td>
                 </tr>
               );
             })}

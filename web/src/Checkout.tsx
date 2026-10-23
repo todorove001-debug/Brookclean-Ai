@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  BODY, CARRIER, CITIES, GAME_URL, ORIGIN, parseRub, quote, rub, rubWords, validateCar, validateCustomer,
-  type BodyType, type CarForm, type CustomerForm, type Errors,
+  BODY, CARRIER, CITIES, GAME_URL, ORIGIN, parseRub, rub, rubWords, validateCar, validateCustomer,
+  type BodyType, type CarForm, type CustomerForm, type Quote,
 } from "@brookclean/shared";
-import { api, ApiError, type Order } from "./api.ts";
+import { api, ApiError, type ClientMe, type Order } from "./api.ts";
+import { PartnerCard } from "./Partner.tsx";
+import { Captcha } from "./Captcha.tsx";
 import { load, rememberOrder, remove, save } from "./storage.ts";
 import { SITE_ORIGIN, navigate, searchParam } from "./router.ts";
 
@@ -12,7 +14,7 @@ const EMPTY_CUSTOMER: CustomerForm = {
   fio: "", phone: "", passportSeries: "", passportNumber: "", passportIssued: "", passportDate: "", address: "",
 };
 const CARS = ["Toyota Prius", "Toyota Corolla Cross", "Toyota Yaris", "Toyota RAV4", "Honda Fit", "Honda Vezel", "Nissan Note", "Mazda CX-5", "Subaru Forester", "Suzuki Swift"];
-const STEPS = ["Автомобиль", "Заказчик", "Документы", "Подпись"];
+const STEPS = ["Автомобиль", "Цена", "Заказчик", "Документы", "Подпись"];
 
 export function Checkout() {
   // Черновик сохраняется на устройстве, чтобы не потерять ввод при сворачивании браузера
@@ -22,6 +24,13 @@ export function Checkout() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [agree, setAgree] = useState({ contract: false, pep: false, personalData: false });
   const [partner, setPartner] = useState<{ token: string; partner: string; cashback: number } | null>(null);
+  // Подтверждённый номер: без него сервер цену не показывает
+  const [auth, setAuth] = useState<ClientMe | null | undefined>(undefined);
+  // Лимит один автомобиль в сутки исчерпан: предлагаем карточку партнёра
+  const [partnerCard, setPartnerCard] = useState(false);
+  const [login, setLogin] = useState<{ phone: string; sent: boolean; devCode?: string; captcha?: string; captchaToken?: string }>({ phone: "", sent: false });
+  const [loginCode, setLoginCode] = useState("");
+  const [q, setQ] = useState<{ key: string; quote: Quote } | null>(null);
   const [draft, setDraft] = useState<{ id: string; no: number; devCode?: string } | null>(null);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
@@ -34,12 +43,33 @@ export function Checkout() {
   useEffect(() => {
     const p = searchParam("p");
     if (p) api.partnerLink(p).then((r) => setPartner({ token: p, ...r })).catch(() => {});
+    api.me().then(setAuth, () => setAuth(null));
   }, []);
 
-  const q = useMemo(
-    () => quote({ city: car.city, body: car.body, value: parseRub(car.value), cashback: partner?.cashback }),
-    [car.city, car.body, car.value, partner],
-  );
+  useEffect(() => {
+    if (auth) setCustomer((c) => (c.phone === auth.phone ? c : { ...c, phone: auth.phone }));
+  }, [auth]);
+
+  // Цену запрашиваем у сервера при каждом новом варианте «город + кузов + стоимость»
+  const quoteKey = [car.city, car.body, parseRub(car.value), partner?.token ?? ""].join("|");
+  const quote = q?.key === quoteKey ? q.quote : null;
+  useEffect(() => {
+    if (step !== 1 || !auth || quote) return;
+    let alive = true;
+    setBusy(true);
+    setMessage("");
+    api.quote(car, partner?.token).then(
+      (r) => alive && setQ({ key: quoteKey, quote: r }),
+      (e: ApiError) => {
+        if (!alive) return;
+        if (e.status === 401) setAuth(null);
+        setMessage(e.message);
+      },
+    ).finally(() => alive && setBusy(false));
+    return () => {
+      alive = false;
+    };
+  }, [step, auth, quoteKey]);
 
   const go = (n: number) => {
     setMessage("");
@@ -53,12 +83,16 @@ export function Checkout() {
       setErrors(e as Record<string, string>);
       if (!Object.keys(e).length) go(1);
     } else if (step === 1) {
+      if (!auth) await (login.sent ? verify() : requestCode());
+      else if (quote && !auth.canOrder) setPartnerCard(true);
+      else if (quote) go(2);
+    } else if (step === 2) {
       const e = validateCustomer(customer);
       setErrors(e as Record<string, string>);
-      if (!Object.keys(e).length) go(2);
-    } else if (step === 2) {
-      go(3);
+      if (!Object.keys(e).length) go(3);
     } else if (step === 3) {
+      go(4);
+    } else if (step === 4) {
       draft ? await sign() : await sendCode();
     }
   }
@@ -71,15 +105,48 @@ export function Checkout() {
     } catch (e) {
       const err = e as ApiError;
       setMessage(err.message);
-      if (err.errors) {
+      if (err.needPartner) {
+        setAuth((a) => a && { ...a, canOrder: false });
+        setPartnerCard(true);
+      } else if (err.status === 401) {
+        setAuth(null);
+        go(1);
+      } else if (err.errors) {
         setErrors(err.errors);
         if (Object.keys(err.errors).some((k) => k in EMPTY_CAR)) go(0);
-        else go(1);
+        else if (step >= 2) go(2);
       }
     } finally {
       setBusy(false);
     }
   }
+
+  const requestCode = () => run(async () => {
+    try {
+      const r = await api.loginCode(login.phone, login.captchaToken);
+      setLogin({ phone: r.phone, sent: true, devCode: r.devCode });
+      setLoginCode("");
+      setErrors({});
+    } catch (e) {
+      const err = e as ApiError;
+      // Сервер просит капчу: показываем её, после прохождения код запрашивается ещё раз
+      if (err.captcha) setLogin((l) => ({ ...l, captcha: err.captcha, captchaToken: undefined }));
+      throw e;
+    }
+  });
+
+  const verify = () => run(async () => {
+    setAuth(await api.verify(login.phone, loginCode));
+    setLogin({ phone: "", sent: false });
+  });
+
+  const signOut = () => run(async () => {
+    await api.logout();
+    setAuth(null);
+    setQ(null);
+    setCustomer((c) => ({ ...c, phone: "" }));
+    go(1);
+  });
 
   const sendCode = () => run(async () => {
     const r = await api.createOrder({ car, customer, partnerToken: partner?.token, consents: agree });
@@ -104,12 +171,16 @@ export function Checkout() {
   });
 
   if (signed) return <Done order={signed} onRestart={() => navigate("/?new=" + Date.now())} />;
+  if (partnerCard && auth) return <PartnerCard ordersPerDay={auth.ordersPerDay} onBack={() => { setPartnerCard(false); setMessage(""); go(1); }} />;
 
   const setC = (k: keyof CarForm) => (v: string) => setCar((s) => ({ ...s, [k]: v }));
   const setU = (k: keyof CustomerForm) => (v: string) => setCustomer((s) => ({ ...s, [k]: v }));
   const allAgreed = agree.contract && agree.pep && agree.personalData;
-  const labels = ["Далее", "Далее", "К подписанию", draft ? "Подписать" : "Получить код"];
-  const disabled = busy || (step === 2 && !allAgreed) || (step === 3 && !!draft && code.length !== 4);
+  const priceLabel = !auth ? (login.sent ? "Войти" : "Получить код") : auth.canOrder ? "Оформить" : "Карточка партнёра";
+  const labels = ["Узнать цену", priceLabel, "Далее", "К подписанию", draft ? "Подписать" : "Получить код"];
+  const disabled = busy || auth === undefined ||
+    (step === 1 && (auth ? !quote : login.sent ? loginCode.length !== 4 : !login.phone || (!!login.captcha && !login.captchaToken))) ||
+    (step === 3 && !allAgreed) || (step === 4 && !!draft && code.length !== 4);
 
   return (
     <>
@@ -122,50 +193,87 @@ export function Checkout() {
       </ol>
 
       {step === 0 && (
-        <>
-          <section className="card">
-            <h2>Автомобиль</h2>
-            {partner && <span className="pill info">Заявка от партнёра: {partner.partner}</span>}
-            <Field id="car" label="Марка и модель" value={car.car} onChange={setC("car")} errors={errors} list="cars" autoComplete="off" />
-            <datalist id="cars">{CARS.map((c) => <option key={c} value={c} />)}</datalist>
-            <Field id="vin" label="VIN или номер кузова" value={car.vin} onChange={(v) => setC("vin")(v.toUpperCase())} errors={errors}
-              hint="Для японских авто — номер кузова, например GS4-1009355" className="mono" autoCapitalize="characters" spellCheck={false} />
-            <div className="row2">
-              <Field id="year" label="Год выпуска" value={car.year} onChange={setC("year")} errors={errors} inputMode="numeric" maxLength={4} />
-              <Field id="color" label="Цвет" value={car.color} onChange={setC("color")} errors={errors} />
+        <section className="card">
+          <h2>Автомобиль</h2>
+          {partner && <span className="pill info">Заявка от партнёра: {partner.partner}</span>}
+          <Field id="car" label="Марка и модель" value={car.car} onChange={setC("car")} errors={errors} list="cars" autoComplete="off" />
+          <datalist id="cars">{CARS.map((c) => <option key={c} value={c} />)}</datalist>
+          <Field id="vin" label="VIN или номер кузова" value={car.vin} onChange={(v) => setC("vin")(v.toUpperCase())} errors={errors}
+            hint="Для японских авто — номер кузова, например GS4-1009355" className="mono" autoCapitalize="characters" spellCheck={false} />
+          <div className="row2">
+            <Field id="year" label="Год выпуска" value={car.year} onChange={setC("year")} errors={errors} inputMode="numeric" maxLength={4} />
+            <Field id="color" label="Цвет" value={car.color} onChange={setC("color")} errors={errors} />
+          </div>
+          <div className="field">
+            <span className="label" id="body-label">Тип кузова</span>
+            <div className="seg" role="group" aria-labelledby="body-label">
+              {(Object.keys(BODY) as BodyType[]).map((k) => (
+                <button key={k} type="button" aria-pressed={car.body === k} onClick={() => setCar((s) => ({ ...s, body: k }))}>
+                  {BODY[k].name}
+                </button>
+              ))}
             </div>
-            <div className="field">
-              <span className="label" id="body-label">Тип кузова</span>
-              <div className="seg" role="group" aria-labelledby="body-label">
-                {(Object.keys(BODY) as BodyType[]).map((k) => (
-                  <button key={k} type="button" aria-pressed={car.body === k} onClick={() => setCar((s) => ({ ...s, body: k }))}>
-                    {BODY[k].name}
-                  </button>
-                ))}
+          </div>
+          <Field id="value" label="Стоимость автомобиля, ₽" value={car.value} errors={errors} inputMode="numeric"
+            onChange={(v) => setC("value")(v.replace(/\D/g, "") ? new Intl.NumberFormat("ru-RU").format(parseRub(v)) : "")}
+            hint="На эту сумму оформляется страховка" />
+          <div className={"field" + (errors.city ? " bad" : "")}>
+            <label htmlFor="f-city">Город доставки</label>
+            <select id="f-city" value={car.city} onChange={(e) => setC("city")(e.target.value)}>
+              {CITIES.map((c) => <option key={c}>{c}</option>)}
+            </select>
+            {errors.city && <span className="err">{errors.city}</span>}
+          </div>
+        </section>
+      )}
+
+      {step === 1 && !auth && auth !== undefined && (
+        <section className="card">
+          <h2>Подтвердите телефон</h2>
+          <p className="muted small">Покажем стоимость доставки после входа по коду из SMS. На этот же номер оформим договор.</p>
+          {!login.sent ? (
+            <>
+              <Field id="phone" label="Телефон" value={login.phone} onChange={(v) => setLogin((l) => ({ ...l, phone: v }))} errors={errors}
+                inputMode="tel" autoComplete="tel" placeholder="+7 900 000-00-00" />
+              {login.captcha && <Captcha siteKey={login.captcha} onToken={(t) => setLogin((l) => ({ ...l, captchaToken: t }))} />}
+            </>
+          ) : (
+            <>
+              <p className="muted small">Код отправлен на {login.phone}.</p>
+              {login.devCode && <div className="callout warn">Тестовый режим, SMS не отправляется. Код: <b className="mono">{login.devCode}</b></div>}
+              <div className="field">
+                <label htmlFor="login-code">Код из SMS</label>
+                <input id="login-code" className="codebox" inputMode="numeric" maxLength={4} autoComplete="one-time-code" autoFocus
+                  value={loginCode} onChange={(e) => setLoginCode(e.target.value.replace(/\D/g, ""))} />
               </div>
+              <button className="linkbtn" onClick={() => setLogin((l) => ({ phone: l.phone, sent: false }))} disabled={busy}>Изменить номер или отправить код ещё раз</button>
+            </>
+          )}
+        </section>
+      )}
+
+      {step === 1 && auth && (
+        <>
+          {quote ? <QuoteCard city={car.city} body={car.body} q={quote} /> : (
+            <section className="card"><p className="muted">{busy ? "Считаем стоимость…" : "Не удалось посчитать стоимость."}</p></section>
+          )}
+          {!auth.canOrder && (
+            <div className="callout warn">
+              Сегодня на этот номер уже оформлен автомобиль. Обычный клиент может оформить один автомобиль в сутки,
+              для большего заполните карточку партнёра с реквизитами компании.
             </div>
-            <Field id="value" label="Стоимость автомобиля, ₽" value={car.value} errors={errors} inputMode="numeric"
-              onChange={(v) => setC("value")(v.replace(/\D/g, "") ? new Intl.NumberFormat("ru-RU").format(parseRub(v)) : "")}
-              hint="На эту сумму оформляется страховка" />
-            <div className={"field" + (errors.city ? " bad" : "")}>
-              <label htmlFor="f-city">Город доставки</label>
-              <select id="f-city" value={car.city} onChange={(e) => setC("city")(e.target.value)}>
-                {CITIES.map((c) => <option key={c}>{c}</option>)}
-              </select>
-              {errors.city && <span className="err">{errors.city}</span>}
-            </div>
-          </section>
-          <QuoteCard city={car.city} body={car.body} q={q} />
+          )}
+          <p className="muted small">Номер {auth.phone} подтверждён. <button className="linkbtn" onClick={signOut} disabled={busy}>Сменить номер</button></p>
         </>
       )}
 
-      {step === 1 && (
+      {step === 2 && (
         <section className="card">
           <h2>Данные заказчика</h2>
           <p className="muted small">Нужны для договора перевозки. Хранятся на серверах в России.</p>
           <Field id="fio" label="ФИО полностью" value={customer.fio} onChange={setU("fio")} errors={errors} autoComplete="name" />
           <Field id="phone" label="Телефон" value={customer.phone} onChange={setU("phone")} errors={errors} inputMode="tel" autoComplete="tel"
-            hint="На этот номер придёт код для подписи" />
+            readOnly hint="Подтверждённый номер: на него придёт код для подписи" />
           <div className="row2">
             <Field id="passportSeries" label="Паспорт: серия" value={customer.passportSeries} onChange={setU("passportSeries")} errors={errors} inputMode="numeric" maxLength={4} />
             <Field id="passportNumber" label="Номер" value={customer.passportNumber} onChange={setU("passportNumber")} errors={errors} inputMode="numeric" maxLength={6} />
@@ -176,11 +284,11 @@ export function Checkout() {
         </section>
       )}
 
-      {step === 2 && (
-        <Documents car={car} customer={customer} q={q} agree={agree} setAgree={setAgree} />
+      {step === 3 && quote && (
+        <Documents car={car} customer={customer} q={quote} agree={agree} setAgree={setAgree} />
       )}
 
-      {step === 3 && (
+      {step === 4 && (
         <section className="card">
           <h2>Подписание</h2>
           {!draft ? (
@@ -206,10 +314,10 @@ export function Checkout() {
 
       <div className="dock">
         <div className="dock-in">
-          {step > 0 && !(step === 3 && draft) && <button className="btn ghost" onClick={() => go(step - 1)} aria-label="Назад">←</button>}
+          {step > 0 && !(step === 4 && draft) && <button className="btn ghost" onClick={() => go(step - 1)} aria-label="Назад">←</button>}
           <div className="dock-sum">
             <small>Итого к оплате</small>
-            <b className="num">{q.needsManager ? "от " : ""}{rub(q.total)}</b>
+            <b className="num">{quote && step >= 1 ? (quote.needsManager ? "от " : "") + rub(quote.total) : "после входа"}</b>
           </div>
           <button className="btn primary" onClick={next} disabled={disabled}>{busy ? "Подождите…" : labels[step]}</button>
         </div>
@@ -234,7 +342,7 @@ export function Field({ id, label, value, onChange, errors, hint, ...rest }: Fie
   );
 }
 
-export function QuoteCard({ city, body, q }: { city: string; body: BodyType; q: ReturnType<typeof quote> }) {
+export function QuoteCard({ city, body, q }: { city: string; body: BodyType; q: Quote }) {
   const from = q.needsManager ? "от " : "";
   return (
     <section className="card">
@@ -253,7 +361,7 @@ export function QuoteCard({ city, body, q }: { city: string; body: BodyType; q: 
 }
 
 export function Documents({ car, customer, q, agree, setAgree }: {
-  car: CarForm; customer: CustomerForm; q: ReturnType<typeof quote>;
+  car: CarForm; customer: CustomerForm; q: Quote;
   agree: { contract: boolean; pep: boolean; personalData: boolean };
   setAgree: (a: { contract: boolean; pep: boolean; personalData: boolean }) => void;
 }) {

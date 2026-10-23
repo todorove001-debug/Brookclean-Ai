@@ -1,15 +1,19 @@
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import fastifyStatic from "@fastify/static";
 import { randomBytes, randomInt, randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
-  CITIES, kmTo, maskVin, normalizePhone, parseRub, quote, routeFor, validateCar, validateCustomer,
-  type CarForm, type CustomerForm, type OrderStatus, type Quote, type TrackingView,
+  BODY, CARRIER, CITIES, kmTo, maskVin, normalizePhone, parseRub, routeFor, validateCar, validateCompany, validateCustomer,
+  type BodyType, type CarForm, type CompanyForm, type CustomerForm, type OrderStatus, type Quote, type TrackingView,
 } from "@brookclean/shared";
+import { quote } from "./pricing.ts";
+import { Guard, migrateGuard, type CaptchaVerifier } from "./guard.ts";
+import { CLIENT_ORDERS_PER_DAY, canOrder, isPartner, migratePartners, partnerRequest } from "./partners.ts";
 import { nextOrderNo, type DB } from "./db.ts";
 import { contractPayload, sha256 } from "./contract.ts";
 import type { SmsSender } from "./sms.ts";
-import { registerStaff } from "./staff.ts";
+import { cookie, registerStaff } from "./staff.ts";
 import type { GoogleDrive } from "./drive.ts";
 
 export interface AppOptions {
@@ -20,6 +24,10 @@ export interface AppOptions {
   webDist?: string;
   /** Адрес сайта для ссылок в SMS. */
   publicUrl?: string;
+  /** Отдельный адрес панели сотрудников (https://staff.brookclean-reg.ru). Если задан, на сайте клиента панели нет. */
+  staffUrl?: string;
+  /** Яндекс SmartCaptcha: без неё при подозрительной активности действуют только лимиты. */
+  captcha?: CaptchaVerifier;
   /** Только для разработки: возвращать код SMS в ответе API. */
   exposeSmsCode?: boolean;
   now?: () => Date;
@@ -29,6 +37,11 @@ const CODE_TTL_MS = 10 * 60_000;
 const RESEND_AFTER_MS = 60_000;
 const MAX_ATTEMPTS = 5;
 const MAX_SENDS = 5;
+const CLIENT_COOKIE = "bc_client";
+const CLIENT_SESSION_DAYS = 30;
+/** Ответ для номеров и адресов из чёрного списка: без подробностей, чтобы не подсказывать обход. */
+const PARTNER_ERROR = "Обычный клиент может оформить один автомобиль в сутки. Чтобы оформлять больше, заполните карточку партнёра.";
+const BLOCKED_ERROR = `Онлайн-расчёт сейчас недоступен. Позвоните нам: ${CARRIER.phone}`;
 
 const TOKEN_ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789";
 function randomToken(len = 16) {
@@ -49,8 +62,12 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   const { db, sms } = opts;
   const now = opts.now ?? (() => new Date());
   const app = Fastify({ logger: process.env.NODE_ENV === "production", trustProxy: process.env.TRUST_PROXY ?? "127.0.0.1" });
+  migrateGuard(db);
+  migratePartners(db);
+  const guard = new Guard(db, now);
 
   const publicUrl = (opts.publicUrl ?? "https://brookclean-reg.ru").replace(/\/$/, "");
+  const secureCookies = publicUrl.startsWith("https://") && process.env.NODE_ENV === "production";
   const byToken = (token: string) => db.prepare("SELECT * FROM orders WHERE track_token = ?").get(token) as OrderRow | undefined;
   const getOrder = (id: string) => db.prepare("SELECT * FROM orders WHERE id = ?").get(id) as OrderRow | undefined;
 
@@ -76,10 +93,126 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     return { partner: row.partner, cashback: row.cashback };
   });
 
+  // --- Вход клиента по SMS: цену видит только подтверждённый номер ---
+  function clientPhone(req: FastifyRequest): string | undefined {
+    const token = cookie(req, CLIENT_COOKIE);
+    if (!token) return undefined;
+    const row = db.prepare("SELECT phone FROM client_sessions WHERE token_hash = ? AND expires_at > ?").get(sha256(token), now().getTime()) as
+      | { phone: string } | undefined;
+    return row?.phone;
+  }
+
+  /** Номер, статус партнёра и можно ли сегодня оформить ещё один автомобиль. */
+  const clientView = (phone: string) => ({
+    phone, partner: partnerRequest(db, phone)?.status ?? null, canOrder: canOrder(db, phone, now()), ordersPerDay: CLIENT_ORDERS_PER_DAY,
+  });
+
+  app.get("/api/auth/me", async (req, reply) => {
+    const phone = clientPhone(req);
+    return phone ? clientView(phone) : reply.code(401).send({ error: "Подтвердите номер телефона" });
+  });
+
+  app.post<{ Body: { phone: string; captcha?: string } }>("/api/auth/code", async (req, reply) => {
+    const phone = normalizePhone(String(req.body?.phone ?? ""));
+    if (!phone) return reply.code(400).send({ error: "Укажите номер мобильного телефона", errors: { phone: "Укажите номер мобильного телефона" } });
+    if (guard.isBlocked(phone, req.ip)) {
+      guard.log("blocked", req.ip, phone, "вход");
+      return reply.code(403).send({ error: BLOCKED_ERROR });
+    }
+    if (opts.captcha && guard.captchaNeeded(phone, req.ip)) {
+      const token = String(req.body?.captcha ?? "");
+      if (!token) return reply.code(428).send({ error: "Подтвердите, что вы не робот", captcha: opts.captcha.siteKey });
+      if (!(await opts.captcha.verify(token, req.ip))) {
+        guard.log("captcha_failed", req.ip, phone);
+        return reply.code(428).send({ error: "Проверка не пройдена, попробуйте ещё раз", captcha: opts.captcha.siteKey });
+      }
+    }
+    const denied = guard.smsDenied(phone, req.ip, true);
+    if (denied) return reply.code(429).send({ error: denied });
+    const code = String(randomInt(0, 10000)).padStart(4, "0");
+    db.prepare(`INSERT INTO login_codes (phone, code_hash, expires_at, attempts) VALUES (?, ?, ?, 0)
+                ON CONFLICT(phone) DO UPDATE SET code_hash = excluded.code_hash, expires_at = excluded.expires_at, attempts = 0`)
+      .run(phone, sha256(phone + code), now().getTime() + CODE_TTL_MS);
+    try {
+      await sms.send(phone, `Brookclean: код для входа ${code}. Никому не сообщайте.`);
+    } catch (err) {
+      req.log.error(err);
+      return reply.code(502).send({ error: "Не удалось отправить SMS. Попробуйте ещё раз через минуту." });
+    }
+    guard.recordSms(phone, req.ip, "login");
+    return { ok: true, phone, ...(opts.exposeSmsCode ? { devCode: code } : {}) };
+  });
+
+  app.post<{ Body: { phone: string; code: string } }>("/api/auth/verify", async (req, reply) => {
+    const phone = normalizePhone(String(req.body?.phone ?? ""));
+    const c = db.prepare("SELECT * FROM login_codes WHERE phone = ?").get(phone) as
+      | { code_hash: string; expires_at: number; attempts: number } | undefined;
+    if (!c || now().getTime() > c.expires_at) return reply.code(410).send({ error: "Код устарел, запросите новый" });
+    if (c.attempts >= MAX_ATTEMPTS) return reply.code(429).send({ error: "Слишком много попыток, запросите новый код" });
+    const code = String(req.body?.code ?? "").replace(/\D/g, "");
+    if (sha256(phone + code) !== c.code_hash) {
+      db.prepare("UPDATE login_codes SET attempts = attempts + 1 WHERE phone = ?").run(phone);
+      if (c.attempts + 1 === MAX_ATTEMPTS) guard.log("bad_code", req.ip, phone, "вход");
+      return reply.code(400).send({ error: "Неверный код" });
+    }
+    db.prepare("DELETE FROM login_codes WHERE phone = ?").run(phone);
+    const token = randomToken(24);
+    const t = now().getTime();
+    db.prepare("INSERT INTO client_sessions (token_hash, phone, created_at, expires_at) VALUES (?, ?, ?, ?)")
+      .run(sha256(token), phone, t, t + CLIENT_SESSION_DAYS * 86_400_000);
+    reply.header("set-cookie",
+      `${CLIENT_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${CLIENT_SESSION_DAYS * 86400}${secureCookies ? "; Secure" : ""}`);
+    return clientView(phone);
+  });
+
+  // --- Карточка партнёра: реквизиты компании, после проверки менеджером — больше одного автомобиля в сутки ---
+  app.get("/api/partner", async (req, reply) => {
+    const phone = clientPhone(req);
+    if (!phone) return reply.code(401).send({ error: "Подтвердите номер телефона" });
+    return partnerRequest(db, phone) ?? null;
+  });
+
+  app.post<{ Body: { company: CompanyForm } }>("/api/partner", async (req, reply) => {
+    const phone = clientPhone(req);
+    if (!phone) return reply.code(401).send({ error: "Подтвердите номер телефона" });
+    const company = req.body?.company;
+    if (!company) return reply.code(400).send({ error: "Нет реквизитов" });
+    const errors = validateCompany(company);
+    if (Object.keys(errors).length) return reply.code(400).send({ error: "Проверьте реквизиты", errors });
+    if (isPartner(db, phone)) return reply.code(409).send({ error: "Вы уже партнёр" });
+    const clean = Object.fromEntries(Object.entries(company).map(([k, v]) => [k, String(v ?? "").trim().slice(0, 300)]));
+    db.prepare(`INSERT INTO partner_requests (phone, created_at, status, company) VALUES (?, ?, 'pending', ?)
+                ON CONFLICT(phone) DO UPDATE SET created_at = excluded.created_at, status = 'pending', company = excluded.company,
+                reviewed_at = NULL, reviewed_by = NULL`)
+      .run(phone, now().toISOString(), JSON.stringify(clean));
+    return partnerRequest(db, phone);
+  });
+
+  app.post("/api/auth/logout", async (req, reply) => {
+    const token = cookie(req, CLIENT_COOKIE);
+    if (token) db.prepare("DELETE FROM client_sessions WHERE token_hash = ?").run(sha256(token));
+    reply.header("set-cookie", `${CLIENT_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+    return { ok: true };
+  });
+
+  /** Общая проверка для расчёта и заказа: вход, чёрный список, лимит вариантов. */
+  function quoteFor(req: FastifyRequest, reply: FastifyReply, car: CarForm | undefined, partnerToken?: string): Quote | undefined {
+    const phone = clientPhone(req);
+    if (!phone) return void reply.code(401).send({ error: "Подтвердите номер телефона, чтобы увидеть цену" });
+    if (guard.isBlocked(phone, req.ip)) {
+      guard.log("blocked", req.ip, phone, "расчёт");
+      return void reply.code(403).send({ error: BLOCKED_ERROR });
+    }
+    if (!car || !CITIES.includes(car.city) || !(car.body in BODY)) return void reply.code(400).send({ error: "Выберите город" });
+    // Партнёрам с проверенными реквизитами лимит вариантов не нужен
+    const denied = isPartner(db, phone) ? undefined : guard.quoteDenied(phone, req.ip, car.city, car.body as BodyType);
+    if (denied) return void reply.code(429).send({ error: denied });
+    return quote({ city: car.city, body: car.body, value: parseRub(car.value), cashback: partnerCashback(partnerToken)?.cashback });
+  }
+
   app.post<{ Body: { car: CarForm; partnerToken?: string } }>("/api/quote", async (req, reply) => {
-    const car = req.body?.car;
-    if (!car || !CITIES.includes(car.city)) return reply.code(400).send({ error: "Выберите город" });
-    return quote({ city: car.city, body: car.body, value: parseRub(car.value), cashback: partnerCashback(req.body.partnerToken)?.cashback });
+    const q = quoteFor(req, reply, req.body?.car, req.body?.partnerToken);
+    return q ?? reply;
   });
 
   function partnerCashback(token?: string) {
@@ -93,17 +226,26 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     "/api/orders",
     async (req, reply) => {
       const { car, customer, partnerToken, consents } = req.body ?? ({} as never);
+      const sessionPhone = clientPhone(req);
+      if (!sessionPhone) return reply.code(401).send({ error: "Подтвердите номер телефона" });
       if (!car || !customer) return reply.code(400).send({ error: "Нет данных заказа" });
       const errors = { ...validateCar(car, now()), ...validateCustomer(customer) };
       if (Object.keys(errors).length) return reply.code(400).send({ error: "Проверьте поля", errors });
       if (!consents?.contract || !consents?.pep || !consents?.personalData)
         return reply.code(400).send({ error: "Нужны все три согласия" });
 
+      const phone = normalizePhone(customer.phone);
+      // Договор подписывается кодом на тот же номер, которым клиент вошёл
+      if (phone !== sessionPhone)
+        return reply.code(400).send({ error: "Проверьте поля", errors: { phone: "Укажите номер, который вы подтвердили кодом" } });
+      if (!canOrder(db, phone, now())) return reply.code(403).send({ error: PARTNER_ERROR, needPartner: true });
+      const q = quoteFor(req, reply, car, partnerToken);
+      if (!q) return reply;
+      const denied = guard.smsDenied(phone, req.ip, false, isPartner(db, phone));
+      if (denied) return reply.code(429).send({ error: denied });
       const partner = partnerCashback(partnerToken);
-      const q = quote({ city: car.city, body: car.body, value: parseRub(car.value), cashback: partner?.cashback });
       const id = randomUUID();
       const no = nextOrderNo(db);
-      const phone = normalizePhone(customer.phone);
       db.prepare(`INSERT INTO orders (id, no, created_at, status, car, customer, phone, partner, cashback, quote)
                   VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?)`)
         .run(id, no, now().toISOString(), JSON.stringify(car), JSON.stringify({ ...customer, phone }), phone,
@@ -111,6 +253,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
       let devCode: string | undefined;
       try {
         devCode = await sendCode(id, no, phone);
+        guard.recordSms(phone, req.ip, "sign");
       } catch (err) {
         req.log.error(err);
         db.prepare("DELETE FROM sms_codes WHERE order_id = ?").run(id);
@@ -140,8 +283,11 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     if (c && now().getTime() - c.sent_at < RESEND_AFTER_MS)
       return reply.code(429).send({ error: "Повторно код можно запросить через минуту" });
     if (c && c.sends >= MAX_SENDS) return reply.code(429).send({ error: "Слишком много попыток. Позвоните нам." });
+    const denied = guard.smsDenied(o.phone, req.ip, false, isPartner(db, o.phone));
+    if (denied) return reply.code(429).send({ error: denied });
     try {
       const devCode = await sendCode(o.id, o.no, o.phone);
+      guard.recordSms(o.phone, req.ip, "sign");
       return { ok: true, ...(devCode ? { devCode } : {}) };
     } catch (err) {
       req.log.error(err);
@@ -161,6 +307,9 @@ export function buildApp(opts: AppOptions): FastifyInstance {
       | { code_hash: string; expires_at: number; attempts: number } | undefined;
     if (!c || now().getTime() > c.expires_at) return reply.code(410).send({ error: "Код устарел, запросите новый" });
     if (c.attempts >= MAX_ATTEMPTS) return reply.code(429).send({ error: "Слишком много попыток, запросите новый код" });
+    // Два черновика, открытых параллельно, не дают обойти лимит: проверяем ещё раз при подписи
+    if (o.created_by === null && !canOrder(db, o.phone, now(), o.id))
+      return reply.code(403).send({ error: PARTNER_ERROR, needPartner: true });
     const code = String(req.body?.code ?? "").replace(/\D/g, "");
     if (sha256(o.id + code) !== c.code_hash) {
       db.prepare("UPDATE sms_codes SET attempts = attempts + 1 WHERE order_id = ?").run(o.id);
@@ -247,8 +396,8 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   });
 
   registerStaff(app, {
-    db, sms, now, publicUrl, adminToken: opts.adminToken, drive: opts.drive,
-    secureCookies: publicUrl.startsWith("https://") && process.env.NODE_ENV === "production",
+    db, sms, now, publicUrl, adminToken: opts.adminToken, drive: opts.drive, guard,
+    secureCookies: (opts.staffUrl ?? publicUrl).startsWith("https://") && process.env.NODE_ENV === "production",
     requestReview, randomToken,
   });
 
@@ -266,12 +415,36 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     }
   }
 
-  // --- Сайт (PWA): собранный web/dist, все не-API пути отдают index.html ---
-  if (opts.webDist && existsSync(opts.webDist)) {
-    app.register(fastifyStatic, { root: opts.webDist, wildcard: false });
+  // --- Панель сотрудников на отдельном адресе: на сайте клиента её API, страниц и кода нет ---
+  const staffHost = opts.staffUrl ? new URL(opts.staffUrl).host : undefined;
+  const isStaffHost = (req: FastifyRequest) => !staffHost || req.host === staffHost;
+  const webDist = opts.webDist && existsSync(opts.webDist) ? opts.webDist : undefined;
+  // Список файлов, которые нужны только панели, пишет сборка (web/vite.config.ts)
+  const adminFiles = new Set<string>(webDist && existsSync(join(webDist, "admin-assets.json"))
+    ? JSON.parse(readFileSync(join(webDist, "admin-assets.json"), "utf8")) as string[] : []);
+  const isAdminPath = (path: string) =>
+    path === "/admin" || path.startsWith("/admin/") || path === "/admin.html" || path.startsWith("/api/staff/") || path === "/api/google/callback" ||
+    path === "/admin-assets.json" || adminFiles.has(path.slice(1));
+
+  app.addHook("onRequest", async (req, reply) => {
+    if (!staffHost) return;
+    const path = req.url.split("?")[0];
+    if (isStaffHost(req)) {
+      if (path === "/") return reply.redirect("/admin");
+    } else if (isAdminPath(path)) {
+      if (path.startsWith("/api/")) return reply.code(404).send({ error: "Не найдено" });
+      // Для посетителя сайта клиента такой страницы просто нет
+      return webDist ? reply.type("text/html").sendFile("index.html") : reply.code(404).send({ error: "Не найдено" });
+    }
+  });
+
+  // --- Сайт (PWA): собранный web/dist, все не-API пути отдают index.html (на адресе панели — admin.html) ---
+  if (webDist) {
+    app.register(fastifyStatic, { root: webDist, wildcard: false, index: false });
     app.setNotFoundHandler((req, reply) => {
       if (req.url.startsWith("/api/")) return reply.code(404).send({ error: "Не найдено" });
-      return reply.sendFile("index.html");
+      const admin = staffHost ? isStaffHost(req) : req.url.startsWith("/admin");
+      return reply.sendFile(admin ? "admin.html" : "index.html");
     });
   }
 

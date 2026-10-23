@@ -1,9 +1,11 @@
 // Демо панели управления: примерные заявки и рейсы, вход под любой ролью с паролем «demo».
 import {
-  BODY, EXPENSE_KINDS, NET, ROLES, can, isRole, kmTo, normalizePhone, parseRub, quote, routeFor, validateCar, validateCustomer,
+  BODY, EXPENSE_KINDS, NET, ROLES, can, isRole, kmTo, normalizePhone, parseRub, routeFor, validateCar, validateCustomer,
   type CarForm, type CustomerForm, type OrderRowView, type ExpenseKind, type OrderStatus, type Permission, type Role, type StaffMe,
   type TripCar, type TripExpense, type TripReport, type TripView,
 } from "@brookclean/shared";
+import { quote } from "../../server/src/pricing.ts";
+import { partnerRequests } from "./demo-partners.ts";
 
 type Res = { status: number; data: unknown };
 const ok = (data: unknown): Res => ({ status: 200, data });
@@ -127,6 +129,24 @@ export function demoStaffFetch(path: string, method: string, body: any): Res {
   if (path === "/api/staff/logout") return (me = null), ok({ ok: true });
   if (path === "/api/staff/me") return me ? ok(me) : fail(401, "Войдите в панель");
 
+  if (path === "/api/staff/quote") {
+    const denied = need("orders.create");
+    if (denied) return denied;
+    const car = body.car as CarForm;
+    return ok(quote({ city: car.city, body: car.body, value: parseRub(car.value), cashback: Number(body.cashback) || 0 }));
+  }
+  if (path === "/api/staff/partner-requests") return need("partners.edit") ?? ok(partnerRequests);
+  if ((m = /^\/api\/staff\/partner-requests\/(\d+)$/.exec(path))) {
+    const denied = need("partners.edit");
+    if (denied) return denied;
+    const r = partnerRequests.find((x) => x.id === Number(m![1]));
+    if (!r) return fail(404, "Заявка не найдена");
+    r.status = body.status;
+    r.reviewedAt = new Date().toISOString();
+    return ok(r);
+  }
+  if (path === "/api/staff/security") return need("security.manage") ?? ok({ events: [], suspects: [], blocked: [] });
+  if (path.startsWith("/api/staff/security/")) return need("security.manage") ?? fail(400, "В демо блокировки не сохраняются");
   if (path === "/api/staff/orders" && method === "GET") return need("orders.read") ?? ok(rows.map(view));
   if (path === "/api/staff/orders" && method === "POST") {
     const denied = need("orders.create");

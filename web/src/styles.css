@@ -56,7 +56,8 @@ button, input, select { font: inherit; color: inherit; }
 .card h3 { font-size: 14px; font-weight: 600; }
 .eyebrow { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
 
-.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; }
+.steps li { min-width: 0; overflow-wrap: anywhere; }
 .steps li { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); }
 .steps i { display: block; height: 4px; border-radius: 2px; background: var(--line); }
 .steps .on { color: var(--ink); font-weight: 600; }
@@ -235,3 +236,4 @@ table.sheet.narrow { min-width: 640px; }
 .history { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
 .expense-form { align-items: end; }
 .report .kpis { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+.captcha { min-height: 100px; }

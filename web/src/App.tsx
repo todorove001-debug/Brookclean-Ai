@@ -6,7 +6,8 @@ import { myOrders } from "./storage.ts";
 import { DEMO, currentPath, navigate } from "./router.ts";
 import { SignOrder } from "./SignOrder.tsx";
 
-const AdminApp = lazy(() => import("./admin/AdminApp.tsx").then((m) => ({ default: m.AdminApp })));
+// Панель сотрудников собирается отдельно (admin.html) и в код сайта клиента не входит. Исключение — демо-страница.
+const AdminApp = DEMO ? lazy(() => import("./admin/AdminApp.tsx").then((m) => ({ default: m.AdminApp }))) : null;
 
 export { navigate };
 
@@ -24,7 +25,7 @@ export function App() {
   const path = usePath();
   const track = /^\/t\/([\w-]+)/.exec(path);
   const sign = /^\/o\/([\w-]+)/.exec(path);
-  if (path.startsWith("/admin")) {
+  if (AdminApp && path.startsWith("/admin")) {
     return <Suspense fallback={<div className="admin-loading muted">Загрузка…</div>}><AdminApp path={path} /></Suspense>;
   }
   return (
