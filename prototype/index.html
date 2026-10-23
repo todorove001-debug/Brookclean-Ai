@@ -905,7 +905,8 @@ function vCab(){
   if(u.role==="driver")body=S.sub==="report"?vDriverReport():S.sub==="trip"?vDriverTrip():vProfile();
   if(u.role==="partner")body=S.sub==="links"?vPartner():vProfile();
   if(u.role==="terminal")body=S.sub==="drivers"&&!S.ho?vDriversPage():S.sub==="settle"&&!S.ho?`<div class="mgr">${vTermSettle()}</div>`:vTerminal();
-  return u.role==="manager"?`<div class="mgr">${nav}${body}</div>`:`<div class="col">${nav}${body}</div>`;
+  const wide=u.role==="manager"||(u.role==="terminal"&&!S.ho&&["settle","drivers"].includes(S.sub));
+  return wide?`<div class="mgr">${nav}${body}</div>`:`<div class="col">${nav}${body}</div>`;
 }
 
 /* вход и регистрация */
@@ -1542,7 +1543,7 @@ function vTermBalance(){
 /* стартовое состояние демо: три машины уже прошли перегрузку в Новосибирске */
 function seedScenario(){
   let ts=Date.now()-36e5, clock=8*60;
-  const st=()=>{clock+=7;return "22.10 "+pad2(Math.floor(clock/60))+":"+pad2(clock%60)};
+  const st=()=>{clock+=7;return today().slice(0,5)+" "+pad2(Math.floor(clock/60))+":"+pad2(clock%60)};
   const O=no=>S.orders.find(o=>o.no===no), T=id=>S.trips.find(t=>t.id===id);
   const move=(t,c)=>{t.km=NET[c][1];t.status="formed";stampPassing(t);t.events.push({t:st(),city:c,note:"Отметка водителя"})};
   const done=(o,stage)=>{const h=hoOf(o,stage);h.date=today();h.place=STAGES[stage].place(o);
@@ -2028,41 +2029,49 @@ function vCompanyCard(c){
    <div class="card"><div class="sheet-head"><h3>Водители компании · ${drivers.length}</h3><button class="btn sm dark" data-act="comp-adddrv" data-id="${c.id}">+ Водитель по фото документов</button></div>
      ${drivers.length?`<div class="plist">${drivers.map(d=>`<div class="pi"><span><button class="linkbtn" data-act="drv-open" data-id="${d.id}">${esc(d.name)}</button><br><small class="muted">${esc(truckStr(d))}${trailerStr(d)?" · "+esc(trailerStr(d)):""}</small></span><span class="pill ${docCount(d)===DOC_KEYS.length?"ok":"gray"}">док. ${docCount(d)}/${DOC_KEYS.length}</span></div>`).join("")}</div>`:`<p class="muted" style="margin:0">Водителей пока нет.</p>`}</div></div>`;
 }
-/* сводная по дебету и кредиту с терминалом (без внутренних данных: кэшбэк и страховка сюда не попадают) */
+/* сводная по дебету и кредиту с терминалом — в том же виде, что движение по депозиту у менеджера */
 const TERM_PAYTO="Новосибирск (терминал)";
 function termSettle(){
-  const L=termLedger(), mine=S.orders.filter(o=>o.payTo===TERM_PAYTO), sum=o=>o.tariff+o.cashback;
-  const got=mine.filter(o=>o.payDel), wait=mine.filter(o=>!o.payDel), tin=S.termIn.reduce((s,x)=>s+x.sum,0);
-  const collected=got.reduce((s,o)=>s+sum(o),0), credit=L.sent-L.deposit, debit=collected-tin;
-  return {L,got,wait,collected,tin,credit,debit,net:debit-credit,sum};
+  const L=termLedger(), sum=o=>o.tariff+o.cashback, mine=S.orders.filter(o=>o.payTo===TERM_PAYTO);
+  const got=mine.filter(o=>o.payDel&&o.collectedAt), wait=mine.filter(o=>!o.payDel);
+  // плюс — в пользу перевозчика (терминал должен ему), минус — в пользу терминала
+  const rows=[
+    ...L.pays.map(p=>({d:p.d,ts:p.ts||0,text:"Оплата перевозчика терминалу"+(p.note?" · "+p.note:""),v:p.sum})),
+    ...L.acc.map(r=>({d:r.d,ts:r.ts||0,text:"Перегруз: "+r.text.split(" · погружен")[0],v:-r.sum,noPrice:r.noPrice})),
+    ...got.map(o=>({d:o.collectedAt.slice(0,5)+"."+new Date().getFullYear(),ts:o.collectedTs||0,text:`Оплата клиента на терминале: №${o.no} ${o.car}`,v:sum(o)})),
+    ...S.termIn.map(x=>({d:x.d,ts:x.ts||0,text:"Перечисление терминала перевозчику"+(x.note?" · "+x.note:""),v:-x.sum}))
+  ].sort((a,b)=>dKey(a.d)-dKey(b.d)||a.ts-b.ts);
+  let bal=0;rows.forEach(r=>{bal+=r.v;r.bal=bal});
+  const plus=rows.filter(r=>r.v>0).reduce((s,r)=>s+r.v,0),minus=rows.filter(r=>r.v<0).reduce((s,r)=>s-r.v,0);
+  return {L,rows,wait,got,plus,minus,net:plus-minus,sum,
+    credit:L.sent-L.deposit, debit:got.reduce((s,o)=>s+sum(o),0)-S.termIn.reduce((s,x)=>s+x.sum,0)};
 }
+function settleTag(v){return v>0?`<span class="pill ok">терминал должен ${rub(v)}</span>`:v<0?`<span class="pill err">перевозчик должен ${rub(-v)}</span>`:`<span class="pill gray">0 ₽</span>`}
 function vTermSettle(){
-  const X=termSettle(), term=me()&&me().role==="terminal", us=term?"Брукклин (перевозчик)":"мы";
-  const tag=v=>v>0?`<span class="pill err">${rub(v)}</span>`:v<0?`<span class="pill ok">переплата ${rub(-v)}</span>`:`<span class="pill gray">0 ₽</span>`;
+  const X=termSettle();
   return `<div class="kpis">
-    <div class="kpi ${X.credit>0?"neg":""}"><b>${rub(Math.abs(X.credit))}</b><span>${X.credit>=0?"кредит: перевозчик должен терминалу за перегруз":"аванс перевозчика у терминала"}</span></div>
-    <div class="kpi"><b>${rub(Math.abs(X.debit))}</b><span>${X.debit>=0?"дебет: терминал должен перевозчику — получено от клиентов":"терминал перечислил больше, чем получил"}</span></div>
-    <div class="kpi ${X.net>=0?"pos":"neg"}"><b>${rub(Math.abs(X.net))}</b><span>${X.net>0?"после взаимозачёта терминал должен перевозчику":X.net<0?"после взаимозачёта перевозчик должен терминалу":"взаиморасчёты закрыты"}</span></div>
+    <div class="kpi"><b>${rub(X.plus)}</b><span>в пользу перевозчика · его оплаты и оплаты клиентов на терминале</span></div>
+    <div class="kpi"><b>${rub(X.minus)}</b><span>в пользу терминала · перегруз и перечисления терминала</span></div>
+    <div class="kpi ${X.net>=0?"pos":"neg"}"><b>${rub(Math.abs(X.net))}</b><span>${X.net>0?"сальдо: терминал должен перевозчику":X.net<0?"сальдо: перевозчик должен терминалу":"взаиморасчёты закрыты"}</span></div>
+    <div class="kpi"><b>${rub(X.wait.reduce((s,o)=>s+X.sum(o),0))}</b><span>ожидается оплата клиентами на терминале · ${X.wait.length} авто</span></div>
    </div>
-   <div class="callout info">Сводная взаиморасчётов перевозчика и терминала ${TRANSFER_CITY}. <b>Кредит</b> — перегруз за машины, погруженные с терминала, минус оплаты перевозчика. <b>Дебет</b> — оплаты клиентов за перевозку, принятые терминалом, минус перечисления терминала перевозчику.</div>
-   <div class="report" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
-    <div class="card"><h3>Кредит · перегруз</h3>
-      <div class="lline"><span>Отправки: погружено с терминала<br><small class="muted">${X.L.acc.length} авто по цене перегруза</small></span><b class="num">${rub(X.L.sent)}</b></div>
-      <div class="lline"><span>Оплачено перевозчиком<br><small class="muted">${X.L.pays.length} платеж.</small></span><b class="num">− ${rub(X.L.deposit)}</b></div>
-      <div class="lline total"><span>Остаток по кредиту</span>${tag(X.credit)}</div>
-      ${X.L.acc.length?`<div class="tablewrap"><table class="exp" style="min-width:0"><thead><tr><th>Дата</th><th>Машина</th><th class="r">Перегруз</th></tr></thead><tbody>${X.L.acc.map(r=>`<tr><td class="mono">${esc(r.d)}</td><td>${esc(r.text.split(" · погружен")[0])}</td><td class="r">${rub(r.sum)}</td></tr>`).join("")}</tbody></table></div>`:""}
-      <div class="muted" style="font-size:12px">Оплаты перевозчика вносит менеджер во вкладке «Терминал Нск».</div>
+   <div class="callout info">Считается одной строкой, как движение по депозиту: <b>Сальдо = (оплаты перевозчика + оплаты клиентов на терминале) − (перегруз + перечисления терминала)</b>. Плюс — терминал должен перевозчику, минус — перевозчик должен терминалу.</div>
+   <div class="report">
+    <div class="card"><h3>Оплата клиента на терминале</h3>
+      ${X.wait.length?`<div class="plist">${X.wait.map(o=>`<div class="pi"><span>№${o.no} · ${esc(o.car)}<br><small class="muted">${esc(o.client)} · ${statusOf(o).text}</small></span><span class="inline" style="gap:6px"><b class="num">${rub(X.sum(o))}</b><button class="btn sm primary" data-act="tcollect" data-no="${o.no}">Получено</button></span></div>`).join("")}</div>`
+        :`<p class="muted" style="margin:0">Нет машин, за которые клиент платит на терминале.</p>`}
+      <div class="muted" style="font-size:12px">Список — заказы, где «Кому оплата: ${TERM_PAYTO}». «Получено» ставит приёмщик, когда клиент заплатил.</div>
+      <h3>Перечисление терминала перевозчику</h3>
+      <div class="row2"><div class="field"><label for="ti-d">Дата</label><input id="ti-d" value="${today()}" placeholder="дд.мм.гггг"></div><div class="field"><label for="ti-s">Сумма, ₽</label><input id="ti-s" inputmode="numeric" placeholder="50000"></div></div>
+      <div class="field"><label for="ti-n">Комментарий</label><input id="ti-n" placeholder="например, № платёжки"></div>
+      <button class="btn primary" data-act="tin-add">Добавить перечисление</button>
+      <div class="muted" style="font-size:12px">Оплаты перевозчика терминалу вносит менеджер во вкладке «Терминал Нск» — они сразу появятся здесь.</div>
     </div>
-    <div class="card"><h3>Дебет · оплаты клиентов на терминале</h3>
-      <div class="lline"><span>Получено терминалом от клиентов<br><small class="muted">${X.got.length} авто, оплата за перевозку</small></span><b class="num">${rub(X.collected)}</b></div>
-      <div class="lline"><span>Перечислено терминалом перевозчику<br><small class="muted">${S.termIn.length} перевод.</small></span><b class="num">− ${rub(X.tin)}</b></div>
-      <div class="lline total"><span>Остаток по дебету</span>${tag(X.debit)}</div>
-      ${X.wait.length?`<h3>Ожидается оплата клиентом на терминале</h3><div class="plist">${X.wait.map(o=>`<div class="pi"><span>№${o.no} · ${esc(o.car)}<br><small class="muted">${esc(o.client)} · ${statusOf(o).text}</small></span><span class="inline" style="gap:6px"><b class="num">${rub(X.sum(o))}</b><button class="btn sm primary" data-act="tcollect" data-no="${o.no}">Получено</button></span></div>`).join("")}</div>`:""}
-      ${X.got.length?`<h3>Получено</h3><div class="plist">${X.got.map(o=>`<div class="pi"><span>№${o.no} · ${esc(o.car)}<br><small class="muted">${esc(o.collectedAt?"получено "+o.collectedAt:"оплачено")}</small></span><b class="num">${rub(X.sum(o))}</b></div>`).join("")}</div>`:""}
-      <h3>Перечисления терминала перевозчику</h3>
-      <div class="row2"><div class="field"><label for="ti-d">Дата</label><input id="ti-d" value="${today()}"></div><div class="field"><label for="ti-s">Сумма, ₽</label><input id="ti-s" inputmode="numeric"></div></div>
-      <div class="inline"><input class="cellin" id="ti-n" placeholder="Комментарий, № платёжки" style="max-width:260px"><button class="btn sm dark" data-act="tin-add">Добавить перечисление</button></div>
-      ${S.termIn.length?`<div class="tablewrap"><table class="exp" style="min-width:0"><thead><tr><th>Дата</th><th class="r">Сумма</th><th>Комментарий</th><th>Внёс</th></tr></thead><tbody>${S.termIn.slice().reverse().map(x=>`<tr><td class="mono">${esc(x.d)}</td><td class="r">${rub(x.sum)}</td><td>${esc(x.note||"")}</td><td><small>${esc(x.by||"")}</small></td></tr>`).join("")}</tbody></table></div>`:""}
+    <div class="card" style="min-width:0"><div class="sheet-head"><h3>Движение взаиморасчётов · терминал ${TRANSFER_CITY}</h3><span class="muted" style="font-size:12px">по датам</span></div>
+      ${X.rows.length?`<div class="tablewrap"><table class="exp" style="min-width:620px"><thead><tr><th>Дата</th><th>Операция</th><th class="r">В пользу<br>перевозчика</th><th class="r">В пользу<br>терминала</th><th class="r">Сальдо</th></tr></thead><tbody>
+        ${X.rows.map(r=>`<tr><td class="mono">${esc(r.d)}</td><td>${esc(r.text)}${r.noPrice?` <span class="pill err">нет цены</span>`:""}</td><td class="r">${r.v>0?"+ "+rub(r.v):""}</td><td class="r">${r.v<0?"− "+rub(-r.v):""}</td><td class="r">${settleTag(r.bal)}</td></tr>`).join("")}
+      </tbody><tfoot><tr><td colspan="2">Итого</td><td class="r">+ ${rub(X.plus)}</td><td class="r">− ${rub(X.minus)}</td><td class="r">${settleTag(X.net)}</td></tr></tfoot></table></div>`
+      :`<p class="muted" style="margin:0">Движений пока нет.</p>`}
     </div>
    </div>`;
 }
@@ -2284,7 +2293,7 @@ document.addEventListener("click",async e=>{
   if(act==="comp-demo"){demoCompany(a.dataset.id);render()}
   if(act==="comp-newfor"){const d=drvOf(a.dataset.id),c=newCompany();c.base=d.base||c.base;c.short=d.company.name;c.inn=d.company.inn;c.phone=d.company.phone;linkCompany(d,c);S.compOpen=c.id;S.drvOpen=null;render();window.scrollTo(0,0);toast("Карточка создана и привязана к водителю — сфотографируйте реквизиты")}
   if(act==="comp-adddrv"){const c=compOf(a.dataset.id),d=newDriver(false);d.base=c.base;linkCompany(d,c);S.compOpen=null;S.drvOpen=d.id;render();window.scrollTo(0,0);toast("Водитель добавлен в компанию — сфотографируйте паспорт")}
-  if(act==="tcollect"){const o=S.orders.find(x=>x.no===+a.dataset.no);o.payDel=true;o.collectedAt=nowStamp()+" · "+actor().who;render();toast(`№${o.no}: оплата клиента ${rub(o.tariff+o.cashback)} принята терминалом`)}
+  if(act==="tcollect"){const o=S.orders.find(x=>x.no===+a.dataset.no);o.payDel=true;o.collectedAt=nowStamp()+" · "+actor().who;o.collectedTs=Date.now();render();toast(`№${o.no}: оплата клиента ${rub(o.tariff+o.cashback)} принята терминалом`)}
   if(act==="tin-add"){const d=$("#ti-d").value.trim(),sum=numOnly($("#ti-s").value);if(!dKey(d)||!sum){toast("Укажите дату и сумму");return}
     S.termIn.push({d,sum,note:$("#ti-n").value.trim(),by:actor().who,ts:Date.now()});render();toast(`Перечисление терминала ${rub(sum)} внесено`)}
   if(act==="drv-open"){S.compOpen=null;S.drvOpen=a.dataset.id;render();window.scrollTo(0,0)}
