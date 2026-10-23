@@ -203,10 +203,12 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
       ...(!money && { partner: null, tariff: 0, cashback: 0, delivery: 0, value: 0, insurance: 0, total: 0, paidDelivery: false, paidInsurance: false, payTo: "", payForm: "", policyNo: "" }),
     };
   }
-  /** Приёмщик терминала видит только машины с перегрузом на своей площадке. */
-  const visibleTo = (me: StaffMe, o: Pick<OrderRow, "transfer">) => {
+  /** Приёмщик терминала видит только машины с перегрузом на своей площадке и только после погрузки в автовоз:
+   *  пока машина на стоянке Владивостока, её у него нет (как список «Прибывают» в acts.ts). */
+  const loaded = (orderId: string) => !!db.prepare("SELECT 1 FROM acts WHERE order_id = ? AND stage = 'pogruzka' AND closed_at IS NOT NULL").get(orderId);
+  const visibleTo = (me: StaffMe, o: Pick<OrderRow, "id" | "transfer">) => {
     const t = terminalOf(me);
-    return !t || o.transfer === t;
+    return !t || (o.transfer === t && loaded(o.id));
   };
 
   app.get("/api/staff/orders", { preHandler: need("orders.read") }, async (req) => {
@@ -278,8 +280,10 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
         const city = (JSON.parse(o.car) as CarForm).city;
         if (transfer && (transfer !== TRANSFER_CITY || !canTransfer(city, routeFor)))
           return reply.code(400).send({ error: `Перегруз возможен в ${TRANSFER_CITY}, если город получателя дальше по маршруту` });
-        const started = db.prepare("SELECT 1 FROM acts WHERE order_id = ? AND stage != 'priemka'").get(o.id);
+        const started = db.prepare("SELECT 1 FROM acts WHERE order_id = ? AND stage IN ('term_in', 'term_out')").get(o.id);
         if (!transfer && started) return reply.code(409).send({ error: "Машину уже принимали на терминале: перегруз не отменить" });
+        if (transfer !== o.transfer && db.prepare("SELECT 1 FROM acts WHERE order_id = ? AND stage = 'vygruzka'").get(o.id))
+          return reply.code(409).send({ error: "Машину уже выдают получателю: маршрут не поменять" });
         db.prepare("UPDATE orders SET transfer = ?, trip2_id = CASE WHEN ? IS NULL THEN NULL ELSE trip2_id END WHERE id = ?").run(transfer, transfer, o.id);
         o.transfer = transfer;
         // Рейс, который не доходит до нового конца плеча, снимаем: менеджер выберет подходящий
@@ -344,7 +348,7 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
   const canSeeTrip = (me: StaffMe, t: TripRow) => {
     const term = terminalOf(me);
     if (term && !can(me.role, "reports.read"))
-      return !!db.prepare("SELECT 1 FROM orders WHERE transfer = ? AND (trip_id = ? OR trip2_id = ?)").get(term, t.id, t.id);
+      return (db.prepare("SELECT id FROM orders WHERE transfer = ? AND (trip_id = ? OR trip2_id = ?)").all(term, t.id, t.id) as { id: string }[]).some((o) => loaded(o.id));
     return canSeeTripAll(me, t);
   };
   const canSeeTripAll = (me: StaffMe, t: TripRow) => can(me.role, "trips.read") || can(me.role, "reports.read") || (can(me.role, "trips.driver") && t.driver_id === me.id);
@@ -939,6 +943,6 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
     return ctx.guard.report();
   });
 
-  registerActs(app, { db, now, store: ctx.store, vision: ctx.vision, need, audit });
+  registerActs(app, { db, now, store: ctx.store, vision: ctx.vision, need, needAny, audit, onDelivered: ctx.requestReview });
   registerFleet(app, { db, now, need, needAny, audit, getTrip, tripView, tripFor, buildReport, scheduleSync, seatsTaken, hashPassword, staffView, siteFor, rowView });
 }

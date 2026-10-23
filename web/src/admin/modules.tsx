@@ -30,7 +30,7 @@ export const MODULES: AdminModule[] = [
   { id: "orders", title: "Стоянка и заявки", perms: ["orders.read"], component: OrdersScreen },
   { id: "deliveries", title: "Доставки", perms: ["reports.read"], component: DeliveriesHub },
   { id: "new", title: "Оформить заявку", perms: ["orders.create"], component: NewOrderScreen },
-  { id: "acts", title: "Приёмка", perms: ["acts.read"], component: ActsScreen },
+  { id: "acts", title: "Приёмка", perms: ["acts.read", "acts.driver"], component: ActsScreen },
   { id: "trips", title: "Рейсы и отчёты", perms: ["trips.read", "trips.driver"], component: TripsScreen },
   // У приёмщика право drivers.site работает только на терминале: у Владивостока водители общие, их ведёт менеджер
   { id: "drivers", title: "Водители", perms: ["drivers.edit", "trips.driver", "drivers.site"], component: DriversScreen,

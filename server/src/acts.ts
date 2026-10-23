@@ -1,11 +1,12 @@
 // Кабинет приёмщика: сквозной акт приёма-передачи по шаблону, фото и видео в S3, дефекты, подписи на экране.
-// Раздел акта — одна передача машины: приёмка во Владивостоке, приём на терминал перегруза и погрузка с него.
+// Раздел акта — одна передача машины: приёмка во Владивостоке, погрузка водителю, приём на терминал перегруза
+// и погрузка с него, выдача получателю. Погрузку и выдачу водитель оформляет на своём телефоне.
 // ИИ (Yandex AI Studio) только предлагает дефекты на фото; в акт они попадают, когда приёмщик согласился.
 import type { FastifyInstance, FastifyReply, FastifyRequest, preHandlerHookHandler } from "fastify";
 import { randomBytes } from "node:crypto";
 import {
   CONDITIONS, PHOTO_MAX_BYTES, PHOTO_SLOTS, PTS_TYPES, ROLES, STAGES, VIDEO_MAX_BYTES, VIDEO_MAX_SECONDS,
-  actBlockers, can, contractDate, isDmgCode, isStage, kmTo, partPos, slotKind, stagesFor,
+  actBlockers, can, contractDate, isDmgCode, isStage, kmTo, partPos, photoSlotsFor, slotKind, stageLeg, stagePlace, stagesFor, videoSlotsFor,
   type ActCar, type ActMark, type ActMedia, type ActRow, type ActSection, type ActSignature, type ActSuggestion, type ActView, type CarForm,
   type Condition, type CustomerForm, type DmgCode, type MarkHistory, type Permission, type StageId, type StaffMe,
 } from "@brookclean/shared";
@@ -17,7 +18,7 @@ export function migrateActs(db: DB) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS acts (
       order_id TEXT NOT NULL,
-      stage TEXT NOT NULL,               -- priemka | term_in | term_out
+      stage TEXT NOT NULL,               -- priemka | pogruzka | term_in | term_out | vygruzka
       created_at TEXT NOT NULL,
       acceptor_id INTEGER,
       details TEXT NOT NULL,             -- JSON ActCar: госномер, ПТС, ключи, документы (заполняется при приёмке)
@@ -92,6 +93,9 @@ export interface ActsContext {
   store?: MediaStore;
   vision?: Vision;
   need: (...perms: Permission[]) => preHandlerHookHandler;
+  needAny: (...perms: Permission[]) => preHandlerHookHandler;
+  /** Получатель подписал выдачу: заявка выдана, клиенту уходит просьба об отзыве. */
+  onDelivered?: (no: number, log: { error: (e: unknown) => void }) => Promise<void>;
   audit: (req: FastifyRequest, action: string, details: unknown) => void;
 }
 
@@ -113,7 +117,7 @@ interface SugRow {
   id: number; order_id: string; stage: StageId; slot: string; part: string; code: DmgCode; descr: string; confidence: ActSuggestion["confidence"];
   state: ActSuggestion["state"]; x: number; y: number; by_name: string | null; at: string | null; mark_id: number | null;
 }
-interface TripRow { id: string; truck: string; driver: string; km: number; trailer: string; carrier: string; phone: string | null }
+interface TripRow { id: string; truck: string; driver: string; km: number; driver_id: number | null; trailer: string; carrier: string; phone: string | null }
 
 const PHOTO_TYPES = new Set(["image/jpeg"]);
 const VIDEO_TYPES: Record<string, string> = { "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm", "video/3gpp": "3gp" };
@@ -126,7 +130,7 @@ const clip = (v: unknown, n: number) => String(v ?? "").trim().slice(0, n);
 const json = <T>(v: string | null): T | null => (v ? (JSON.parse(v) as T) : null);
 
 export function registerActs(app: FastifyInstance, ctx: ActsContext) {
-  const { db, now, need, audit } = ctx;
+  const { db, now, needAny, audit } = ctx;
   const aiLog = new Map<number, number[]>();
   const stamp = () => now().toISOString();
   const who = (me: StaffMe, stage: StageId) => ({ stage, who: me.name, role: ROLES[me.role].name + (me.site ? ` · ${me.site}` : "") });
@@ -135,24 +139,56 @@ export function registerActs(app: FastifyInstance, ctx: ActsContext) {
   const actOf = (orderId: string, stage: StageId) =>
     db.prepare("SELECT * FROM acts WHERE order_id = ? AND stage = ?").get(orderId, stage) as ActRowDb | undefined;
   // Телефон водителя: из карточки реестра, иначе из его учётной записи
-  const tripOf = (id: string | null) => (id ? db.prepare(`SELECT t.id, t.truck, t.driver, t.km, t.trailer, t.carrier, COALESCE(NULLIF(d.phone, ''), s.phone) AS phone
+  const tripOf = (id: string | null) => (id ? db.prepare(`SELECT t.id, t.truck, t.driver, t.km, t.driver_id, t.trailer, t.carrier, COALESCE(NULLIF(d.phone, ''), s.phone) AS phone
       FROM trips t LEFT JOIN drivers d ON d.id = t.reg_driver_id LEFT JOIN staff s ON s.id = t.driver_id WHERE t.id = ?`).get(id) as TripRow | undefined : undefined);
   const stagesOf = (o: OrderRow) => stagesFor(o.transfer);
   const prevStage = (o: OrderRow, stage: StageId) => stagesOf(o)[stagesOf(o).indexOf(stage) - 1] as StageId | undefined;
+  const legTripId = (o: OrderRow, stage: StageId) => (stageLeg(stage, o.transfer) === 2 ? o.trip2_id : o.trip_id);
+  const cityOf = (o: OrderRow) => (JSON.parse(o.car) as CarForm).city;
   /** Приёмщик работает на своей площадке; владелец и менеджер без площадки — везде. */
   const onSite = (me: StaffMe, stage: StageId) => !me.site || me.site === STAGES[stage].site;
+  /** Водитель рейса, на котором машина едет на этой передаче. */
+  const driverOf = (me: StaffMe, o: OrderRow, stage: StageId) =>
+    can(me.role, "acts.driver") && !!me.id && tripOf(legTripId(o, stage))?.driver_id === me.id;
+  const mayRead = (me: StaffMe, o: OrderRow) => can(me.role, "acts.read") || stagesOf(o).some((st) => driverOf(me, o, st));
+  /** Почему раздел нельзя менять этому сотруднику; пусто — можно. */
+  function editWhy(me: StaffMe, o: OrderRow, a: ActRowDb, stage: StageId) {
+    const prev = prevStage(o, stage);
+    const mine = (STAGES[stage].by === "driver" && driverOf(me, o, stage)) || (can(me.role, "acts.edit") && onSite(me, stage));
+    return a.closed_at ? "Раздел акта закрыт и подписан. Изменить отметку может только менеджер"
+      : !mine ? (STAGES[stage].by === "driver" ? "Эту передачу оформляет водитель рейса на своём телефоне" : `Эту передачу оформляет площадка ${STAGES[stage].site}`)
+      : stage !== "priemka" && !legTripId(o, stage) ? "Рейс для этой передачи ещё не назначен. Его назначает менеджер"
+      : prev && !actOf(o.id, prev)?.closed_at ? `Сначала закройте раздел «${STAGES[prev].name}»` : "";
+  }
 
   /** Раздел создаётся, когда приёмщик впервые открывает передачу. Стороны — из договора и рейсов, их можно поправить. */
   function ensureAct(o: OrderRow, stage: StageId, me: StaffMe | undefined): ActRowDb {
+    const [give, take] = parties(o, stage, me);
     const have = actOf(o.id, stage);
-    if (have) return have;
-    const mine = me && me.role !== "owner" && onSite(me, stage) ? me.name : "";
-    const [give, take] = stage === "priemka" ? [(JSON.parse(o.customer) as CustomerForm).fio, mine]
-      : stage === "term_in" ? [tripOf(o.trip_id)?.driver ?? "", mine]
-      : [mine, tripOf(o.trip2_id)?.driver ?? ""];
+    if (have) {
+      // Раздел открыли раньше, чем стали известны приёмщик или водитель рейса: дописываем пустые имена до подписей
+      if (have.closed_at || have.give_sig || have.take_sig || (have.give_name && have.take_name) || (!give && !take)) return have;
+      db.prepare("UPDATE acts SET give_name = CASE WHEN give_name = '' THEN ? ELSE give_name END, take_name = CASE WHEN take_name = '' THEN ? ELSE take_name END WHERE order_id = ? AND stage = ?")
+        .run(give, take, o.id, stage);
+      return actOf(o.id, stage)!;
+    }
     db.prepare(`INSERT INTO acts (order_id, stage, created_at, acceptor_id, details, give_name, take_name) VALUES (?, ?, ?, ?, ?, ?, ?)`)
       .run(o.id, stage, stamp(), me?.id || null, JSON.stringify(EMPTY_CAR), give, take);
     return actOf(o.id, stage)!;
+  }
+
+  function parties(o: OrderRow, stage: StageId, me: StaffMe | undefined): [string, string] {
+    const mine = me && me.role !== "owner" && onSite(me, stage) ? me.name : "";
+    const fio = (JSON.parse(o.customer) as CustomerForm).fio;
+    const driver = tripOf(legTripId(o, stage))?.driver ?? "";
+    return ({
+      priemka: [fio, mine],
+      // Сдаёт тот, кто принял машину на площадку
+      pogruzka: [actOf(o.id, "priemka")?.take_name || mine, driver],
+      term_in: [driver, mine],
+      term_out: [mine, driver],
+      vygruzka: [driver, fio],
+    } as Record<StageId, [string, string]>)[stage];
   }
 
   /** Подписывают то, что видят: изменение раздела после подписи сбрасывает обе его подписи. */
@@ -170,12 +206,12 @@ export function registerActs(app: FastifyInstance, ctx: ActsContext) {
   }
 
   const roleFor = (o: OrderRow, stage: StageId, side: "give" | "take") => {
-    const base = STAGES[stage][side];
-    const t = stage === "term_in" && side === "give" ? o.trip_id : stage === "term_out" && side === "take" ? o.trip2_id : null;
+    const base: string = STAGES[stage][side];
+    const t = base === "Водитель рейса" ? legTripId(o, stage) : null;
     return t ? `${base} ${t}` : base;
   };
 
-  async function view(o: OrderRow, stage: StageId): Promise<ActView> {
+  async function view(o: OrderRow, stage: StageId, me: StaffMe): Promise<ActView> {
     const a = actOf(o.id, stage)!;
     const car = JSON.parse(o.car) as CarForm;
     const order = stagesOf(o);
@@ -214,11 +250,16 @@ export function registerActs(app: FastifyInstance, ctx: ActsContext) {
       give: json<ActSignature>(a.give_sig), take: json<ActSignature>(a.take_sig),
       disagree: !!a.disagree, disComment: a.dis_comment, absent: !!a.absent, absentReason: a.absent_reason, closedAt: a.closed_at,
       media, marks, suggestions, blockers: [], storage: !!ctx.store, ai: !!ctx.vision,
+      place: stagePlace(stage, car.city), canEdit: !editWhy(me, o, a, stage),
     };
     const prev = prevStage(o, stage);
+    const trip = tripOf(legTripId(o, stage));
     v.blockers = [
       ...(o.status === "draft" ? ["Клиент ещё не подписал договор перевозки"] : []),
+      ...(stage !== "priemka" && !trip ? ["Рейс для этой передачи ещё не назначен. Его назначает менеджер"] : []),
       ...(prev && !actOf(o.id, prev)?.closed_at ? [`Сначала закройте раздел «${STAGES[prev].name}»`] : []),
+      // Снимать можно заранее, а сдать получателю — только в его городе
+      ...(stage === "vygruzka" && trip && trip.km < kmTo(car.city) ? [`Автовоз ещё не в городе ${car.city}. Отметьтесь в рейсе по прибытии`] : []),
       ...actBlockers(v),
     ];
     return v;
@@ -234,12 +275,13 @@ export function registerActs(app: FastifyInstance, ctx: ActsContext) {
       return undefined;
     }
     const me = req.staff!;
+    if (!mayRead(me, o)) {
+      reply.code(403).send({ error: "Эта машина не на вашем рейсе" });
+      return undefined;
+    }
     const a = ensureAct(o, stage, can(me.role, "acts.edit") ? me : undefined);
     if (edit) {
-      const prev = prevStage(o, stage);
-      const why = a.closed_at ? "Раздел акта закрыт и подписан. Изменить отметку может только менеджер"
-        : !onSite(me, stage) ? `Эту передачу оформляет площадка ${STAGES[stage].site}`
-        : prev && !actOf(o.id, prev)?.closed_at ? `Сначала закройте раздел «${STAGES[prev].name}»` : "";
+      const why = editWhy(me, o, a, stage);
       if (why) {
         reply.code(409).send({ error: why });
         return undefined;
@@ -248,42 +290,58 @@ export function registerActs(app: FastifyInstance, ctx: ActsContext) {
     return { o, a, stage };
   }
 
-  // --- Списки приёмщика: Владивосток — к приёмке; терминал — прибывают, на площадке, отгружены ---
-  app.get("/api/staff/acts", { preHandler: need("acts.read") }, async (req) => {
+  // --- Списки: приёмщик Владивостока — к приёмке и к погрузке; терминал — прибывают, на площадке; водитель — свои погрузки и выдачи ---
+  app.get("/api/staff/acts", { preHandler: needAny("acts.read", "acts.driver") }, async (req) => {
     const me = req.staff!;
-    const orders = db.prepare(`SELECT o.* FROM orders o WHERE o.status IN ('draft', 'signed', 'paid', 'loading') OR o.transfer IS NOT NULL
+    const orders = db.prepare(`SELECT o.* FROM orders o WHERE o.status IN ('draft', 'signed', 'paid', 'loading', 'in_transit', 'arrived') OR o.transfer IS NOT NULL
         OR EXISTS (SELECT 1 FROM acts a WHERE a.order_id = o.id) ORDER BY o.no DESC LIMIT 300`).all() as unknown as OrderRow[];
     const count = (o: OrderRow, stage: StageId, kind: string) =>
       (db.prepare("SELECT COUNT(*) AS n FROM act_media WHERE order_id = ? AND stage = ? AND kind = ?").get(o.id, stage, kind) as { n: number }).n;
     const pending = (o: OrderRow, stage: StageId) =>
       (db.prepare("SELECT COUNT(*) AS n FROM act_suggestions WHERE order_id = ? AND stage = ? AND state = 'pending'").get(o.id, stage) as { n: number }).n;
+    const closed = (o: OrderRow, stage: StageId) => !!actOf(o.id, stage)?.closed_at;
     const out: ActRow[] = [];
     for (const o of orders) {
       const car = JSON.parse(o.car) as CarForm;
       const row = (stage: StageId, group: ActRow["group"]): ActRow => {
         const a = actOf(o.id, stage);
-        const t = tripOf(o.trip_id), t2 = tripOf(o.trip2_id);
+        const leg = stageLeg(stage, o.transfer);
+        const t = tripOf(legTripId(o, stage)), t2 = tripOf(o.trip2_id);
+        const legEnd = leg === 1 ? o.transfer ?? car.city : car.city;
         return {
           no: o.no, stage, group, transfer: o.transfer, car: car.car, vin: car.vin.toUpperCase(), year: car.year, color: car.color, city: car.city,
           client: (JSON.parse(o.customer) as CustomerForm).fio, orderStatus: o.status, createdAt: o.created_at,
-          trip: t ? { id: t.id, truck: t.truck, driver: t.driver, kmLeft: Math.max(0, kmTo(o.transfer ?? car.city) - t.km), phone: t.phone ?? "", trailer: t.trailer, carrier: t.carrier } : null,
+          trip: t ? { id: t.id, truck: t.truck, driver: t.driver, kmLeft: Math.max(0, kmTo(legEnd) - t.km), phone: t.phone ?? "", trailer: t.trailer, carrier: t.carrier } : null,
           trip2: t2 ? { id: t2.id, truck: t2.truck, driver: t2.driver } : null,
           photos: count(o, stage, "photo"), videos: count(o, stage, "video"), pending: pending(o, stage),
           closedAt: a?.closed_at ?? null, signed: !!(a?.give_sig || a?.take_sig), note: o.note ?? "",
         };
       };
-      if (onSite(me, "priemka")) out.push(row("priemka", actOf(o.id, "priemka")?.closed_at ? "done" : "todo"));
-      if (o.transfer && onSite(me, "term_in")) {
-        if (!actOf(o.id, "term_in")?.closed_at) out.push(row("term_in", "incoming"));
-        else out.push(row("term_out", actOf(o.id, "term_out")?.closed_at ? "done" : "yard"));
+      const last = stagesOf(o).at(-1)!;
+      if (can(me.role, "acts.read")) {
+        if (onSite(me, "priemka")) {
+          // Принятая машина стоит на площадке до погрузки водителю
+          if (!closed(o, "priemka")) out.push(row("priemka", "todo"));
+          else if (!closed(o, "pogruzka")) out.push(row("pogruzka", "load"));
+          else out.push(row("pogruzka", "done"));
+        }
+        if (o.transfer && onSite(me, "term_in") && closed(o, "pogruzka")) {
+          if (!closed(o, "term_in")) out.push(row("term_in", "incoming"));
+          else out.push(row("term_out", closed(o, "term_out") ? "done" : "yard"));
+        }
+        // Владелец и менеджер видят и выдачу получателю
+        if (!me.site && closed(o, prevStage(o, last)!)) out.push(row(last, closed(o, last) ? "done" : "deliver"));
+      } else {
+        if (driverOf(me, o, "pogruzka") && !closed(o, "pogruzka")) out.push(row("pogruzka", "load"));
+        if (driverOf(me, o, last)) out.push(row(last, closed(o, last) ? "done" : "deliver"));
       }
     }
     return out;
   });
 
-  app.get<{ Params: Params }>("/api/staff/acts/:no/:stage", { preHandler: need("acts.read") }, async (req, reply) => {
+  app.get<{ Params: Params }>("/api/staff/acts/:no/:stage", { preHandler: needAny("acts.read", "acts.driver") }, async (req, reply) => {
     const x = load(req, reply, false);
-    return x && view(x.o, x.stage);
+    return x && view(x.o, x.stage, req.staff!);
   });
 
   // --- Поля раздела ---
@@ -291,7 +349,7 @@ export function registerActs(app: FastifyInstance, ctx: ActsContext) {
     details: Partial<ActCar>; cond: Condition[]; condOther: string; notes: string; giveName: string; takeName: string;
     disagree: boolean; disComment: string; absent: boolean; absentReason: string;
   }>;
-  app.patch<{ Params: Params; Body: ActPatch }>("/api/staff/acts/:no/:stage", { preHandler: need("acts.edit") }, async (req, reply) => {
+  app.patch<{ Params: Params; Body: ActPatch }>("/api/staff/acts/:no/:stage", { preHandler: needAny("acts.edit", "acts.driver") }, async (req, reply) => {
     const x = load(req, reply, true);
     if (!x) return;
     const { o, a, stage } = x;
@@ -325,24 +383,26 @@ export function registerActs(app: FastifyInstance, ctx: ActsContext) {
     for (const [k, col] of [["disComment", "dis_comment"], ["absentReason", "absent_reason"]] as const) if (k in b) set(col, clip(b[k], 500));
     if (touched) changed(a);
     audit(req, "act.update", { no: o.no, stage, fields: Object.keys(b) });
-    return view(o, stage);
+    return view(o, stage, req.staff!);
   });
 
   // --- Фото и видео: телефон грузит файл прямо в S3 по подписанной ссылке ---
   app.post<{ Params: Params; Body: { slot: string; contentType: string; size: number; durationSec?: number } }>(
-    "/api/staff/acts/:no/:stage/upload", { preHandler: need("acts.edit") }, async (req, reply) => {
+    "/api/staff/acts/:no/:stage/upload", { preHandler: needAny("acts.edit", "acts.driver") }, async (req, reply) => {
       if (!ctx.store) return reply.code(503).send({ error: "Хранилище фото не настроено на сервере (S3)" });
       const x = load(req, reply, true);
       if (!x) return;
       const { slot, contentType } = req.body ?? ({} as never);
       const kind = slotKind(slot);
-      if (!kind) return reply.code(400).send({ error: "Неизвестная ячейка" });
+      if (!kind || !inStage(x.stage, slot)) return reply.code(400).send({ error: "На этой передаче такой ячейки нет" });
       const err = checkFile(kind, contentType, Number(req.body?.size), req.body?.durationSec);
       if (err) return reply.code(400).send({ error: err });
       const ext = kind === "photo" ? "jpg" : VIDEO_TYPES[contentType];
       const key = `acts/${x.o.no}/${x.stage}/${slot}-${randomBytes(6).toString("hex")}.${ext}`;
       return { key, url: await ctx.store.putUrl(key, contentType) };
     });
+
+  const inStage = (stage: StageId, slot: string) => [...photoSlotsFor(stage), ...videoSlotsFor(stage)].some((s) => s.id === slot);
 
   function checkFile(kind: "photo" | "video", contentType: string, size: number, duration?: number) {
     if (kind === "photo") {
@@ -357,14 +417,14 @@ export function registerActs(app: FastifyInstance, ctx: ActsContext) {
   }
 
   app.post<{ Params: Params; Body: { slot: string; key: string; contentType: string; durationSec?: number } }>(
-    "/api/staff/acts/:no/:stage/media", { preHandler: need("acts.edit") }, async (req, reply) => {
+    "/api/staff/acts/:no/:stage/media", { preHandler: needAny("acts.edit", "acts.driver") }, async (req, reply) => {
       if (!ctx.store) return reply.code(503).send({ error: "Хранилище фото не настроено на сервере (S3)" });
       const x = load(req, reply, true);
       if (!x) return;
       const { o, a, stage } = x;
       const { slot, key, contentType } = req.body ?? ({} as never);
       const kind = slotKind(slot);
-      if (!kind || typeof key !== "string" || !key.startsWith(`acts/${o.no}/${stage}/${slot}-`)) return reply.code(400).send({ error: "Файл не от этой ячейки" });
+      if (!kind || !inStage(stage, slot) || typeof key !== "string" || !key.startsWith(`acts/${o.no}/${stage}/${slot}-`)) return reply.code(400).send({ error: "Файл не от этой ячейки" });
       const size = await ctx.store.size(key);
       if (size === null) return reply.code(409).send({ error: "Файл не дошёл до хранилища. Попробуйте ещё раз" });
       const err = checkFile(kind, contentType, size, req.body?.durationSec);
@@ -388,10 +448,10 @@ export function registerActs(app: FastifyInstance, ctx: ActsContext) {
         if (aiAllowed(req.staff!.id)) checkPhoto(o, stage, slot, key, req.log).catch((e) => req.log.error(e));
         else db.prepare("UPDATE act_media SET ai_status = 'error' WHERE order_id = ? AND stage = ? AND slot = ?").run(o.id, stage, slot);
       }
-      return view(o, stage);
+      return view(o, stage, req.staff!);
     });
 
-  app.delete<{ Params: Params & { slot: string } }>("/api/staff/acts/:no/:stage/media/:slot", { preHandler: need("acts.edit") }, async (req, reply) => {
+  app.delete<{ Params: Params & { slot: string } }>("/api/staff/acts/:no/:stage/media/:slot", { preHandler: needAny("acts.edit", "acts.driver") }, async (req, reply) => {
     const x = load(req, reply, true);
     if (!x) return;
     const { o, stage } = x;
@@ -402,7 +462,7 @@ export function registerActs(app: FastifyInstance, ctx: ActsContext) {
     await ctx.store?.remove(m.key).catch((e) => req.log.warn(e));
     changed(x.a);
     audit(req, "act.media.delete", { no: o.no, stage, slot: req.params.slot });
-    return view(o, stage);
+    return view(o, stage, req.staff!);
   });
 
   // --- ИИ: ищет повреждения на наружных фото; на перегрузе сравнивает с тем же ракурсом прошлой передачи ---
@@ -447,7 +507,7 @@ export function registerActs(app: FastifyInstance, ctx: ActsContext) {
     }
   }
 
-  app.post<{ Params: Params & { slot: string } }>("/api/staff/acts/:no/:stage/ai/:slot", { preHandler: need("acts.edit") }, async (req, reply) => {
+  app.post<{ Params: Params & { slot: string } }>("/api/staff/acts/:no/:stage/ai/:slot", { preHandler: needAny("acts.edit", "acts.driver") }, async (req, reply) => {
     if (!ctx.vision || !ctx.store) return reply.code(503).send({ error: "ИИ-проверка не настроена на сервере" });
     const x = load(req, reply, true);
     if (!x) return;
@@ -457,12 +517,12 @@ export function registerActs(app: FastifyInstance, ctx: ActsContext) {
     if (!aiAllowed(req.staff!.id)) return reply.code(429).send({ error: "Слишком много проверок за час. Осмотрите фото сами" });
     db.prepare("UPDATE act_media SET ai_status = 'checking' WHERE order_id = ? AND stage = ? AND slot = ?").run(o.id, stage, m.slot);
     checkPhoto(o, stage, m.slot, m.key, req.log).catch((e) => req.log.error(e));
-    return view(o, stage);
+    return view(o, stage, req.staff!);
   });
 
   // --- Решение приёмщика по находке ИИ: согласен — дефект в акте, нет — отклонено; передумать можно до подписи ---
   app.post<{ Params: Params & { id: string }; Body: { state: "yes" | "no" | "pending"; code?: string } }>(
-    "/api/staff/acts/:no/:stage/suggestions/:id", { preHandler: need("acts.edit") }, async (req, reply) => {
+    "/api/staff/acts/:no/:stage/suggestions/:id", { preHandler: needAny("acts.edit", "acts.driver") }, async (req, reply) => {
       const x = load(req, reply, true);
       if (!x) return;
       const { o, stage } = x;
@@ -483,12 +543,12 @@ export function registerActs(app: FastifyInstance, ctx: ActsContext) {
         .run(state, code, state === "pending" ? null : req.staff!.name, state === "pending" ? null : stamp(), markId, s.id);
       changed(x.a);
       audit(req, "act.ai", { no: o.no, stage, id: s.id, state, code });
-      return view(o, stage);
+      return view(o, stage, req.staff!);
     });
 
   // --- Дефекты, отмеченные вручную на схеме ---
   app.post<{ Params: Params; Body: { code: string; part?: string; x: number; y: number } }>(
-    "/api/staff/acts/:no/:stage/marks", { preHandler: need("acts.edit") }, async (req, reply) => {
+    "/api/staff/acts/:no/:stage/marks", { preHandler: needAny("acts.edit", "acts.driver") }, async (req, reply) => {
       const x = load(req, reply, true);
       if (!x) return;
       const { o, stage } = x;
@@ -501,11 +561,11 @@ export function registerActs(app: FastifyInstance, ctx: ActsContext) {
         .run(o.id, stage, code, clip(req.body?.part, 200), px, py, JSON.stringify([h]));
       changed(x.a);
       audit(req, "act.mark", { no: o.no, stage, code });
-      return view(o, stage);
+      return view(o, stage, req.staff!);
     });
 
   app.patch<{ Params: Params & { id: string }; Body: { code?: string; part?: string } }>(
-    "/api/staff/acts/:no/:stage/marks/:id", { preHandler: need("acts.edit") }, async (req, reply) => {
+    "/api/staff/acts/:no/:stage/marks/:id", { preHandler: needAny("acts.edit", "acts.driver") }, async (req, reply) => {
       const x = load(req, reply, true);
       if (!x) return;
       const { o, stage } = x;
@@ -520,7 +580,7 @@ export function registerActs(app: FastifyInstance, ctx: ActsContext) {
       if (req.body?.part !== undefined && m.stage === stage) db.prepare("UPDATE act_marks SET part = ? WHERE id = ?").run(clip(req.body.part, 200), m.id);
       changed(x.a);
       audit(req, "act.mark.update", { no: o.no, stage, id: m.id, ...req.body });
-      return view(o, stage);
+      return view(o, stage, req.staff!);
     });
 
   /**
@@ -528,7 +588,7 @@ export function registerActs(app: FastifyInstance, ctx: ActsContext) {
    * В подписанном разделе — только менеджер с комментарием: подписи остаются, отметка видна в истории как снятая.
    */
   app.post<{ Params: Params & { id: string }; Body: { reason: string } }>(
-    "/api/staff/acts/:no/:stage/marks/:id/remove", { preHandler: need("acts.read") }, async (req, reply) => {
+    "/api/staff/acts/:no/:stage/marks/:id/remove", { preHandler: needAny("acts.read", "acts.driver") }, async (req, reply) => {
       const x = load(req, reply, false);
       if (!x) return;
       const { o, a, stage } = x;
@@ -547,12 +607,12 @@ export function registerActs(app: FastifyInstance, ctx: ActsContext) {
       db.prepare("UPDATE act_marks SET removed = 1, history = ? WHERE id = ?").run(JSON.stringify(hist), m.id);
       if (!manager) changed(a);
       audit(req, "act.mark.remove", { no: o.no, stage, id: m.id, reason, manager });
-      return view(o, stage);
+      return view(o, stage, req.staff!);
     });
 
   // --- Подписи пальцем на экране: сначала «Сдал», потом «Принял» — раздел закрывается ---
   app.post<{ Params: Params; Body: { who: "give" | "take"; img: string; device?: string } }>(
-    "/api/staff/acts/:no/:stage/sign", { preHandler: need("acts.edit"), bodyLimit: 1024 * 1024 }, async (req, reply) => {
+    "/api/staff/acts/:no/:stage/sign", { preHandler: needAny("acts.edit", "acts.driver"), bodyLimit: 1024 * 1024 }, async (req, reply) => {
       const x = load(req, reply, true);
       if (!x) return;
       const { o, a, stage } = x;
@@ -560,7 +620,7 @@ export function registerActs(app: FastifyInstance, ctx: ActsContext) {
       const img = String(req.body?.img ?? "");
       if (side !== "give" && side !== "take") return reply.code(400).send({ error: "Кто подписывает?" });
       if (!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(img) || img.length > SIG_MAX) return reply.code(400).send({ error: "Подпись не получилась, распишитесь ещё раз" });
-      const v = await view(o, stage);
+      const v = await view(o, stage, req.staff!);
       if (v.blockers.length) return reply.code(409).send({ error: v.blockers.join(". ") });
       if (side === "give") {
         if (a.absent) return reply.code(409).send({ error: "Отмечено, что сдающая сторона не подписывает" });
@@ -574,18 +634,23 @@ export function registerActs(app: FastifyInstance, ctx: ActsContext) {
       db.prepare(`UPDATE acts SET ${side === "give" ? "give_sig" : "take_sig"} = ? WHERE order_id = ? AND stage = ?`).run(JSON.stringify(sig), o.id, stage);
       if (side === "take") db.prepare("UPDATE acts SET closed_at = ? WHERE order_id = ? AND stage = ?").run(sig.at, o.id, stage);
       audit(req, side === "give" ? "act.sign.give" : "act.sign.take", { no: o.no, stage });
-      return view(o, stage);
+      if (side === "take" && stage === "vygruzka") {
+        db.prepare("UPDATE orders SET status = 'delivered' WHERE id = ?").run(o.id);
+        o.status = "delivered";
+        await ctx.onDelivered?.(o.no, req.log);
+      }
+      return view(o, stage, req.staff!);
     });
 
   // Разработка без S3: файлы в памяти, их принимает сам сервер
   if (ctx.store && "files" in ctx.store) {
     const mem = ctx.store as unknown as { files: Map<string, { type: string; data: Buffer }> };
     app.addContentTypeParser(/^(image|video)\//, { parseAs: "buffer", bodyLimit: VIDEO_MAX_BYTES }, (_req, body, done) => done(null, body));
-    app.put<{ Params: { key: string } }>("/api/staff/dev-media/:key", { preHandler: need("acts.edit") }, async (req) => {
+    app.put<{ Params: { key: string } }>("/api/staff/dev-media/:key", { preHandler: needAny("acts.edit", "acts.driver") }, async (req) => {
       mem.files.set(req.params.key, { type: String(req.headers["content-type"]), data: req.body as Buffer });
       return { ok: true };
     });
-    app.get<{ Params: { key: string } }>("/api/staff/dev-media/:key", { preHandler: need("acts.read") }, async (req, reply) => {
+    app.get<{ Params: { key: string } }>("/api/staff/dev-media/:key", { preHandler: needAny("acts.read", "acts.driver") }, async (req, reply) => {
       const f = mem.files.get(req.params.key);
       if (!f) return reply.code(404).send({ error: "Нет файла" });
       return reply.type(f.type).send(f.data);

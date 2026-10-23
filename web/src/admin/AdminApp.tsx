@@ -46,7 +46,7 @@ export function AdminApp({ path }: { path: string }) {
         {allowed.map((m) => (
           <a key={m.id} href={`/admin/${m.id}`} aria-current={m === current ? "page" : undefined}
             onClick={(e) => { e.preventDefault(); navigate(`/admin/${m.id}`); }}>
-            {m.id === "trips" && me.role === "driver" ? "Мои рейсы" : m.id === "drivers" && me.role === "driver" ? "Моя карточка" : m.id === "acts" && me.site === "Новосибирск" ? "Терминал" : m.title}
+            {m.id === "trips" && me.role === "driver" ? "Мои рейсы" : m.id === "drivers" && me.role === "driver" ? "Моя карточка" : m.id === "acts" && me.site === "Новосибирск" ? "Терминал" : m.id === "acts" && me.role === "driver" ? "Погрузка и выдача" : m.title}
           </a>
         ))}
       </nav>

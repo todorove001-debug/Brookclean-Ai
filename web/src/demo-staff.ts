@@ -106,10 +106,12 @@ function view(r: Row): OrderRowView {
     : { ...v, partner: null, tariff: 0, cashback: 0, delivery: 0, value: 0, insurance: 0, total: 0, paidDelivery: false, paidInsurance: false, payTo: "", payForm: "", policyNo: "" };
 }
 /** Приёмщик терминала видит только машины с перегрузом к нему и рейсы, которые их везут. */
-const visible = (r: Row) => { const t = me && terminalOf(me); return !t || r.transfer === t; };
+// Пока погрузка во Владивостоке не закрыта, машина стоит на стоянке Владивостока и терминалу не видна
+const loaded = (r: Row) => !!demoActClosedAt(r.no, "pogruzka");
+const visible = (r: Row) => { const t = me && terminalOf(me); return !t || (r.transfer === t && loaded(r)); };
 const canSee = (t: DemoTrip) => {
   const term = me && terminalOf(me);
-  return term ? rows.some((r) => r.transfer === term && (r.tripId === t.id || r.trip2Id === t.id)) : canSeeAll(t);
+  return term ? rows.some((r) => r.transfer === term && loaded(r) && (r.tripId === t.id || r.trip2Id === t.id)) : canSeeAll(t);
 };
 const canSeeAll = (t: DemoTrip) => !!me && (can(me.role, "trips.read") || can(me.role, "reports.read") || (can(me.role, "trips.driver") && t.driverId === me.id));
 const canEdit = (t: DemoTrip) => !!me && (can(me.role, "trips.edit") || (can(me.role, "trips.driver") && t.driverId === me.id && !t.closedAt));

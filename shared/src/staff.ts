@@ -24,6 +24,7 @@ export const PERMISSIONS = {
   "orders.money": "Видеть стоимость перевозки, оплаты и кэшбэк",
   "drivers.site": "Свои водители терминала (у приёмщика Новосибирска)",
   "partner.self": "Кабинет партнёра: свои ссылки с кэшбэком и свои клиенты",
+  "acts.driver": "Передачи машин своего рейса: погрузка, выдача получателю, подписи",
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -37,7 +38,7 @@ export const ROLES = {
   },
   accountant: { name: "Бухгалтер", perms: ["orders.read", "orders.personal", "orders.money", "payments.edit", "reports.read"] },
   acceptor: { name: "Приёмщик", perms: ["orders.read", "orders.personal", "trips.read", "acts.read", "acts.edit", "drivers.site"] },
-  driver: { name: "Водитель", perms: ["trips.driver"] },
+  driver: { name: "Водитель", perms: ["trips.driver", "acts.driver"] },
   partner: { name: "Партнёр", perms: ["partner.self"] },
 } satisfies Record<string, { name: string; perms: Permission[] }>;
 

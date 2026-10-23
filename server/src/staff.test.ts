@@ -256,7 +256,14 @@ test("приёмщик терминала: только машины с пере
   const trip = (await app.inject({ method: "POST", url: "/api/staff/trips", headers: h, payload: { dest: "Новосибирск", truck: "Volvo FH", driver: "Сергей" } })).json();
   assert.equal((await app.inject({ method: "PATCH", url: `/api/staff/orders/${far}`, headers: h, payload: { transfer: "Новосибирск", tripId: trip.id } })).statusCode, 200);
 
-  // Стоянка Владивостока ему не видна: только машина с перегрузом, без цены, с примечанием
+  // Пока машина на стоянке Владивостока (погрузка не закрыта), терминал её не видит
+  assert.deepEqual((await app.inject({ url: "/api/staff/orders", headers: th })).json(), []);
+  assert.deepEqual((await app.inject({ url: "/api/staff/trips", headers: th })).json(), []);
+  const farId = (db.prepare("SELECT id FROM orders WHERE no = ?").get(far) as { id: string }).id;
+  db.prepare("INSERT INTO acts (order_id, stage, created_at, details, give_name, take_name, closed_at) VALUES (?, 'pogruzka', ?, '{}', 'Ольга', 'Сергей', ?)")
+    .run(farId, "2026-10-21T08:00:00Z", "2026-10-21T08:30:00Z");
+
+  // Погрузили: только машина с перегрузом, без цены, с примечанием
   const rows = (await app.inject({ url: "/api/staff/orders", headers: th })).json();
   assert.deepEqual(rows.map((r: { no: number }) => r.no), [far]);
   assert.equal(rows[0].delivery, 0);
