@@ -257,6 +257,10 @@ table.sheet{border-collapse:collapse;font-size:13px;min-width:1500px;width:100%}
 .hist{margin:4px 0 0;padding-left:4px;list-style:none;display:flex;flex-direction:column;gap:3px;font-size:12px}
 .sigthumb{width:110px;height:36px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:4px;display:block}
 .diagram .mark{pointer-events:none}
+/* ledger */
+.lline{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+.lline.total{border-bottom:0;font-size:16px}
+.lline.total b{font-family:var(--f-display)}
 /* handover */
 .check input[type=radio]{width:20px;height:20px;margin-top:1px;accent-color:var(--accent);flex:none}
 .stop.term .dot{border-radius:4px;border-color:var(--accent)}
@@ -347,7 +351,7 @@ const KM_PER_DAY = 600;
 
 /* ===== Состояние ===== */
 const S = {
-  view:"client", step:0, nextNo:687, drivers:[], drvOpen:null, termPays:[], lastTp:null, trPrice:{date:"15.09.2026",rows:{"Сочи":[90000,95000,100000,105000],"Краснодар":[60000,65000,70000,75000],"Ростов-на-Дону":[60000,65000,70000,75000],"Волгоград":[60000,65000,70000,75000],"Воронеж":[60000,65000,70000,75000],"Саратов":[60000,65000,70000,75000],"Архангельск":[150000,155000,160000,165000],"Петрозаводск":[100000,100000,105000,110000],"Санкт-Петербург":[60000,65000,70000,75000],"Москва":[45000,50000,55000,60000],"Владимир":[45000,50000,55000,60000],"Рязань":[50000,55000,60000,65000],"Нижний Новгород":[45000,50000,55000,60000],"Пенза":[50000,55000,60000,65000],"Чебоксары":[45000,50000,55000,60000],"Казань":[45000,50000,55000,60000],"Ульяновск":[45000,50000,55000,60000],"Киров":[45000,50000,55000,60000],"Набережные Челны":[45000,50000,55000,60000],"Ижевск":[45000,50000,55000,60000],"Пермь":[45000,50000,55000,60000],"Новый Уренгой":[85000,85000,90000,95000],"Нижневартовск":[75000,75000,80000,85000],"Ханты-Мансийск":[75000,75000,80000,85000],"Сургут":[55000,58000,60000,65000],"Екатеринбург":[30000,30000,35000,35000],"Тюмень":[30000,30000,35000,35000],"Оренбург":[55000,55000,60000,65000],"Тольятти":[30000,30000,35000,40000],"Самара":[30000,30000,35000,40000],"Уфа":[30000,30000,35000,40000],"Челябинск":[30000,30000,35000,40000],"Курган":[30000,30000,35000,40000],"Омск":[15000,15000,18000,22000],"Барнаул":[27000,27000,27000,27000]}}, settings:{termOutRule:"byStay",directWaitDays:5}, partner:null, cashback:0, partnerLink:null,
+  view:"client", step:0, nextNo:687, termIn:[], companies:[], drvTab:"drivers", compOpen:null, drivers:[], drvOpen:null, termPays:[], lastTp:null, trPrice:{date:"15.09.2026",rows:{"Сочи":[90000,95000,100000,105000],"Краснодар":[60000,65000,70000,75000],"Ростов-на-Дону":[60000,65000,70000,75000],"Волгоград":[60000,65000,70000,75000],"Воронеж":[60000,65000,70000,75000],"Саратов":[60000,65000,70000,75000],"Архангельск":[150000,155000,160000,165000],"Петрозаводск":[100000,100000,105000,110000],"Санкт-Петербург":[60000,65000,70000,75000],"Москва":[45000,50000,55000,60000],"Владимир":[45000,50000,55000,60000],"Рязань":[50000,55000,60000,65000],"Нижний Новгород":[45000,50000,55000,60000],"Пенза":[50000,55000,60000,65000],"Чебоксары":[45000,50000,55000,60000],"Казань":[45000,50000,55000,60000],"Ульяновск":[45000,50000,55000,60000],"Киров":[45000,50000,55000,60000],"Набережные Челны":[45000,50000,55000,60000],"Ижевск":[45000,50000,55000,60000],"Пермь":[45000,50000,55000,60000],"Новый Уренгой":[85000,85000,90000,95000],"Нижневартовск":[75000,75000,80000,85000],"Ханты-Мансийск":[75000,75000,80000,85000],"Сургут":[55000,58000,60000,65000],"Екатеринбург":[30000,30000,35000,35000],"Тюмень":[30000,30000,35000,35000],"Оренбург":[55000,55000,60000,65000],"Тольятти":[30000,30000,35000,40000],"Самара":[30000,30000,35000,40000],"Уфа":[30000,30000,35000,40000],"Челябинск":[30000,30000,35000,40000],"Курган":[30000,30000,35000,40000],"Омск":[15000,15000,18000,22000],"Барнаул":[27000,27000,27000,27000]}}, settings:{termOutRule:"byStay",directWaitDays:5}, partner:null, cashback:0, partnerLink:null,
   f:{car:"Toyota Prius",vin:"ZVW51-6123456",year:"2021",color:"Белый",body:"sedan",value:"1600000",city:"Новосибирск",
      fio:"Иванов Пётр Сергеевич",phone:"+7 913 555 12 34",pser:"5012",pnum:"345678",pissued:"ГУ МВД России по Новосибирской обл.",pdate:"2019-06-14",addr:"г. Новосибирск, ул. Кирова, д. 10, кв. 5"},
   example:true, errs:{}, agree:{contract:false,pep:false,pd:false},
@@ -379,7 +383,16 @@ function seed(){
     D("u6","u6",true,"Ким Олег Сергеевич","+7 914 000-77-88","Shacman X3000","Т 418 ОР 54","LOHR S2M52X","АР 3317 54"),
     D("h1",null,false,"Гаврилов Игорь Петрович","+7 924 000-12-34","Sitrak C7H","Р 117 ТТ 125","LUXUDA LZC9407BG","ОО 7781 25",{name:"ИП Гаврилов И. П. (пример)",inn:"253700000000",phone:"+7 924 000-12-34"}),
     D("h2",null,true,"Лебедев Павел Андреевич","+7 914 000-90-12","Volvo FH","К 230 НС 125","LOHR S2M52X","АН 4410 25"),
+    D("n1",null,false,"Сорокин Артём Игоревич","+7 913 000-41-15","Volvo FH","Е 512 КС 154","LOHR S2M52X","АО 7712 54"),
+    D("n2",null,false,"Мельников Денис Олегович","+7 913 000-77-30","Sitrak C7H","К 908 НТ 54","LUXUDA LZC9407BG","АР 1290 54"),
   ];
+  S.drivers.forEach(d=>d.base=d.id[0]==="n"?"Новосибирск":"common");
+  S.orders.filter(o=>o.city==="Новосибирск").forEach(o=>o.payTo=TERM_PAYTO);
+  S.companies=[
+    {id:"c1",base:"common",name:"Индивидуальный предприниматель Гаврилов Игорь Петрович (пример)",short:"ИП Гаврилов И. П. (пример)",inn:"253700000000",kpp:"",ogrn:"",address:"",director:"Гаврилов Игорь Петрович",phone:"+7 924 000-12-34",email:"",bank:"",bik:"",account:"",corr:"",doc:null},
+    {id:"c2",base:"common",name:"Общество с ограниченной ответственностью «Сибирь-Транзит» (пример)",short:"ООО «Сибирь-Транзит» (пример)",inn:"5406000000",kpp:"540601001",ogrn:"",address:"",director:"",phone:"+7 383 000-00-00",email:"",bank:"",bik:"",account:"",corr:"",doc:null},
+    {id:"c3",base:"Новосибирск",name:"Общество с ограниченной ответственностью «Сиб-Автовоз» (пример)",short:"ООО «Сиб-Автовоз» (пример)",inn:"5405000137",kpp:"540501001",ogrn:"",address:"г. Новосибирск",director:"",phone:"+7 383 000-11-22",email:"",bank:"",bik:"",account:"",corr:"",doc:null}];
+  [["h1","c1"],["u4","c2"],["n1","c3"],["n2","c3"]].forEach(([d,c])=>{const x=S.drivers.find(y=>y.id===d);x.companyId=c;x.company={name:S.companies.find(y=>y.id===c).short,inn:S.companies.find(y=>y.id===c).inn,phone:S.companies.find(y=>y.id===c).phone}});
   S.users=[
     {id:"u1",role:"manager",name:"Тодоров Евгений Константинович",short:"Е. Тодоров",login:"79502815555",pass:"demo1234",status:"active"},
     {id:"u2",role:"driver",name:"Петров Сергей Иванович",short:"Сергей П.",login:"79140001122",pass:"demo1234",status:"active",license:"25 31 123456"},
@@ -780,7 +793,7 @@ function vTerminal(){
         <br><button class="linkbtn" data-act="yard-shift" data-no="${o.no}" style="font-size:12px">Демо: +1 сутки стоянки</button></span>
         <span style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">${t2?`<span class="pill info">рейс ${t2.id} · погрузка ${t2.loadDate}</span><small class="muted">${esc(t2.driver)} · ${esc(t2.truck)}</small>`:`<span class="pill warn">рейс дальше не назначен</span>`}
         ${hs.started?`<small class="muted">погрузка: фото ${hs.pc}/10</small>`:""}
-        <button class="btn sm ghost" data-act="ho-open" data-stage="term_in" data-no="${o.no}">Акт приёма</button></span></div>`}).join("")||`<p class="muted" style="margin:0">Площадка пуста.</p>`}</div>
+        <span class="inline" style="gap:4px;justify-content:flex-end"><button class="btn sm ghost" data-act="ho-open" data-stage="term_in" data-no="${o.no}">Акт приёма</button>${t2?`<button class="btn sm primary" data-act="ho-open" data-stage="term_out" data-no="${o.no}">Отгрузка водителю</button>`:""}</span></span></div>`}).join("")||`<p class="muted" style="margin:0">Площадка пуста.</p>`}</div>
      <div class="muted" style="font-size:12px">Рейс дальше формирует менеджер. Погрузку с терминала снимает водитель следующего рейса в своём кабинете.</div></div>
      ${gone.length?`<div class="card"><h3>Отгружены</h3><div class="plist">${gone.map(o=>`<div class="pi"><span>${carLine(o)}</span><span class="pill ok">${esc(hoOf(o,"term_out").doneAt)}</span></div>`).join("")}</div></div>`:""}`;
   return vProfile();
@@ -816,7 +829,7 @@ function vManager(part){
        ${notLeft(t)?(tripFormed(t)?`<button class="btn sm ghost" data-act="trip-unform" data-trip="${t.id}">Вернуть в формирование</button>`:`<button class="btn sm primary" data-act="trip-form" data-trip="${t.id}" ${on.length&&t.driverId?"":"disabled"}>Сформировать рейс</button>`):""}
        ${tripFormed(t)?`<button class="btn sm ghost" data-act="deliv-trip" data-trip="${t.id}">Таблица доставок</button>`:""}</div>
      ${!tripFormed(t)&&(!on.length||!t.driverId)?`<div class="muted" style="font-size:12px">Чтобы сформировать рейс, нужны водитель и хотя бы одна машина.</div>`:""}
-     <div class="inline"><label for="drv-${t.id}" style="font-size:13px;font-weight:500">Водитель</label><select id="drv-${t.id}" data-assign="${t.id}"><option value="">— не назначен —</option>${S.drivers.filter(drvActive).map(d=>`<option value="${d.id}" ${d.id===t.driverId?"selected":""}>${esc(d.name)} · ${esc(d.tractor.plate||"без номера")}${d.own?"":" · наёмный"}</option>`).join("")}</select></div>
+     <div class="inline"><label for="drv-${t.id}" style="font-size:13px;font-weight:500">Водитель</label><select id="drv-${t.id}" data-assign="${t.id}"><option value="">— не назначен —</option>${S.drivers.filter(drvActive).map(d=>`<option value="${d.id}" ${d.id===t.driverId?"selected":""}>${esc(d.name)} · ${esc(d.tractor.plate||"без номера")}${d.own?"":" · наёмный"}${d.base&&d.base!=="common"?" · база "+esc(d.base):""}</option>`).join("")}</select></div>
      <div class="trip-orders">${on.map(o=>{const cps=checkpointsOf(o),d=cps.filter(c=>cpDone(o,c.id)).length,leg=legsOf(o).find(l=>l.trip===t.id);
        return `<button class="pill ${o.delivered?"ok":d?"info":"gray"} chipbtn" data-act="ho-view" data-no="${o.no}">№${o.no} ${esc(o.car)} → ${esc(leg.to)}${o.transfer?" · перегрузка":""} · этапы ${d}/${cps.length}</button>`}).join("")||`<span class="muted" style="font-size:13px">Нет машин</span>`}</div>
      <div class="inline"><select id="pos-${t.id}" aria-label="Текущая точка рейса ${t.id}">${route.map(c=>`<option ${NET[c][1]===t.km?"selected":""}>${c}</option>`).join("")}</select>
@@ -857,10 +870,10 @@ function emptyDraft(){return {d:today(),time:"",cat:"fuel",seller:"",city:"",des
 /* --- Кабинеты сотрудников --- */
 const ROLE={manager:"Менеджер",driver:"Водитель",partner:"Партнёр",terminal:"Терминал"};
 const SUBS={
-  manager:[["orders","Стоянка"],["deliv","Доставки"],["trips","Рейсы"],["termbal","Терминал Нск"],["drivers","Водители"],["reports","Отчёты водителей"],["staff","Сотрудники"],["settings","Настройки"]],
+  manager:[["orders","Стоянка"],["deliv","Доставки"],["trips","Рейсы"],["termbal","Терминал Нск"],["drivers","Водители"],["ledger","Дебет / кредит"],["reports","Отчёты водителей"],["staff","Сотрудники"],["settings","Настройки"]],
   driver:[["report","Рейсовый отчёт"],["trip","Мой рейс"],["profile","Профиль"]],
   partner:[["links","Ссылки и клиенты"],["profile","Профиль"]],
-  terminal:[["incoming","Прибывают"],["yard","На площадке"],["drivers","Водители"],["profile","Профиль"]]
+  terminal:[["incoming","Прибывают"],["yard","На площадке"],["drivers","Водители"],["settle","Дебет / кредит"],["profile","Профиль"]]
 };
 const USER_ST={active:["Активен","ok"],pending:["Ждёт подтверждения","warn"],blocked:["Заблокирован","err"],rejected:["Отклонён","gray"]};
 const REP_ST={draft:["Черновик","gray"],submitted:["На проверке","warn"],accepted:["Принят","ok"],returned:["Возвращён на доработку","err"]};
@@ -888,10 +901,10 @@ function vCab(){
   const badge=k=>u.role!=="manager"?"":k==="staff"&&pend?`<span class="badge">${pend}</span>`:k==="reports"&&waiting?`<span class="badge">${waiting}</span>`:"";
   const nav=`<nav class="subnav" aria-label="Разделы кабинета">${subs.map(([k,l])=>`<button class="subtab" data-sub="${k}" aria-current="${S.sub===k}">${l}${badge(k)}</button>`).join("")}<button class="subtab out" data-act="logout">Выйти</button></nav>`;
   let body="";
-  if(u.role==="manager")body=S.mgrHo?vMediaView():S.sub==="orders"?vManager("orders"):S.sub==="deliv"?`<div class="mgr">${vDeliveries()}</div>`:S.sub==="termbal"?`<div class="mgr">${vTermBalance()}</div>`:S.sub==="drivers"?`<div class="mgr">${vDriversPage()}</div>`:S.sub==="trips"?vManager("trips"):S.sub==="reports"?vMgrReports():S.sub==="settings"?vSettings():vStaff();
+  if(u.role==="manager")body=S.mgrHo?vMediaView():S.sub==="orders"?vManager("orders"):S.sub==="deliv"?`<div class="mgr">${vDeliveries()}</div>`:S.sub==="termbal"?`<div class="mgr">${vTermBalance()}</div>`:S.sub==="drivers"?`<div class="mgr">${vDriversPage()}</div>`:S.sub==="ledger"?`<div class="mgr">${vTermSettle()}</div>`:S.sub==="trips"?vManager("trips"):S.sub==="reports"?vMgrReports():S.sub==="settings"?vSettings():vStaff();
   if(u.role==="driver")body=S.sub==="report"?vDriverReport():S.sub==="trip"?vDriverTrip():vProfile();
   if(u.role==="partner")body=S.sub==="links"?vPartner():vProfile();
-  if(u.role==="terminal")body=S.sub==="drivers"&&!S.ho?vDriversPage():vTerminal();
+  if(u.role==="terminal")body=S.sub==="drivers"&&!S.ho?vDriversPage():S.sub==="settle"&&!S.ho?`<div class="mgr">${vTermSettle()}</div>`:vTerminal();
   return u.role==="manager"?`<div class="mgr">${nav}${body}</div>`:`<div class="col">${nav}${body}</div>`;
 }
 
@@ -1580,7 +1593,7 @@ const trailerStr=d=>[d.trailer.model,d.trailer.plate].filter(Boolean).join(" · 
 function drvActive(d){const u=S.users.find(x=>x.id===d.userId);return !u||u.status==="active"}
 function docCount(d){return DOC_KEYS.filter(k=>d.docs[k]&&d.docs[k].status==="done").length}
 function licExpired(d){const v=(d.data.lic||{}).valid_until;return v&&dKey(v)&&dKey(v)<dKey(today())}
-function newDriver(own){const d={id:"h"+(S.drivers.length+1),userId:null,own,name:"Новый водитель",phone:"",company:{name:"",inn:"",phone:""},tractor:{model:"",plate:""},trailer:{model:"",plate:""},docs:{},data:{}};S.drivers.push(d);return d}
+function newDriver(own){const d={id:"h"+(S.drivers.length+1),base:myBase(),userId:null,own,name:"Новый водитель",phone:"",company:{name:"",inn:"",phone:""},tractor:{model:"",plate:""},trailer:{model:"",plate:""},docs:{},data:{}};S.drivers.push(d);return d}
 function applyDoc(d,k,r){
   d.data[k]={...(d.data[k]||{}),...r};
   if(k==="p1"&&r.last_name){const n=[r.last_name,r.first_name,r.middle_name].filter(Boolean).join(" ");if(n)d.name=n}
@@ -1602,7 +1615,7 @@ async function readDoc(id,k,file){
   catch(e){if(e&&["not_granted","images_unavailable","sampling_disabled"].includes(e.code))AI.images=false;fin("manual","Распознать не удалось. Заполните поля ниже по фото.")}
 }
 function demoDoc(id,k){
-  const d=drvOf(id),p=d.name.split(/\s+/),seed=d.id.charCodeAt(1)*7;
+  const d=drvOf(id),p=(d.name==="Новый водитель"?"Иванов Пётр Сергеевич":d.name).split(/\s+/),seed=d.id.charCodeAt(1)*7;
   const ex={p1:{last_name:p[0]||"Иванов",first_name:p[1]||"Иван",middle_name:p[2]||"Иванович",birth_date:"14.03.1984",birth_place:"г. Владивосток",series:"05"+(10+seed%80),number:String(400000+seed*137%500000),issued_by:"УМВД России по Приморскому краю",issue_date:"22.05.2019",code:"250-001"},
     p2:{address:"Приморский край, г. Владивосток, ул. Светланская, д. "+(10+seed%90)+", кв. "+(seed%60+1),reg_date:"03.06.2019"},
     lic:{number:"25 31 "+String(100000+seed*91%800000),categories:"B, C, CE",issue_date:"11.09.2018",valid_until:"11.09.2028",birth_date:"14.03.1984"},
@@ -1614,7 +1627,7 @@ function demoDoc(id,k){
 }
 function vDriversList(){
   const q=(S.drvQ||"").toLowerCase(), fl=S.drvF||"all";
-  const list=S.drivers.filter(d=>(fl==="all"||(fl==="own")===d.own)&&(!q||[d.name,d.phone,d.tractor.model,d.tractor.plate,d.trailer.model,d.trailer.plate,d.company.name,d.company.inn,d.group].join(" ").toLowerCase().includes(q)));
+  const vis=visDrivers(), list=vis.filter(d=>(fl==="all"||(fl==="own")===d.own)&&(!q||[d.name,d.phone,d.tractor.model,d.tractor.plate,d.trailer.model,d.trailer.plate,d.company.name,d.company.inn,d.group].join(" ").toLowerCase().includes(q)));
   const rows=list.map(d=>{const t=S.trips.find(x=>x.driverId===d.id),u=S.users.find(x=>x.id===d.userId);
     return `<tr><td><button class="linkbtn" data-act="drv-open" data-id="${d.id}">${esc(d.name)}</button>${u&&u.status!=="active"?` <span class="pill ${USER_ST[u.status][1]}">${USER_ST[u.status][0]}</span>`:""}</td>
       <td><span class="pill ${d.own?"info":"warn"}">${d.own?"свой":"наёмный"}</span></td>
@@ -1625,11 +1638,13 @@ function vDriversList(){
       <td class="mono">${esc((d.data.lic||{}).number||"—")}${licExpired(d)?` <span class="pill err">просрочено</span>`:(d.data.lic||{}).valid_until?`<br><small class="muted">до ${esc(d.data.lic.valid_until)}</small>`:""}</td>
       <td><span class="pill ${docCount(d)===DOC_KEYS.length?"ok":docCount(d)?"warn":"gray"}">${docCount(d)}/${DOC_KEYS.length}</span>${d.fromXls?`<br><small class="muted">из Excel</small>`:""}</td>
       <td>${t?t.id:"—"}</td></tr>`}).join("");
-  return `<div class="card"><div class="sheet-head"><h3>Водители · ${list.length}${list.length!==S.drivers.length?" из "+S.drivers.length:""}</h3>
+  const mgr=me()&&me().role==="manager";
+  return `<div class="card"><div class="sheet-head"><h3>Водители · ${list.length}${list.length!==vis.length?" из "+vis.length:""}${mgr?"":` <small class="muted" style="font-weight:400">· ${BASE_NAME(myBase())}</small>`}</h3>
       <div class="inline"><label class="btn sm ghost filelabel" for="drv-xls">Импорт из Excel</label><input type="file" id="drv-xls" class="sr" accept=".xlsx,.xls">
-        <button class="btn sm ghost" data-act="drv-new" data-own="1">+ Свой водитель</button><button class="btn sm dark" data-act="drv-new" data-own="0">+ Наёмный водитель</button></div></div>
+        ${myBase()==="common"?`<button class="btn sm ghost" data-act="drv-new" data-own="1">+ Свой водитель</button>`:""}<button class="btn sm dark" data-act="drv-new" data-own="0" data-photo="1">+ Водитель по фото документов</button></div></div>
+    ${mgr?`<div class="inline">${[["all","Все базы"],["common","Общая"],["Новосибирск","Терминал Нск"]].map(([k,l])=>`<button class="subtab" data-act="drv-base" data-b="${k}" aria-current="${(S.drvBase||"all")===k}">${l}</button>`).join("")}</div>`:""}
     <div class="inline"><input class="cellin" id="drv-q" placeholder="Поиск: ФИО, госномер, компания, телефон" value="${esc(S.drvQ||"")}" style="max-width:340px">
-      ${[["all","Все"],["own","Свои"],["hired","Наёмные"]].map(([k,l])=>`<button class="subtab" data-act="drv-f" data-f="${k}" aria-current="${fl===k}">${l} · ${k==="all"?S.drivers.length:S.drivers.filter(d=>(k==="own")===d.own).length}</button>`).join("")}</div>
+      ${[["all","Все"],["own","Свои"],["hired","Наёмные"]].map(([k,l])=>`<button class="subtab" data-act="drv-f" data-f="${k}" aria-current="${fl===k}">${l} · ${k==="all"?vis.length:vis.filter(d=>(k==="own")===d.own).length}</button>`).join("")}</div>
     <div class="tablewrap" style="max-height:640px;overflow:auto"><table class="exp" style="min-width:980px"><thead><tr><th>Водитель</th><th>Тип</th><th>Компания / автопарк</th><th>Телефон</th><th>Тягач</th><th>Прицеп</th><th>ВУ</th><th>Документы</th><th>Рейс</th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="muted" style="font-size:12px">При назначении водителя на рейс или в акт приёмки его тягач, прицеп и компания подставляются автоматически. Данные документов распознаются по фото в карточке водителя.</div></div>`;
 }
@@ -1656,10 +1671,15 @@ function vDriverCard(d,self){
      <div class="row2">${inp("trailer.model","Прицеп · марка, модель",d.trailer.model)}${inp("trailer.plate","Прицеп · госномер",d.trailer.plate,'class="mono"')}</div>
    </div>
    ${d.own?"":`<div class="card"><h3>Компания-перевозчик</h3>
-     <div class="row2">${inp("company.name","Название",d.company.name)}${inp("company.inn","ИНН",d.company.inn,'inputmode="numeric"')}</div>
+     <div class="field"><label for="dcomp-${d.id}">Компания из списка</label><select id="dcomp-${d.id}" data-dcomp="${d.id}"><option value="">— не выбрана, ввести вручную —</option>${visCompanies().map(c=>`<option value="${c.id}" ${c.id===d.companyId?"selected":""}>${esc(compName(c))}${c.inn?" · ИНН "+esc(c.inn):""}</option>`).join("")}</select></div>
+     ${d.companyId&&compOf(d.companyId)?`<dl class="kv" style="grid-template-columns:auto minmax(0,1fr)"><dt>ИНН / КПП</dt><dd>${esc(compOf(d.companyId).inn||"—")} ${esc(compOf(d.companyId).kpp||"")}</dd><dt>Руководитель</dt><dd>${esc(compOf(d.companyId).director||"—")}</dd><dt>Телефон</dt><dd>${esc(compOf(d.companyId).phone||"—")}</dd></dl>
+       <button class="linkbtn" data-act="comp-open" data-id="${d.companyId}" style="align-self:flex-start">Открыть карточку компании</button>`
+      :`<div class="row2">${inp("company.name","Название",d.company.name)}${inp("company.inn","ИНН",d.company.inn,'inputmode="numeric"')}</div>
      ${inp("company.phone","Телефон диспетчера / руководителя",d.company.phone,'inputmode="tel"')}
+     <button class="btn sm dark" data-act="comp-newfor" data-id="${d.id}" style="align-self:flex-start">Создать карточку компании по фото</button>`}
    </div>`}
-   <div class="card"><h3>Документы по фото</h3>
+   <div class="card" id="docs-${d.id}"><h3>Документы по фото</h3>
+     ${d.name==="Новый водитель"?`<div class="callout info">Начните с паспорта: ФИО и паспортные данные заполнятся сами. Затем ВУ и обе СТС — подставятся тягач и прицеп.</div>`:""}
      <p class="muted" style="margin:0;font-size:13px">${AI.fn&&AI.images?"Сфотографируйте документ — Claude прочитает данные и заполнит поля. Проверьте и при необходимости поправьте.":"Автораспознавание работает, когда страница открыта в Claude. Здесь можно сохранить фото и заполнить поля вручную."}</p>
      <div class="shots">${DOC_KEYS.map(slot).join("")}</div></div>
    ${dataBlock(["p1","p2"],"Паспорт")}
@@ -1668,8 +1688,11 @@ function vDriverCard(d,self){
    ${dataBlock(["t2f","t2b"],"СТС прицепа")}`;
 }
 function vDriversPage(){
-  const d=S.drvOpen&&drvOf(S.drvOpen);
-  return d?`<div class="col" style="max-width:860px;margin:0">${vDriverCard(d,false)}</div>`:vDriversList();
+  const d=S.drvOpen&&drvOf(S.drvOpen), c=S.compOpen&&compOf(S.compOpen);
+  if(c)return vCompanyCard(c);
+  if(d)return `<div class="col" style="max-width:860px;margin:0">${vDriverCard(d,false)}</div>`;
+  return `<div class="inline">${[["drivers","Водители"],["companies","Компании"]].map(([k,l])=>`<button class="subtab" data-act="drv-tab" data-t="${k}" aria-current="${(S.drvTab||"drivers")===k}">${l}</button>`).join("")}</div>
+    ${(S.drvTab||"drivers")==="companies"?vCompaniesList():vDriversList()}`;
 }
 // блок водителя в акте приёмки: выбор из реестра, данные подставляются сами
 function vHoDriver(o,st,h,ro){
@@ -1854,6 +1877,8 @@ function vActSection(o,st,ro){
     <div class="sheet-head"><div><div class="eyebrow">Акт приёма-передачи · раздел ${num} из ${cps.length}</div><h3 style="font-size:17px">${esc(STAGES[st].title)}</h3>
       <div class="muted" style="font-size:13px">к договору № ${o.no} от ${esc(o.date)} · ${esc(hoOf(o,st).place)} · ${esc(hoOf(o,st).date)}</div></div><img src="${LOGO_IMG}" alt="Brookclean Trucks" class="actlogo"></div>
     <div class="chainbar">${cps.map(cp=>{const x=secOf(o,cp.id);return `<span class="chainstep ${x.closedAt?"done":cp.id===st?"cur":""}" style="--c:${stageColor(o,cp.id)}">${secNum(o,cp.id)} · ${esc(STAGES[cp.id].name)}${x.closedAt?" ✓":""}</span>`}).join("")}</div>
+    ${st==="term_out"&&edit&&me()&&me().role==="terminal"&&legTrip(o,1)?`<div class="field"><label for="t2drv">Водитель рейса ${legTrip(o,1).id} — из вашей базы</label><select id="t2drv" data-t2drv="${o.no}"><option value="">— выберите водителя —</option>${visDrivers().filter(drvActive).map(d=>`<option value="${d.id}" ${d.id===legTrip(o,1).driverId?"selected":""}>${esc(d.name)} · ${esc(d.tractor.plate||"без номера")}${d.company.name?" · "+esc(d.company.name):""}</option>`).join("")}</select>
+      <small class="muted">Тягач, прицеп и компания подставятся в рейс. Нет водителя в базе — добавьте его во вкладке «Водители» по фото документов.</small></div>`:""}
     <div class="transfer"><div><small class="muted">Сдаёт</small><b>${esc(s.giveName)}</b><small>${esc(s.giveRole)}</small></div><span aria-hidden="true">→</span><div><small class="muted">Принимает</small><b>${esc(s.takeName)}</b><small>${esc(s.takeRole)}</small></div></div>
     ${edit?`<details><summary class="muted" style="font-size:13px;cursor:pointer">Изменить ФИО сторон (представитель, доверенность)</summary><div class="row2">
       <div class="field"><label for="sn-give">Сдаёт</label><input id="sn-give" data-sn="giveName" value="${esc(s.giveName)}"></div><div class="field"><label for="sn-take">Принимает</label><input id="sn-take" data-sn="takeName" value="${esc(s.takeName)}"></div></div></details>`:""}
@@ -1944,6 +1969,104 @@ function completeStage(o,st){const h=hoOf(o,st),hs=hoStat(o,st),cp=checkpointsOf
   S.ho=null;render();window.scrollTo(0,0);
   toast(st==="term_out"&&o.transfer?`№${o.no} погружен с терминала. В долг терминалу начислено ${trCostOf(o)==null?"— нет цены перегруза":rub(trCostOf(o))}`:`№${o.no}: ${what.toLowerCase()}. Ответственность — ${s.takeName}`)}
 function sealSec(o,st,at){const s=secOf(o,st);s.give={img:demoSig(s.giveName),at,device:s.giveName};s.take={img:demoSig(s.takeName),at,device:s.takeName};s.closedAt=at}
+/* базы водителей: общая и база терминала Новосибирск; компании-перевозчики с распознаванием карточки предприятия */
+const COMP_FIELDS=[["name","Полное наименование"],["short","Краткое наименование"],["inn","ИНН"],["kpp","КПП"],["ogrn","ОГРН / ОГРНИП"],["address","Юридический адрес"],["director","Руководитель"],["phone","Телефон"],["email","Email"],["bank","Банк"],["bik","БИК"],["account","Расчётный счёт"],["corr","Корр. счёт"]];
+const BASE_NAME=b=>b&&b!=="common"?"база терминала "+b:"общая база";
+function myBase(){const u=me();return u&&u.role==="terminal"&&u.terminal!=="Владивосток"?u.terminal:"common"}
+function inMyView(x){const u=me();if(u&&u.role==="manager")return !S.drvBase||S.drvBase==="all"||(x.base||"common")===S.drvBase;return (x.base||"common")===myBase()}
+function visDrivers(){return S.drivers.filter(inMyView)}
+function visCompanies(){return S.companies.filter(inMyView)}
+function compOf(id){return S.companies.find(c=>c.id===id)}
+function compName(c){return c.short||c.name||"Компания без названия"}
+function newCompany(){const c={id:"c"+(S.companies.length+1),base:myBase(),doc:null};COMP_FIELDS.forEach(([k])=>c[k]="");S.companies.push(c);return c}
+function linkCompany(d,c){d.companyId=c?c.id:null;if(c){d.own=false;d.company={name:compName(c),inn:c.inn,phone:c.phone}}syncTrips(d)}
+function syncCompany(c){S.drivers.filter(d=>d.companyId===c.id).forEach(d=>linkCompany(d,c))}
+async function readCompanyDoc(id,file){
+  const c=compOf(id);if(!/^image\//.test(file.type)){toast("Нужна фотография карточки компании");return}
+  const url=URL.createObjectURL(file);c.doc={url,status:"reading"};render();
+  const fin=(st,msg)=>{if(c.doc.url!==url)return;c.doc={url,status:st,msg};render()};
+  if(!(AI.fn&&AI.images)){fin("manual","Автораспознавание работает, когда страница открыта в Claude. Заполните поля по фото.");return}
+  const prompt=`На фото — карточка предприятия (реквизиты организации или ИП, Россия). Прочитай и верни только JSON-объект с полями: ${COMP_FIELDS.map(([k,l])=>`"${k}" (${l})`).join(", ")}. Если поле не видно — null. Если на фото не реквизиты компании — {"error":"wrong_doc"}.`;
+  try{const r=await AI.fn.json(prompt,{images:[file]});
+    if(!r||r.error){fin("error","На фото не видно реквизитов компании. Сфотографируйте карточку целиком.");return}
+    COMP_FIELDS.forEach(([k])=>{if(r[k]!=null&&r[k]!=="")c[k]=String(r[k])});syncCompany(c);fin("done","Распознано — проверьте поля")}
+  catch(e){fin("manual","Распознать не удалось. Заполните поля по фото.")}
+}
+function demoCompany(id){const c=compOf(id),n=+id.slice(1)||1;
+  Object.assign(c,{name:c.name||`Общество с ограниченной ответственностью «Сиб-Автовоз ${n}» (пример)`,short:c.short||`ООО «Сиб-Автовоз ${n}» (пример)`,inn:c.inn||"54050"+String(10000+n*137).slice(-5),kpp:c.kpp||"540501001",ogrn:c.ogrn||"11554760"+String(10000+n*91).slice(-5),
+    address:c.address||"630008, г. Новосибирск, ул. Станционная, д. "+(10+n),director:c.director||"Генеральный директор Карпов Илья Сергеевич",phone:c.phone||"+7 383 000-1"+String(n).padStart(3,"0"),email:c.email||"office@example.ru",
+    bank:c.bank||"Сибирский банк ПАО Сбербанк (пример)",bik:c.bik||"045004641",account:c.account||"40702810"+String(440000000000+n*7919).slice(-12),corr:c.corr||"30101810500000000641"});
+  c.doc={url:null,status:"done",demo:true,msg:"Демо: поля заполнены примером"};syncCompany(c)}
+function vCompaniesList(){
+  const list=visCompanies(),rows=list.map(c=>{const n=S.drivers.filter(d=>d.companyId===c.id).length;
+    return `<tr><td><button class="linkbtn" data-act="comp-open" data-id="${c.id}">${esc(compName(c))}</button></td><td class="mono">${esc(c.inn||"—")}${c.kpp?`<br><small class="muted">КПП ${esc(c.kpp)}</small>`:""}</td>
+      <td>${esc(c.director||"—")}</td><td class="mono">${esc(c.phone||"—")}</td><td class="r">${n}</td><td><span class="pill ${c.doc&&c.doc.status==="done"?"ok":"gray"}">${c.doc&&c.doc.status==="done"?"по фото":"вручную"}</span></td>
+      ${me()&&me().role==="manager"?`<td><small class="muted">${BASE_NAME(c.base)}</small></td>`:""}</tr>`}).join("");
+  return `<div class="card"><div class="sheet-head"><h3>Компании-перевозчики · ${list.length}</h3>
+      <div class="inline"><button class="btn sm dark" data-act="comp-new">+ Компания по фото карточки</button></div></div>
+    ${list.length?`<div class="tablewrap"><table class="exp" style="min-width:760px"><thead><tr><th>Компания</th><th>ИНН / КПП</th><th>Руководитель</th><th>Телефон</th><th class="r">Водителей</th><th>Данные</th>${me()&&me().role==="manager"?"<th>База</th>":""}</tr></thead><tbody>${rows}</tbody></table></div>`
+      :`<p class="muted" style="margin:0">Компаний пока нет. Сфотографируйте карточку предприятия — реквизиты заполнятся сами.</p>`}</div>`;
+}
+function vCompanyCard(c){
+  const inp=(k,l)=>`<div class="field"><label for="cf-${c.id}-${k}">${l}</label><input id="cf-${c.id}-${k}" data-cf="${c.id}|${k}" value="${esc(c[k]||"")}" ${["inn","kpp","ogrn","bik","account","corr"].includes(k)?'class="mono" inputmode="numeric"':""}></div>`;
+  const drivers=S.drivers.filter(d=>d.companyId===c.id),s=c.doc;
+  return `<div class="col" style="max-width:860px;margin:0"><div class="card">
+     <button class="linkbtn" data-act="comp-close" style="align-self:flex-start">← К списку компаний</button>
+     <div class="sheet-head"><h2>${esc(compName(c))}</h2><span class="pill gray">${BASE_NAME(c.base)}</span></div>
+   </div>
+   <div class="card"><h3>Карточка предприятия по фото</h3>
+     <div class="shot${s&&s.status==="done"?" done":""}" style="max-width:320px">
+       ${s&&s.url?`<img src="${s.url}" alt="Карточка предприятия">`:`<div class="ph${s&&s.demo?" demo":""}">${s&&s.demo?"Пример":"нет фото"}</div>`}
+       ${s&&s.status==="reading"?`<div class="reading"><span class="spin" aria-hidden="true"></span><small>Читаю реквизиты…</small></div>`:s&&s.msg?`<small>${esc(s.msg)}</small>`:""}
+       <label class="btn sm ${s?"ghost":"dark"} filelabel" for="cdoc-${c.id}">${s?"Переснять":"Сфотографировать карточку"}</label>
+       <input type="file" id="cdoc-${c.id}" class="sr" data-cdoc="${c.id}" accept="image/*" capture="environment">
+       ${s&&s.status==="done"?"":`<button class="linkbtn" data-act="comp-demo" data-id="${c.id}" style="font-size:12px;align-self:flex-start">Пример (демо)</button>`}
+     </div>
+     <div class="muted" style="font-size:12px">Подойдёт карточка предприятия, реквизиты из договора или лист записи ЕГРЮЛ/ЕГРИП.</div></div>
+   <div class="card"><h3>Реквизиты</h3>
+     ${inp("name","Полное наименование")}<div class="docgrid">${COMP_FIELDS.slice(1).map(([k,l])=>inp(k,l)).join("")}</div></div>
+   <div class="card"><div class="sheet-head"><h3>Водители компании · ${drivers.length}</h3><button class="btn sm dark" data-act="comp-adddrv" data-id="${c.id}">+ Водитель по фото документов</button></div>
+     ${drivers.length?`<div class="plist">${drivers.map(d=>`<div class="pi"><span><button class="linkbtn" data-act="drv-open" data-id="${d.id}">${esc(d.name)}</button><br><small class="muted">${esc(truckStr(d))}${trailerStr(d)?" · "+esc(trailerStr(d)):""}</small></span><span class="pill ${docCount(d)===DOC_KEYS.length?"ok":"gray"}">док. ${docCount(d)}/${DOC_KEYS.length}</span></div>`).join("")}</div>`:`<p class="muted" style="margin:0">Водителей пока нет.</p>`}</div></div>`;
+}
+/* сводная по дебету и кредиту с терминалом (без внутренних данных: кэшбэк и страховка сюда не попадают) */
+const TERM_PAYTO="Новосибирск (терминал)";
+function termSettle(){
+  const L=termLedger(), mine=S.orders.filter(o=>o.payTo===TERM_PAYTO), sum=o=>o.tariff+o.cashback;
+  const got=mine.filter(o=>o.payDel), wait=mine.filter(o=>!o.payDel), tin=S.termIn.reduce((s,x)=>s+x.sum,0);
+  const collected=got.reduce((s,o)=>s+sum(o),0), credit=L.sent-L.deposit, debit=collected-tin;
+  return {L,got,wait,collected,tin,credit,debit,net:debit-credit,sum};
+}
+function vTermSettle(){
+  const X=termSettle(), term=me()&&me().role==="terminal", us=term?"Брукклин (перевозчик)":"мы";
+  const tag=v=>v>0?`<span class="pill err">${rub(v)}</span>`:v<0?`<span class="pill ok">переплата ${rub(-v)}</span>`:`<span class="pill gray">0 ₽</span>`;
+  return `<div class="kpis">
+    <div class="kpi ${X.credit>0?"neg":""}"><b>${rub(Math.abs(X.credit))}</b><span>${X.credit>=0?"кредит: перевозчик должен терминалу за перегруз":"аванс перевозчика у терминала"}</span></div>
+    <div class="kpi"><b>${rub(Math.abs(X.debit))}</b><span>${X.debit>=0?"дебет: терминал должен перевозчику — получено от клиентов":"терминал перечислил больше, чем получил"}</span></div>
+    <div class="kpi ${X.net>=0?"pos":"neg"}"><b>${rub(Math.abs(X.net))}</b><span>${X.net>0?"после взаимозачёта терминал должен перевозчику":X.net<0?"после взаимозачёта перевозчик должен терминалу":"взаиморасчёты закрыты"}</span></div>
+   </div>
+   <div class="callout info">Сводная взаиморасчётов перевозчика и терминала ${TRANSFER_CITY}. <b>Кредит</b> — перегруз за машины, погруженные с терминала, минус оплаты перевозчика. <b>Дебет</b> — оплаты клиентов за перевозку, принятые терминалом, минус перечисления терминала перевозчику.</div>
+   <div class="report" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+    <div class="card"><h3>Кредит · перегруз</h3>
+      <div class="lline"><span>Отправки: погружено с терминала<br><small class="muted">${X.L.acc.length} авто по цене перегруза</small></span><b class="num">${rub(X.L.sent)}</b></div>
+      <div class="lline"><span>Оплачено перевозчиком<br><small class="muted">${X.L.pays.length} платеж.</small></span><b class="num">− ${rub(X.L.deposit)}</b></div>
+      <div class="lline total"><span>Остаток по кредиту</span>${tag(X.credit)}</div>
+      ${X.L.acc.length?`<div class="tablewrap"><table class="exp" style="min-width:0"><thead><tr><th>Дата</th><th>Машина</th><th class="r">Перегруз</th></tr></thead><tbody>${X.L.acc.map(r=>`<tr><td class="mono">${esc(r.d)}</td><td>${esc(r.text.split(" · погружен")[0])}</td><td class="r">${rub(r.sum)}</td></tr>`).join("")}</tbody></table></div>`:""}
+      <div class="muted" style="font-size:12px">Оплаты перевозчика вносит менеджер во вкладке «Терминал Нск».</div>
+    </div>
+    <div class="card"><h3>Дебет · оплаты клиентов на терминале</h3>
+      <div class="lline"><span>Получено терминалом от клиентов<br><small class="muted">${X.got.length} авто, оплата за перевозку</small></span><b class="num">${rub(X.collected)}</b></div>
+      <div class="lline"><span>Перечислено терминалом перевозчику<br><small class="muted">${S.termIn.length} перевод.</small></span><b class="num">− ${rub(X.tin)}</b></div>
+      <div class="lline total"><span>Остаток по дебету</span>${tag(X.debit)}</div>
+      ${X.wait.length?`<h3>Ожидается оплата клиентом на терминале</h3><div class="plist">${X.wait.map(o=>`<div class="pi"><span>№${o.no} · ${esc(o.car)}<br><small class="muted">${esc(o.client)} · ${statusOf(o).text}</small></span><span class="inline" style="gap:6px"><b class="num">${rub(X.sum(o))}</b><button class="btn sm primary" data-act="tcollect" data-no="${o.no}">Получено</button></span></div>`).join("")}</div>`:""}
+      ${X.got.length?`<h3>Получено</h3><div class="plist">${X.got.map(o=>`<div class="pi"><span>№${o.no} · ${esc(o.car)}<br><small class="muted">${esc(o.collectedAt?"получено "+o.collectedAt:"оплачено")}</small></span><b class="num">${rub(X.sum(o))}</b></div>`).join("")}</div>`:""}
+      <h3>Перечисления терминала перевозчику</h3>
+      <div class="row2"><div class="field"><label for="ti-d">Дата</label><input id="ti-d" value="${today()}"></div><div class="field"><label for="ti-s">Сумма, ₽</label><input id="ti-s" inputmode="numeric"></div></div>
+      <div class="inline"><input class="cellin" id="ti-n" placeholder="Комментарий, № платёжки" style="max-width:260px"><button class="btn sm dark" data-act="tin-add">Добавить перечисление</button></div>
+      ${S.termIn.length?`<div class="tablewrap"><table class="exp" style="min-width:0"><thead><tr><th>Дата</th><th class="r">Сумма</th><th>Комментарий</th><th>Внёс</th></tr></thead><tbody>${S.termIn.slice().reverse().map(x=>`<tr><td class="mono">${esc(x.d)}</td><td class="r">${rub(x.sum)}</td><td>${esc(x.note||"")}</td><td><small>${esc(x.by||"")}</small></td></tr>`).join("")}</tbody></table></div>`:""}
+    </div>
+   </div>`;
+}
+
 /* менеджер: проверка отчётов */
 function vMgrReports(){
   const t=S.trips.find(x=>x.id===S.report.trip)||S.trips[0], s=stats(t), st=REP_ST[t.report.status];
@@ -2090,7 +2213,7 @@ document.addEventListener("click",async e=>{
   if(act==="demo"){const u=S.users.find(x=>x.id===a.dataset.uid);S.session=u.id;S.sub=null;S.auth.err="";S.auth.ok="";render();window.scrollTo(0,0);toast("Вы вошли как "+u.short)}
   if(act==="forgot")toast("В рабочей версии пароль сбрасывается кодом из SMS");
   if(act==="chpass")toast("В рабочей версии: старый пароль, новый пароль, код из SMS");
-  if(act==="logout"){S.session=null;S.sub=null;S.drvOpen=null;S.ho=null;S.mgrHo=null;S.rx={status:"idle"};S.lastDel=null;render();window.scrollTo(0,0);toast("Вы вышли из кабинета")}
+  if(act==="logout"){S.session=null;S.sub=null;S.drvOpen=null;S.compOpen=null;S.drvTab="drivers";S.ho=null;S.mgrHo=null;S.rx={status:"idle"};S.lastDel=null;render();window.scrollTo(0,0);toast("Вы вышли из кабинета")}
   if(act==="submit-report"){const t=S.trips.find(x=>x.id===repTrip());t.report.status="submitted";t.report.submittedAt=nowStamp();t.report.comment="";render();window.scrollTo(0,0);toast("Отчёт сдан менеджеру")}
   if(act==="open-rep"){S.report.trip=a.dataset.trip;render()}
   if(act==="accept-rep"){const t=S.trips.find(x=>x.id===S.report.trip);t.report.status="accepted";t.report.acceptedAt=nowStamp();render();toast("Отчёт "+t.id+" принят")}
@@ -2153,8 +2276,19 @@ document.addEventListener("click",async e=>{
   if(act==="tp-del"){const i=+a.dataset.i;S.lastTp={...S.termPays[i],i};S.termPays.splice(i,1);render()}
   if(act==="tp-undo"){const p=S.lastTp;S.termPays.splice(p.i,0,{d:p.d,sum:p.sum,ts:p.ts,how:p.how,note:p.note});S.lastTp=null;render()}
   if(act==="drv-f"){S.drvF=a.dataset.f;render()}
-  if(act==="drv-open"){S.drvOpen=a.dataset.id;render();window.scrollTo(0,0)}
-  if(act==="drv-close"){S.drvOpen=null;render();window.scrollTo(0,0)}
+  if(act==="drv-tab"){S.drvTab=a.dataset.t;render()}
+  if(act==="drv-base"){S.drvBase=a.dataset.b;render()}
+  if(act==="comp-open"){S.compOpen=a.dataset.id;S.drvOpen=null;render();window.scrollTo(0,0)}
+  if(act==="comp-close"){S.compOpen=null;S.drvTab="companies";render();window.scrollTo(0,0)}
+  if(act==="comp-new"){const c=newCompany();S.compOpen=c.id;render();window.scrollTo(0,0);toast("Сфотографируйте карточку предприятия — реквизиты заполнятся сами")}
+  if(act==="comp-demo"){demoCompany(a.dataset.id);render()}
+  if(act==="comp-newfor"){const d=drvOf(a.dataset.id),c=newCompany();c.base=d.base||c.base;c.short=d.company.name;c.inn=d.company.inn;c.phone=d.company.phone;linkCompany(d,c);S.compOpen=c.id;S.drvOpen=null;render();window.scrollTo(0,0);toast("Карточка создана и привязана к водителю — сфотографируйте реквизиты")}
+  if(act==="comp-adddrv"){const c=compOf(a.dataset.id),d=newDriver(false);d.base=c.base;linkCompany(d,c);S.compOpen=null;S.drvOpen=d.id;render();window.scrollTo(0,0);toast("Водитель добавлен в компанию — сфотографируйте паспорт")}
+  if(act==="tcollect"){const o=S.orders.find(x=>x.no===+a.dataset.no);o.payDel=true;o.collectedAt=nowStamp()+" · "+actor().who;render();toast(`№${o.no}: оплата клиента ${rub(o.tariff+o.cashback)} принята терминалом`)}
+  if(act==="tin-add"){const d=$("#ti-d").value.trim(),sum=numOnly($("#ti-s").value);if(!dKey(d)||!sum){toast("Укажите дату и сумму");return}
+    S.termIn.push({d,sum,note:$("#ti-n").value.trim(),by:actor().who,ts:Date.now()});render();toast(`Перечисление терминала ${rub(sum)} внесено`)}
+  if(act==="drv-open"){S.compOpen=null;S.drvOpen=a.dataset.id;render();window.scrollTo(0,0)}
+  if(act==="drv-close"){S.drvOpen=null;S.compOpen=null;render();window.scrollTo(0,0)}
   if(act==="drv-new"){const d=newDriver(a.dataset.own==="1");S.drvOpen=d.id;render();window.scrollTo(0,0);toast("Водитель добавлен — заполните данные или сфотографируйте документы")}
   if(act==="doc-demo"){demoDoc(a.dataset.id,a.dataset.k);render()}
   if(act==="deliver"){const o=S.orders.find(x=>x.no===+a.dataset.no),t=tripOf(o);o.delivered=true;t.events.push({t:nowStamp(),city:o.city,note:"Выдан №"+o.no+" "+o.car});render();toast("№"+o.no+" отмечен выданным")}
@@ -2213,6 +2347,12 @@ document.addEventListener("change",e=>{
   if(el.dataset.dvown){const d=drvOf(el.dataset.dvown);d.own=!el.checked;syncTrips(d);render()}
   if(el.id==="drv-xls"&&el.files&&el.files[0])importDrivers(el.files[0]);
   if(el.id==="drv-q"){S.drvQ=el.value;render();const n=$("#drv-q");if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length)}}
+  if(el.dataset.cdoc&&el.files&&el.files[0])readCompanyDoc(el.dataset.cdoc,el.files[0]);
+  if(el.dataset.cf){const [id,k]=el.dataset.cf.split("|"),c=compOf(id);c[k]=el.value.trim();syncCompany(c);render()}
+  if(el.dataset.dcomp){const d=drvOf(el.dataset.dcomp);linkCompany(d,el.value?compOf(el.value):null);if(!el.value)d.companyId=null;render()}
+  if(el.dataset.t2drv){const o=S.orders.find(x=>x.no===+el.dataset.t2drv),t=legTrip(o,1),d=drvOf(el.value);if(!t)return;
+    if(d){t.driverId=d.id;syncTrips(d);if(!t.driver||t.driver==="не назначен")t.driver=drvShort(d)}else{t.driverId=null;t.driver="не назначен"}
+    const s=secOf(o,"term_out");s.named=false;render();if(d)toast(`${drvShort(d)} — водитель рейса ${t.id}: ${truckStr(d)}`)}
   if(el.dataset.doc&&el.files&&el.files[0]){const [id,k]=el.dataset.doc.split("|");readDoc(id,k,el.files[0])}
   if(el.dataset.loadcity){const t=S.trips.find(x=>x.id===el.dataset.loadcity);t.loadCity=el.value;t.km=NET[el.value][1];render();toast("Город погрузки: "+el.value)}
   if(el.dataset.set){const k=el.dataset.set;S.settings[k]=k==="directWaitDays"?Math.max(0,numOnly(el.value)):el.value;render();toast("Настройка сохранена")}
