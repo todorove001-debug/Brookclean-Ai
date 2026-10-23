@@ -1,0 +1,21 @@
+{
+  "name": "@brookclean/server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "NODE_ENV=production tsx src/main.ts",
+    "test": "tsx --test src/*.test.ts",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@brookclean/shared": "*",
+    "@fastify/static": "10.1.6",
+    "fastify": "5.12.7",
+    "tsx": "4.20.6"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "typescript": "5.9.3"
+  }
+}
