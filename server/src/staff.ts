@@ -3,7 +3,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 import {
   BODY, EXPENSE_KINDS, NET, PAY_FORM, PAY_TO, ROLES, can, isRole, kmTo, normalizePhone, parseRub, rub, routeFor,
-  validateCar, validateCustomer,
+  isDocKind, validateCar, validateCustomer,
   type CarForm, type CustomerForm, type OrderRowView, type OrderStatus, type Permission, type Quote, type Role,
   type ExpenseKind, type StaffMe, type TripCar, type TripExpense, type TripReport, type TripView, type WaitingCar,
 } from "@brookclean/shared";
@@ -14,6 +14,7 @@ import type { SmsSender } from "./sms.ts";
 import { quote } from "./pricing.ts";
 import type { Guard } from "./guard.ts";
 import { requestView } from "./partners.ts";
+import { VisionError, recognize, type Vision } from "./recognize.ts";
 
 export interface StaffContext {
   db: DB;
@@ -22,6 +23,7 @@ export interface StaffContext {
   publicUrl: string;
   adminToken?: string;
   drive?: GoogleDrive;
+  vision?: Vision;
   secureCookies: boolean;
   guard: Guard;
   requestReview: (no: number, log: { error: (e: unknown) => void }) => Promise<void>;
@@ -463,6 +465,38 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
     scheduleSync(trip.id);
     return buildReport(getTrip(trip.id)!, req.staff!);
   });
+
+  // --- Распознавание фото: модель предлагает поля, сохраняет человек ---
+  const recognizeLog = new Map<number, number[]>();
+  const RECOGNIZE_PER_HOUR = 120;
+  const jpegOf = (v: unknown) => {
+    const b = Buffer.from(String(v ?? "").replace(/^data:image\/jpeg;base64,/, ""), "base64");
+    return b.length > 1000 && b[0] === 0xff && b[1] === 0xd8 ? b : null;
+  };
+  app.post<{ Body: { kind: string; image: string; prev?: string } }>(
+    "/api/staff/recognize", { preHandler: needAny("trips.edit", "trips.driver"), bodyLimit: 16 * 1024 * 1024 }, async (req, reply) => {
+      if (!ctx.vision) return reply.code(503).send({ error: "Распознавание не настроено на сервере. Заполните поля по фото." });
+      const kind = req.body?.kind;
+      if (!(kind === "receipt" || kind === "damage" || isDocKind(kind))) return reply.code(400).send({ error: "Неизвестный вид фото" });
+      const img = jpegOf(req.body?.image);
+      if (!img) return reply.code(400).send({ error: "Нужна фотография в JPEG" });
+      const prev = req.body?.prev ? jpegOf(req.body.prev) ?? undefined : undefined;
+
+      const id = req.staff!.id, t = Date.now();
+      const recent = (recognizeLog.get(id) ?? []).filter((x) => x > t - 3600_000);
+      if (recent.length >= RECOGNIZE_PER_HOUR) return reply.code(429).send({ error: "Слишком много фото за час. Заполните поля вручную или подождите." });
+      recognizeLog.set(id, [...recent, t]);
+
+      try {
+        const r = await recognize(ctx.vision, kind, img, { prev, now: now() });
+        audit(req, "recognize", { kind, model: r.model, ms: r.ms, errors: r.checks.filter((c) => c.level === "error").length, damages: r.damages?.length });
+        return r;
+      } catch (e) {
+        if (!(e instanceof VisionError)) throw e;
+        req.log.warn({ err: e.message }, "recognize");
+        return reply.code(502).send({ error: "Распознать не удалось: сервис не ответил. Заполните поля по фото." });
+      }
+    });
 
   // --- Рейсовый отчёт ---
   /** finance: суммы перевозки и оплата — для ролей с reports.read; водителю не показываем. */

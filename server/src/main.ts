@@ -5,6 +5,7 @@ import { smsFromEnv } from "./sms.ts";
 import { GoogleDrive } from "./drive.ts";
 import { ensureOwner } from "./staff.ts";
 import { captchaFromEnv } from "./guard.ts";
+import { yandexFromEnv } from "./recognize.ts";
 
 const prod = process.env.NODE_ENV === "production";
 const db = openDb(process.env.DB_FILE ?? "data/brookclean.db", Number(process.env.ORDER_NO_START ?? 685));
@@ -27,6 +28,7 @@ const app = buildApp({
   staffUrl,
   captcha: captchaFromEnv(),
   drive,
+  vision: yandexFromEnv(),
   webDist: fileURLToPath(new URL("../../web/dist", import.meta.url)),
   exposeSmsCode: !prod && process.env.SMS_PROVIDER === undefined,
 });

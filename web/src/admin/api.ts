@@ -1,4 +1,4 @@
-import type { CarForm, CustomerForm, ExpenseKind, OrderRowView, OrderStatus, PartnerRequestView, Quote, Role, SecurityReport, StaffMe, TripReport, TripView, WaitingCar } from "@brookclean/shared";
+import type { CarForm, CustomerForm, ExpenseKind, OrderRowView, OrderStatus, PartnerRequestView, Quote, RecognizeKind, RecognizeResult, Role, SecurityReport, StaffMe, TripReport, TripView, WaitingCar } from "@brookclean/shared";
 import { call } from "../api.ts";
 import { SITE_ORIGIN } from "../router.ts";
 
@@ -33,6 +33,8 @@ export const staffApi = {
   loadCar: (id: string, no: number, load: boolean) => call<TripView>(`${trip(id)}/cars`, { body: { no, load } }),
   addExpense: (id: string, body: { kind: ExpenseKind; amount: number; liters?: number | null; note?: string }) =>
     call<TripReport>(`${trip(id)}/expenses`, { body }),
+  /** Фото → поля с проверками. Ничего не сохраняет: сохраняет человек после сверки. */
+  recognize: (kind: RecognizeKind, image: string, prev?: string) => call<RecognizeResult>("/api/staff/recognize", { body: { kind, image, prev } }),
   deleteExpense: (id: string, eid: number) => call<TripReport>(`${trip(id)}/expenses/${eid}`, { method: "DELETE" }),
   position: (id: string, city: string, note: string) => call<TripView>(`/api/staff/trips/${encodeURIComponent(id)}/position`, { body: { city, note } }),
   syncTrip: (id: string) => call<TripView>(`/api/staff/trips/${encodeURIComponent(id)}/sync`, { method: "POST" }),
