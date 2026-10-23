@@ -1,9 +1,9 @@
 // Демо кабинета приёмщика: акты в памяти браузера, фото остаются на телефоне, ИИ отвечает заготовками.
 // На сервере то же самое делают server/src/acts.ts, хранилище S3 и Yandex AI Studio.
 import {
-  PHOTO_SLOTS, ROLES, STAGES, VIDEO_SLOTS, actBlockers, can, isDmgCode, isStage, kmTo, partPos, slotKind, stagesFor,
+  PHOTO_SLOTS, ROLES, STAGES, actBlockers, can, isDmgCode, isStage, kmTo, partPos, photoSlotsFor, slotKind, stageLeg, stagePlace, stagesFor, videoSlotsFor,
   type ActCar, type ActMark, type ActMedia, type ActRow, type ActSection, type ActSignature, type ActSuggestion, type ActView,
-  type Condition, type DmgCode, type MarkHistory, type Permission, type StageId, type StaffMe,
+  type Condition, type DmgCode, type MarkHistory, type StageId, type StaffMe,
 } from "@brookclean/shared";
 
 type Res = { status: number; data: unknown };
@@ -14,7 +14,7 @@ export interface DemoOrder {
   no: number; createdAt: string; status: string; car: string; vin: string; year: string; color: string; city: string; fio: string;
   tripId: string | null; transfer: string | null; trip2Id: string | null;
 }
-export interface DemoTripRef { id: string; truck: string; driver: string; km: number }
+export interface DemoTripRef { id: string; truck: string; driver: string; km: number; driverId: number | null }
 
 interface Sec {
   details: ActCar; cond: Condition[]; condOther: string; notes: string; giveName: string; takeName: string;
@@ -33,9 +33,12 @@ const DEMO_AI: Record<StageId, Record<string, Array<[string, DmgCode, string, Ac
     windshield: [["лобовое стекло", "S", "скол в правой нижней части", "high"]],
     wheel_fl: [["переднее левое колесо, диск", "A2", "потёртость обода о бордюр", "high"]],
   },
+  pogruzka: {},
   term_in: { hood: [["капот, передняя кромка", "S", "новый скол: на фото приёмки во Владивостоке его нет", "high"]] },
   term_out: {},
+  vygruzka: { front_right: [["правое переднее крыло", "A2", "царапина с ладонь, на фото погрузки её нет", "medium"]] },
 };
+const legTrip = (o: DemoOrder, st: StageId) => (stageLeg(st, o.transfer) === 2 ? o.trip2Id : o.tripId);
 
 const placeholders = new Map<string, string>();
 /** Демо-фото: рисунок вместо снимка, с подписью ракурса. */
@@ -76,8 +79,11 @@ function sec(o: DemoOrder, st: StageId, me: StaffMe | null, trips: DemoTripRef[]
   const k = key(o.no, st);
   if (!acts.has(k)) {
     const mine = me && me.role !== "owner" && (!me.site || me.site === STAGES[st].site) ? me.name : "";
-    const drv = (id: string | null) => trips.find((t) => t.id === id)?.driver ?? "";
-    const [giveName, takeName] = st === "priemka" ? [o.fio, mine] : st === "term_in" ? [drv(o.tripId), mine] : [mine, drv(o.trip2Id)];
+    const drv = trips.find((t) => t.id === legTrip(o, st))?.driver ?? "";
+    const [giveName, takeName] = ({
+      priemka: [o.fio, mine], pogruzka: [acts.get(key(o.no, "priemka"))?.takeName || mine, drv],
+      term_in: [drv, mine], term_out: [mine, drv], vygruzka: [drv, o.fio],
+    } as Record<StageId, [string, string]>)[st];
     acts.set(k, { details: { ...blankCar }, cond: [], condOther: "", notes: "", giveName, takeName, give: null, take: null, disagree: false, disComment: "",
       absent: false, absentReason: "", closedAt: null, media: new Map(), suggestions: [] });
   }
@@ -110,9 +116,11 @@ function view(o: DemoOrder, st: StageId, me: StaffMe | null, trips: DemoTripRef[
     return { stage: x, giveName: a?.giveName ?? "", takeName: a?.takeName ?? "", give: a?.give ?? null, take: a?.take ?? null, closedAt: a?.closedAt ?? null };
   });
   const role = (side: "give" | "take") => {
-    const t = st === "term_in" && side === "give" ? o.tripId : st === "term_out" && side === "take" ? o.trip2Id : null;
-    return t ? `${STAGES[st][side]} ${t}` : STAGES[st][side];
+    const base: string = STAGES[st][side];
+    const t = base === "Водитель рейса" ? legTrip(o, st) : null;
+    return t ? `${base} ${t}` : base;
   };
+  const trip = trips.find((t) => t.id === legTrip(o, st));
   const v: ActView = {
     no: o.no, stage: st, sections, transfer: o.transfer, orderStatus: o.status, contractDate: o.createdAt.slice(0, 10),
     car: { car: o.car, vin: o.vin, year: o.year, color: o.color, city: o.city }, client: o.fio, acceptor: s.takeName,
@@ -122,14 +130,32 @@ function view(o: DemoOrder, st: StageId, me: StaffMe | null, trips: DemoTripRef[
     media: [...s.media.values()].map(({ readyAt: _r, ...m }) => m),
     marks: (marks.get(o.no) ?? []).filter((m) => upto.has(m.stage)).map((m) => ({ ...m, history: m.history.filter((h) => upto.has(h.stage)) })),
     suggestions: s.suggestions, blockers: [], storage: true, ai: true,
+    place: stagePlace(st, o.city), canEdit: !!me && !editWhy(o, st, me, trips),
   };
   const prev = order[order.indexOf(st) - 1];
   v.blockers = [
     ...(o.status === "draft" ? ["Клиент ещё не подписал договор перевозки"] : []),
+    ...(st !== "priemka" && !trip ? ["Рейс для этой передачи ещё не назначен. Его назначает менеджер"] : []),
     ...(prev && !acts.get(key(o.no, prev))?.closedAt ? [`Сначала закройте раздел «${STAGES[prev].name}»`] : []),
+    ...(st === "vygruzka" && trip && trip.km < kmTo(o.city) ? [`Автовоз ещё не в городе ${o.city}. Отметьтесь в рейсе по прибытии`] : []),
     ...actBlockers(v),
   ];
   return v;
+}
+
+const driverOf = (o: DemoOrder, st: StageId, me: StaffMe, trips: DemoTripRef[]) =>
+  can(me.role, "acts.driver") && trips.find((t) => t.id === legTrip(o, st))?.driverId === me.id;
+
+/** Как на сервере: раздел открыт, оформляет своя площадка или водитель рейса, рейс назначен, прошлая передача закрыта. */
+function editWhy(o: DemoOrder, st: StageId, me: StaffMe, trips: DemoTripRef[]) {
+  const order = stagesFor(o.transfer);
+  const prev = order[order.indexOf(st) - 1];
+  const s = acts.get(key(o.no, st));
+  const mine = (STAGES[st].by === "driver" && driverOf(o, st, me, trips)) || (can(me.role, "acts.edit") && (!me.site || me.site === STAGES[st].site));
+  return s?.closedAt ? "Раздел акта закрыт и подписан. Изменить отметку может только менеджер"
+    : !mine ? (STAGES[st].by === "driver" ? "Эту передачу оформляет водитель рейса на своём телефоне" : `Эту передачу оформляет площадка ${STAGES[st].site}`)
+    : st !== "priemka" && !legTrip(o, st) ? "Рейс для этой передачи ещё не назначен. Его назначает менеджер"
+    : prev && !acts.get(key(o.no, prev))?.closedAt ? `Сначала закройте раздел «${STAGES[prev].name}»` : "";
 }
 
 function addMedia(s: Sec, st: StageId, slot: string, me: StaffMe, url: string, durationSec: number | null, aiDelay: number) {
@@ -149,13 +175,18 @@ export function seedActs(orders: DemoOrder[], trips: DemoTripRef[]) {
   const full = (o: DemoOrder, st: StageId, giver: string, taker: string, at: string) => {
     const s = sec(o, st, null, trips);
     s.giveName = giver; s.takeName = taker;
-    for (const p of PHOTO_SLOTS) s.media.set(p.id, { slot: p.id, kind: "photo", url: "", size: 380_000, at, by: taker, durationSec: null, ai: p.ai ? { status: "done", quality: "ok", model: "демо" } : null });
-    for (const v of VIDEO_SLOTS) s.media.set(v.id, { slot: v.id, kind: "video", url: "", size: 40_000_000, at, by: taker, durationSec: 52, ai: null });
+    for (const p of photoSlotsFor(st)) s.media.set(p.id, { slot: p.id, kind: "photo", url: "", size: 380_000, at, by: taker, durationSec: null, ai: p.ai ? { status: "done", quality: "ok", model: "демо" } : null });
+    for (const v of videoSlotsFor(st)) s.media.set(v.id, { slot: v.id, kind: "video", url: "", size: 40_000_000, at, by: taker, durationSec: 52, ai: null });
     s.details = { plate: "без номера", ptsType: "Выписка ЭПТС", ptsNo: "164302044817201", keys: "2", docs: "" };
     s.give = { ...sig(giver), at }; s.take = { ...sig(taker), at }; s.closedAt = at;
   };
-  for (const o of orders.filter((x) => x.transfer)) {
+  const drv = (id: string | null) => trips.find((t) => t.id === id)?.driver ?? "";
+  // Машины рейса R-01 приняты и погружены; №680 принят и ждёт погрузки на R-03
+  for (const o of orders.filter((x) => x.tripId === "R-01" || x.tripId === "R-03")) {
     full(o, "priemka", o.fio, "Ольга", "2026-10-19T02:10:00Z");
+    if (o.tripId === "R-01") full(o, "pogruzka", "Ольга", drv(o.tripId), "2026-10-20T19:40:00Z");
+  }
+  for (const o of orders.filter((x) => x.transfer)) {
     marks.set(o.no, [{ id: ++seq, stage: "priemka", code: "S", part: "капот", x: 0.33, y: 0.5, src: "ai", removed: false,
       history: [{ act: "add", stage: "priemka", at: "2026-10-19T02:00:00Z", who: "Ольга", role: "Приёмщик · Владивосток", src: "ai", code: "S", slot: "hood" }] }]);
   }
@@ -178,32 +209,39 @@ export function demoSig(name: string) {
 }
 
 export function demoActsFetch(path: string, method: string, body: any, me: StaffMe | null, orders: DemoOrder[], trips: DemoTripRef[]): Res {
-  const need = (p: Permission) => (!me ? fail(401, "Войдите в панель") : !can(me.role, p) ? fail(403, "Нет доступа к этому разделу") : null);
   const onSite = (st: StageId) => !me!.site || me!.site === STAGES[st].site;
 
   if (path === "/api/staff/acts") {
-    const denied = need("acts.read");
-    if (denied) return denied;
+    if (!me) return fail(401, "Войдите в панель");
+    if (!can(me.role, "acts.read") && !can(me.role, "acts.driver")) return fail(403, "Нет доступа к этому разделу");
+    const closed = (o: DemoOrder, st: StageId) => !!acts.get(key(o.no, st))?.closedAt;
     const out: ActRow[] = [];
     for (const o of [...orders].sort((a, b) => b.no - a.no)) {
       const row = (st: StageId, group: ActRow["group"]): ActRow => {
         const s = acts.get(key(o.no, st));
-        const t = trips.find((x) => x.id === o.tripId), t2 = trips.find((x) => x.id === o.trip2Id);
+        const t = trips.find((x) => x.id === legTrip(o, st)), t2 = trips.find((x) => x.id === o.trip2Id);
+        const end = stageLeg(st, o.transfer) === 1 ? o.transfer ?? o.city : o.city;
         const count = (k: string) => (s ? [...s.media.values()].filter((m) => m.kind === k).length : 0);
         return {
           no: o.no, stage: st, group, transfer: o.transfer, car: o.car, vin: o.vin, year: o.year, color: o.color, city: o.city, client: o.fio,
           orderStatus: o.status, createdAt: o.createdAt,
-          trip: t ? { id: t.id, truck: t.truck, driver: t.driver, kmLeft: Math.max(0, kmTo(o.transfer ?? o.city) - t.km) } : null,
+          trip: t ? { id: t.id, truck: t.truck, driver: t.driver, kmLeft: Math.max(0, kmTo(end) - t.km) } : null,
           trip2: t2 ? { id: t2.id, truck: t2.truck, driver: t2.driver } : null,
           photos: count("photo"), videos: count("video"), pending: s?.suggestions.filter((x) => x.state === "pending").length ?? 0,
           closedAt: s?.closedAt ?? null, signed: !!(s?.give || s?.take),
         };
       };
-      const vl = ["draft", "signed", "paid", "loading"].includes(o.status) || acts.has(key(o.no, "priemka"));
-      if (vl && onSite("priemka")) out.push(row("priemka", acts.get(key(o.no, "priemka"))?.closedAt ? "done" : "todo"));
-      if (o.transfer && onSite("term_in")) {
-        if (!acts.get(key(o.no, "term_in"))?.closedAt) out.push(row("term_in", "incoming"));
-        else out.push(row("term_out", acts.get(key(o.no, "term_out"))?.closedAt ? "done" : "yard"));
+      const last = stagesFor(o.transfer).at(-1)!;
+      if (can(me.role, "acts.read")) {
+        if (onSite("priemka")) out.push(!closed(o, "priemka") ? row("priemka", "todo") : row("pogruzka", closed(o, "pogruzka") ? "done" : "load"));
+        if (o.transfer && onSite("term_in") && closed(o, "pogruzka")) {
+          if (!closed(o, "term_in")) out.push(row("term_in", "incoming"));
+          else out.push(row("term_out", closed(o, "term_out") ? "done" : "yard"));
+        }
+        if (!me.site && closed(o, stagesFor(o.transfer).at(-2)!)) out.push(row(last, closed(o, last) ? "done" : "deliver"));
+      } else {
+        if (driverOf(o, "pogruzka", me, trips) && !closed(o, "pogruzka")) out.push(row("pogruzka", "load"));
+        if (driverOf(o, last, me, trips)) out.push(row(last, closed(o, last) ? "done" : "deliver"));
       }
     }
     return ok(out.sort((a, b) => Number(!!a.closedAt) - Number(!!b.closedAt)));
@@ -211,11 +249,11 @@ export function demoActsFetch(path: string, method: string, body: any, me: Staff
 
   const m = /^\/api\/staff\/acts\/(\d+)\/(\w+)(?:\/(.*))?$/.exec(path);
   if (!m) return fail(404, "Не найдено");
-  const denied = need("acts.read");
-  if (denied) return denied;
+  if (!me) return fail(401, "Войдите в панель");
   const o = orders.find((x) => x.no === Number(m[1]));
   const st = m[2];
   if (!o || !isStage(st) || !stagesFor(o.transfer).includes(st)) return fail(404, "Нет такой передачи");
+  if (!can(me.role, "acts.read") && !stagesFor(o.transfer).some((x) => driverOf(o, x, me!, trips))) return fail(403, "Эта машина не на вашем рейсе");
   const rest = m[3] ?? "";
   const s = sec(o, st, can(me!.role, "acts.edit") ? me : null, trips);
   const v = () => ok(view(o, st, me, trips));
@@ -224,13 +262,8 @@ export function demoActsFetch(path: string, method: string, body: any, me: Staff
   // Изменения: как на сервере — своя площадка, раздел открыт, прошлая передача закрыта
   const isManagerRemove = /^marks\/\d+\/remove$/.test(rest) && s.closedAt;
   if (!isManagerRemove) {
-    const e = need("acts.edit");
-    if (e) return e;
-    const order = stagesFor(o.transfer);
-    const prev = order[order.indexOf(st) - 1];
-    if (s.closedAt) return fail(409, "Раздел акта закрыт и подписан. Изменить отметку может только менеджер");
-    if (!onSite(st)) return fail(409, `Эту передачу оформляет площадка ${STAGES[st].site}`);
-    if (prev && !acts.get(key(o.no, prev))?.closedAt) return fail(409, `Сначала закройте раздел «${STAGES[prev].name}»`);
+    const why = editWhy(o, st, me, trips);
+    if (why) return fail(409, why);
   }
   const list = marks.get(o.no) ?? [];
   marks.set(o.no, list);
@@ -250,8 +283,8 @@ export function demoActsFetch(path: string, method: string, body: any, me: Staff
     return v();
   }
   if (rest === "demo-fill") {
-    for (const p of PHOTO_SLOTS) if (!s.media.has(p.id)) addMedia(s, st, p.id, me!, placeholder(p.label, st), null, 1500 + Math.random() * 2500);
-    for (const x of VIDEO_SLOTS) if (!s.media.has(x.id)) addMedia(s, st, x.id, me!, "", 48 + Math.round(Math.random() * 10), 0);
+    for (const p of photoSlotsFor(st)) if (!s.media.has(p.id)) addMedia(s, st, p.id, me!, placeholder(p.label, st), null, 1500 + Math.random() * 2500);
+    for (const x of videoSlotsFor(st)) if (!s.media.has(x.id)) addMedia(s, st, x.id, me!, "", 48 + Math.round(Math.random() * 10), 0);
     if (st === "priemka") Object.assign(acts.get(key(o.no, "priemka"))!.details, { keys: "2", plate: "без номера", ptsType: "Выписка ЭПТС" });
     reset(s);
     return v();
@@ -316,7 +349,10 @@ export function demoActsFetch(path: string, method: string, body: any, me: Staff
     if (body.who === "take" && !s.give && !(s.absent && s.absentReason)) return fail(409, "Сначала подпись сдающей стороны");
     const sig: ActSignature = { img: body.img, at: new Date().toISOString(), name: body.who === "give" ? s.giveName : s.takeName, by: me!.name, device: "демо" };
     if (body.who === "give") s.give = sig;
-    else { s.take = sig; s.closedAt = sig.at; }
+    else {
+      s.take = sig; s.closedAt = sig.at;
+      if (st === "vygruzka") o.status = "delivered";
+    }
     return v();
   }
   return fail(404, "В демо это не работает");

@@ -182,28 +182,33 @@ test("перегруз в Новосибирске: приём на термин
   await app.inject({ method: "POST", url: "/api/staff/users", headers: owner, payload: { name: "Андрей", login: "nsk", password: "password-1", role: "acceptor", site: "Новосибирск" } });
   const nsk = { cookie: String((await app.inject({ method: "POST", url: "/api/staff/login", payload: { login: "nsk", password: "password-1" } })).headers["set-cookie"]).split(";")[0] };
 
-  // Владивосток видит только приёмку, терминал — машины, которые к нему едут
+  // Владивосток видит только приёмку; терминал не видит машины, пока они на стоянке во Владивостоке
   const vl = (await app.inject({ url: "/api/staff/acts", headers: acc })).json();
   assert.ok(vl.every((r: { stage: string }) => r.stage === "priemka"));
-  const ns = (await app.inject({ url: "/api/staff/acts", headers: nsk })).json();
-  assert.deepEqual(ns.map((r: { no: number; group: string }) => [r.no, r.group]), [[msk, "incoming"]]);
-  assert.equal(ns[0].trip.id, "R-1");
+  assert.deepEqual((await app.inject({ url: "/api/staff/acts", headers: nsk })).json(), []);
 
-  // Принять на терминал можно только после закрытой приёмки и только на своей площадке
+  // Принять на терминал можно только после закрытой погрузки и только на своей площадке
   let r = await app.inject({ method: "PATCH", url: `/api/staff/acts/${msk}/term_in`, headers: nsk, payload: { notes: "x" } });
   assert.equal(r.statusCode, 409);
-  assert.match(r.json().error, /Приёмка/);
-  // Приёмку во Владивостоке подробно проверяет первый тест — здесь закрываем её сразу
+  assert.match(r.json().error, /Погрузка в автовоз/);
+  // Приёмку и погрузку во Владивостоке проверяют другие тесты — здесь закрываем их сразу
   await app.inject({ url: `/api/staff/acts/${msk}/priemka`, headers: acc });
   db.prepare("UPDATE acts SET closed_at = '2026-10-23T08:00:00Z', details = ? WHERE stage = 'priemka'")
     .run(JSON.stringify({ plate: "", ptsType: "Оригинал", ptsNo: "", keys: "2", docs: "" }));
+  assert.deepEqual((await app.inject({ url: "/api/staff/acts", headers: acc })).json().filter((x: { no: number }) => x.no === msk)
+    .map((x: { stage: string; group: string }) => [x.stage, x.group]), [["pogruzka", "load"]]);
+  await app.inject({ url: `/api/staff/acts/${msk}/pogruzka`, headers: acc });
+  db.prepare("UPDATE acts SET closed_at = '2026-10-23T09:00:00Z' WHERE stage = 'pogruzka'").run();
+  const ns = (await app.inject({ url: "/api/staff/acts", headers: nsk })).json();
+  assert.deepEqual(ns.map((x: { no: number; group: string }) => [x.no, x.group]), [[msk, "incoming"]]);
+  assert.equal(ns[0].trip.id, "R-1");
   assert.equal((await app.inject({ method: "PATCH", url: `/api/staff/acts/${msk}/term_in`, headers: acc, payload: { notes: "x" } })).statusCode, 409);
 
   const act = (await app.inject({ url: `/api/staff/acts/${msk}/term_in`, headers: nsk })).json();
   assert.equal(act.giveName, "Сергей Петров");
   assert.equal(act.takeName, "Андрей");
   assert.equal(act.giveRole, "Водитель рейса R-1");
-  assert.equal(act.sections.length, 3);
+  assert.deepEqual(act.sections.map((x: { stage: string }) => x.stage), ["priemka", "pogruzka", "term_in", "term_out", "vygruzka"]);
   assert.ok(!act.blockers.some((b: string) => b.includes("Сначала закройте")));
   r = await app.inject({ method: "PATCH", url: `/api/staff/acts/${msk}/term_in`, headers: nsk, payload: { details: { keys: "1" } } });
   assert.equal(r.statusCode, 400);
@@ -218,4 +223,73 @@ test("перегруз в Новосибирске: приём на термин
   assert.equal(out.takeRole, "Водитель рейса R-2");
   const trip2 = (await app.inject({ url: "/api/staff/trips", headers: owner })).json().find((t: { id: string }) => t.id === "R-2");
   assert.deepEqual(trip2.orders, [msk]);
+  // Выдачу после перегруза оформляет водитель второго рейса
+  const last = (await app.inject({ url: `/api/staff/acts/${msk}/vygruzka`, headers: owner })).json();
+  assert.equal(last.giveRole, "Водитель рейса R-2");
+  assert.equal(last.giveName, "Олег Ким");
+});
+
+test("водитель: погрузка во Владивостоке — 4 угла и подписи, выдача получателю в его городе", async () => {
+  const { app, db, owner, acc, no } = await setup();
+  db.prepare("UPDATE orders SET status = 'signed' WHERE no = ?").run(no);
+  const u = (await app.inject({ method: "POST", url: "/api/staff/users", headers: owner, payload: { name: "Сергей Петров", login: "sergey", password: "password-1", role: "driver" } })).json();
+  await app.inject({ method: "POST", url: "/api/staff/users", headers: owner, payload: { name: "Иван", login: "ivan", password: "password-1", role: "driver" } });
+  const login = async (l: string) => ({ cookie: String((await app.inject({ method: "POST", url: "/api/staff/login", payload: { login: l, password: "password-1" } })).headers["set-cookie"]).split(";")[0] });
+  const drv = await login("sergey"), other = await login("ivan");
+
+  // Без рейса водителю здесь нечего делать
+  assert.deepEqual((await app.inject({ url: "/api/staff/acts", headers: drv })).json(), []);
+  await app.inject({ method: "PUT", url: "/api/staff/trips/R-7", headers: owner, payload: { dest: "Красноярск", truck: "Volvo FH", driverId: u.id } });
+  await app.inject({ method: "PATCH", url: `/api/staff/orders/${no}`, headers: owner, payload: { tripId: "R-7" } });
+  assert.deepEqual((await app.inject({ url: "/api/staff/acts", headers: drv })).json().map((x: { stage: string; group: string }) => [x.stage, x.group]),
+    [["pogruzka", "load"], ["vygruzka", "deliver"]]);
+  // Чужой водитель машину не видит, приёмка водителю только для чтения
+  assert.equal((await app.inject({ url: `/api/staff/acts/${no}/pogruzka`, headers: other })).statusCode, 403);
+  assert.equal((await app.inject({ method: "PATCH", url: `/api/staff/acts/${no}/priemka`, headers: drv, payload: { notes: "x" } })).statusCode, 409);
+
+  // Приёмщик закрыл приёмку — сдаёт машину водителю тот же приёмщик
+  await app.inject({ url: `/api/staff/acts/${no}/priemka`, headers: acc });
+  db.prepare("UPDATE acts SET closed_at = '2026-10-23T08:00:00Z', details = ? WHERE stage = 'priemka'")
+    .run(JSON.stringify({ plate: "", ptsType: "Оригинал", ptsNo: "", keys: "2", docs: "" }));
+  let act = (await app.inject({ url: `/api/staff/acts/${no}/pogruzka`, headers: drv })).json();
+  assert.equal(act.giveName, "Ольга");
+  assert.equal(act.takeName, "Сергей Петров");
+  assert.equal(act.takeRole, "Водитель рейса R-7");
+  assert.equal(act.canEdit, true);
+  assert.ok(act.blockers.includes("Фото: не хватает 4 из 4"));
+  assert.ok(!act.blockers.some((b: string) => b.startsWith("Видео")));
+  // На погрузке только 4 угла
+  const extra = await app.inject({ method: "POST", url: `/api/staff/acts/${no}/pogruzka/upload`, headers: drv, payload: { slot: "roof", contentType: "image/jpeg", size: 10 } });
+  assert.equal(extra.statusCode, 400);
+  for (const s of ["front_left", "rear_left", "rear_right", "front_right"]) await upload(app, drv, no, s, false, "pogruzka");
+  await settle();
+  act = (await app.inject({ url: `/api/staff/acts/${no}/pogruzka`, headers: drv })).json();
+  for (const sg of act.suggestions) await app.inject({ method: "POST", url: `/api/staff/acts/${no}/pogruzka/suggestions/${sg.id}`, headers: drv, payload: { state: "no" } });
+  await app.inject({ method: "POST", url: `/api/staff/acts/${no}/pogruzka/sign`, headers: drv, payload: { who: "give", img: SIG } });
+  act = (await app.inject({ method: "POST", url: `/api/staff/acts/${no}/pogruzka/sign`, headers: drv, payload: { who: "take", img: SIG } })).json();
+  assert.ok(act.closedAt, JSON.stringify(act.blockers));
+  assert.deepEqual((await app.inject({ url: "/api/staff/acts", headers: acc })).json().map((x: { stage: string; group: string }) => [x.stage, x.group]), [["pogruzka", "done"]]);
+
+  // Выдача: сдаёт водитель, принимает получатель; подписать — только в городе получателя
+  act = (await app.inject({ url: `/api/staff/acts/${no}/vygruzka`, headers: drv })).json();
+  assert.equal(act.giveName, "Сергей Петров");
+  assert.equal(act.takeName, customer.fio);
+  assert.equal(act.takeRole, "Грузополучатель");
+  assert.equal(act.place, "Красноярск");
+  assert.ok(act.blockers.some((b: string) => b.includes("не в городе Красноярск")));
+  // Приёмщик Владивостока выдачу не оформляет
+  assert.equal((await app.inject({ method: "PATCH", url: `/api/staff/acts/${no}/vygruzka`, headers: acc, payload: { notes: "x" } })).statusCode, 409);
+  for (const s of PHOTO_SLOTS) await upload(app, drv, no, s.id, false, "vygruzka");
+  for (const s of VIDEO_SLOTS) await upload(app, drv, no, s.id, true, "vygruzka");
+  await settle();
+  act = (await app.inject({ url: `/api/staff/acts/${no}/vygruzka`, headers: drv })).json();
+  for (const sg of act.suggestions) await app.inject({ method: "POST", url: `/api/staff/acts/${no}/vygruzka/suggestions/${sg.id}`, headers: drv, payload: { state: "no" } });
+  assert.equal((await app.inject({ method: "POST", url: `/api/staff/acts/${no}/vygruzka/sign`, headers: drv, payload: { who: "give", img: SIG } })).statusCode, 409);
+  db.prepare("UPDATE trips SET km = 9000 WHERE id = 'R-7'").run();
+  await app.inject({ method: "POST", url: `/api/staff/acts/${no}/vygruzka/sign`, headers: drv, payload: { who: "give", img: SIG } });
+  act = (await app.inject({ method: "POST", url: `/api/staff/acts/${no}/vygruzka/sign`, headers: drv, payload: { who: "take", img: SIG } })).json();
+  assert.ok(act.closedAt, JSON.stringify(act.blockers));
+  assert.equal(act.take.name, customer.fio);
+  assert.equal((db.prepare("SELECT status FROM orders WHERE no = ?").get(no) as { status: string }).status, "delivered");
+  assert.deepEqual((await app.inject({ url: "/api/staff/acts", headers: drv })).json().map((x: { stage: string; group: string }) => [x.stage, x.group]), [["vygruzka", "done"]]);
 });

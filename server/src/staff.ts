@@ -246,8 +246,10 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
         const city = (JSON.parse(o.car) as CarForm).city;
         if (transfer && (transfer !== TRANSFER_CITY || !canTransfer(city, routeFor)))
           return reply.code(400).send({ error: `Перегруз возможен в ${TRANSFER_CITY}, если город получателя дальше по маршруту` });
-        const started = db.prepare("SELECT 1 FROM acts WHERE order_id = ? AND stage != 'priemka'").get(o.id);
+        const started = db.prepare("SELECT 1 FROM acts WHERE order_id = ? AND stage IN ('term_in', 'term_out')").get(o.id);
         if (!transfer && started) return reply.code(409).send({ error: "Машину уже принимали на терминале: перегруз не отменить" });
+        if (transfer !== o.transfer && db.prepare("SELECT 1 FROM acts WHERE order_id = ? AND stage = 'vygruzka'").get(o.id))
+          return reply.code(409).send({ error: "Машину уже выдают получателю: маршрут не поменять" });
         db.prepare("UPDATE orders SET transfer = ?, trip2_id = CASE WHEN ? IS NULL THEN NULL ELSE trip2_id END WHERE id = ?").run(transfer, transfer, o.id);
         o.transfer = transfer;
         // Рейс, который не доходит до нового конца плеча, снимаем: менеджер выберет подходящий
@@ -811,5 +813,5 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
     return ctx.guard.report();
   });
 
-  registerActs(app, { db, now, store: ctx.store, vision: ctx.vision, need, audit });
+  registerActs(app, { db, now, store: ctx.store, vision: ctx.vision, need, needAny, audit, onDelivered: ctx.requestReview });
 }

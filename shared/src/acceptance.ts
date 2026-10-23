@@ -26,18 +26,27 @@ export const TRANSFER_CITY = "Новосибирск";
 export const isSite = (s: unknown): s is Site => SITES.includes(s as Site);
 
 /**
- * Передачи машины, которые оформляет приёмщик. Каждая — свой раздел сквозного акта: свои фото, видео и подписи.
+ * Передачи машины по сквозному акту. Каждая — свой раздел: свои фото, видео и подписи «Сдал» и «Принял».
  * Дефекты общие на всю цепочку: отметка с прошлой передачи уже стоит на схеме своим цветом.
+ * by — кто оформляет на своём телефоне: приёмщик площадки или водитель рейса. site — площадка приёмщика;
+ * у выдачи площадки нет, это город получателя.
  */
 export const STAGES = {
-  priemka: { name: "Приёмка", title: "Приёмка к перевозке", site: "Владивосток", give: "Заказчик", take: "Приёмщик площадки Владивосток", color: "#2563eb" },
-  term_in: { name: "Приём на терминал", title: "Приём на терминал от водителя", site: "Новосибирск", give: "Водитель рейса", take: "Приёмщик терминала Новосибирск", color: "#d97706" },
-  term_out: { name: "Погрузка с терминала", title: "Погрузка с терминала на следующий рейс", site: "Новосибирск", give: "Приёмщик терминала Новосибирск", take: "Водитель рейса", color: "#7c3aed" },
-} as const satisfies Record<string, { name: string; title: string; site: Site; give: string; take: string; color: string }>;
+  priemka: { name: "Приёмка", title: "Приёмка к перевозке", site: "Владивосток", by: "acceptor", give: "Заказчик", take: "Приёмщик площадки Владивосток", color: "#2563eb" },
+  pogruzka: { name: "Погрузка в автовоз", title: "Передача водителю для погрузки", site: "Владивосток", by: "driver", give: "Приёмщик площадки Владивосток", take: "Водитель рейса", color: "#0891b2" },
+  term_in: { name: "Приём на терминал", title: "Приём на терминал от водителя", site: "Новосибирск", by: "acceptor", give: "Водитель рейса", take: "Приёмщик терминала Новосибирск", color: "#d97706" },
+  term_out: { name: "Погрузка с терминала", title: "Погрузка с терминала на следующий рейс", site: "Новосибирск", by: "acceptor", give: "Приёмщик терминала Новосибирск", take: "Водитель рейса", color: "#7c3aed" },
+  vygruzka: { name: "Выдача", title: "Сдача получателю", site: null, by: "driver", give: "Водитель рейса", take: "Грузополучатель", color: "#dc2626" },
+} as const satisfies Record<string, { name: string; title: string; site: Site | null; by: "acceptor" | "driver"; give: string; take: string; color: string }>;
 export type StageId = keyof typeof STAGES;
 export const isStage = (s: unknown): s is StageId => typeof s === "string" && s in STAGES;
-/** Передачи машины по порядку: без перегруза — только приёмка. */
-export const stagesFor = (transfer: string | null): StageId[] => (transfer ? ["priemka", "term_in", "term_out"] : ["priemka"]);
+/** Передачи машины по порядку: приёмка, погрузка водителю, при перегрузе — терминал, в конце выдача получателю. */
+export const stagesFor = (transfer: string | null): StageId[] =>
+  transfer ? ["priemka", "pogruzka", "term_in", "term_out", "vygruzka"] : ["priemka", "pogruzka", "vygruzka"];
+/** Рейс, к которому относится передача: до терминала — первый, с терминала и выдача после перегруза — второй. */
+export const stagePlace = (stage: StageId, city: string): string => STAGES[stage].site ?? city;
+export const stageLeg = (stage: StageId, transfer: string | null): 1 | 2 =>
+  transfer && (stage === "term_out" || stage === "vygruzka") ? 2 : 1;
 
 /** Можно ли везти машину с перегрузом: город получателя за терминалом на том же маршруте. */
 export function canTransfer(city: string, route: (c: string) => string[]) {
@@ -106,6 +115,11 @@ export const VIDEO_SLOTS: ReadonlyArray<{ id: string; label: string; hint: strin
   { id: "v_wheels_left", label: "Диски левой стороны", hint: "Каждый диск близко, по кругу обода" },
   { id: "v_wheels_right", label: "Диски правой стороны", hint: "Каждый диск близко, по кругу обода" },
 ];
+
+/** Погрузка во Владивостоке сразу после приёмки: водитель снимает 4 угла и подписывает, видео не нужны. */
+const LOAD_CORNERS = ["front_left", "rear_left", "rear_right", "front_right"];
+export const photoSlotsFor = (stage: StageId) => (stage === "pogruzka" ? PHOTO_SLOTS.filter((s) => LOAD_CORNERS.includes(s.id)) : PHOTO_SLOTS);
+export const videoSlotsFor = (stage: StageId) => (stage === "pogruzka" ? [] : VIDEO_SLOTS);
 
 export const VIDEO_MAX_SECONDS = 60;
 export const VIDEO_MAX_BYTES = 300 * 1024 * 1024;
@@ -228,13 +242,17 @@ export interface ActView {
   blockers: string[];
   storage: boolean;
   ai: boolean;
+  /** Где проходит передача: площадка или город получателя. */
+  place: string;
+  /** Может ли тот, кто смотрит, менять раздел и подписывать на своём телефоне. */
+  canEdit: boolean;
 }
 
 /** Строка списка «К приёмке». group — в каком списке машина у приёмщика своей площадки. */
 export interface ActRow {
   no: number;
   stage: StageId;
-  group: "todo" | "incoming" | "yard" | "done";
+  group: "todo" | "load" | "incoming" | "yard" | "deliver" | "done";
   transfer: string | null;
   /** Перегруз: рейс до терминала и сколько ему осталось, рейс дальше. */
   trip: { id: string; truck: string; driver: string; kmLeft: number } | null;
@@ -255,13 +273,14 @@ export interface ActRow {
 }
 
 /** Что мешает подписать акт: фото, видео, непроверенные находки ИИ, обязательные поля. */
-export function actBlockers(a: Pick<ActView, "media" | "suggestions" | "details" | "cond" | "condOther" | "giveName" | "takeName">): string[] {
+export function actBlockers(a: Pick<ActView, "stage" | "media" | "suggestions" | "details" | "cond" | "condOther" | "giveName" | "takeName">): string[] {
   const have = new Set(a.media.map((m) => m.slot));
   const out: string[] = [];
-  const photos = PHOTO_SLOTS.filter((s) => !have.has(s.id)).length;
-  const videos = VIDEO_SLOTS.filter((s) => !have.has(s.id)).length;
-  if (photos) out.push(`Фото: не хватает ${photos} из ${PHOTO_SLOTS.length}`);
-  if (videos) out.push(`Видео: не хватает ${videos} из ${VIDEO_SLOTS.length}`);
+  const ps = photoSlotsFor(a.stage), vs = videoSlotsFor(a.stage);
+  const photos = ps.filter((s) => !have.has(s.id)).length;
+  const videos = vs.filter((s) => !have.has(s.id)).length;
+  if (photos) out.push(`Фото: не хватает ${photos} из ${ps.length}`);
+  if (videos) out.push(`Видео: не хватает ${videos} из ${vs.length}`);
   const checking = a.media.filter((m) => m.ai?.status === "checking").length;
   if (checking) out.push(`ИИ ещё проверяет фото: ${checking}`);
   const pending = a.suggestions.filter((s) => s.state === "pending").length;

@@ -141,7 +141,7 @@ export async function actPdfDefinition(a: ActView): Promise<TDocumentDefinitions
         table: {
           widths: [110, "*", "*"],
           body: a.sections.slice(0, upto).map((s, i) => [
-            { stack: [{ text: `${i + 1}. ${STAGES[s.stage].name}`, bold: true, color: STAGES[s.stage].color }, { text: STAGES[s.stage].site, fontSize: 8 },
+            { stack: [{ text: `${i + 1}. ${STAGES[s.stage].name}`, bold: true, color: STAGES[s.stage].color }, { text: STAGES[s.stage].site ?? a.car.city, fontSize: 8 },
               { text: s.closedAt ? `закрыт ${t(s.closedAt)}` : "не закрыт", fontSize: 8, color: "#555555" }] },
             sigCell(`Сдал, ${lowerFirst(STAGES[s.stage].give)}`, s.giveName, s.give,
               s.stage === a.stage && a.disagree ? `Не согласен с отметками: ${a.disComment}` : s.stage === a.stage && a.absent ? `Не подписал: ${a.absentReason}` : ""),

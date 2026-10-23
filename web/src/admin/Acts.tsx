@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  CONDITIONS, DMG_CODES, PHOTO_GROUPS, PHOTO_SLOTS, PTS_TYPES, STAGES, VIDEO_SLOTS, can, isStage, slotLabel,
+  CONDITIONS, DMG_CODES, PHOTO_GROUPS, PHOTO_SLOTS, PTS_TYPES, STAGES, can, isStage, photoSlotsFor, slotLabel, videoSlotsFor,
   type ActMark, type ActMedia, type ActRow, type ActSuggestion, type ActView, type Condition, type DmgCode, type StageId, type StaffMe,
 } from "@brookclean/shared";
 import { ApiError, call } from "../api.ts";
@@ -26,9 +26,17 @@ export function ActsScreen({ me, path }: { me: StaffMe; path: string }) {
 
 const GROUPS: Record<ActRow["group"], string> = {
   todo: "К приёмке",
+  load: "Ждут погрузки в автовоз",
   incoming: "Прибывают на перегрузку · Новосибирск",
   yard: "На площадке терминала · ждут погрузки",
+  deliver: "Выдать получателю",
   done: "Оформлены",
+};
+/** Какие списки показывать пустыми: у каждого сотрудника свои. */
+const ALWAYS: Record<string, Array<ActRow["group"]>> = {
+  driver: ["load", "deliver"],
+  Новосибирск: ["incoming", "yard"],
+  Владивосток: ["todo", "load"],
 };
 
 function ActList({ me }: { me: StaffMe }) {
@@ -45,13 +53,15 @@ function ActList({ me }: { me: StaffMe }) {
   return (
     <div className="stack">
       <div className="row-between">
-        <h2>{me.site === "Новосибирск" ? "Терминал Новосибирск" : me.site ? `Приёмка · ${me.site}` : "Приёмка и перегруз"}</h2>
+        <h2>{me.role === "driver" ? "Погрузка и выдача · мой рейс" : me.site === "Новосибирск" ? "Терминал Новосибирск" : me.site ? `Приёмка · ${me.site}` : "Приёмка, перегруз и выдача"}</h2>
         <div className="inline" style={{ maxWidth: 320 }}><input placeholder="Номер, авто, VIN, клиент" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Поиск" /></div>
       </div>
-      {groups.filter(([g, l]) => l.length || (g === "todo" && me.site !== "Новосибирск") || ((g === "incoming" || g === "yard") && me.site === "Новосибирск")).map(([g, list]) => (
+      {groups.filter(([g, l]) => l.length || (ALWAYS[me.role === "driver" ? "driver" : me.site ?? "Владивосток"] ?? []).includes(g)).map(([g, list]) => (
         <section key={g} className="card">
           <h3>{GROUPS[g]} · {list.length}</h3>
-          {!list.length && <p className="muted small">{g === "incoming" ? "Сейчас никто не едет на перегрузку." : g === "yard" ? "Площадка пуста." : "Новых машин нет."}</p>}
+          {!list.length && <p className="muted small">{({ incoming: "Сейчас никто не едет на перегрузку.", yard: "Площадка пуста.", load: "Грузить сейчас нечего.", deliver: "Выдавать пока некого." } as Record<string, string>)[g] ?? "Новых машин нет."}</p>}
+          {g === "load" && list.length > 0 && <p className="small muted">{me.role === "driver" ? "Приёмщик площадки сдаёт вам машину: снимите 4 угла и распишитесь оба на вашем телефоне." : "Машину принимает водитель автовоза: он снимает 4 угла, вы расписываетесь «Сдал» на его телефоне."}</p>}
+          {g === "deliver" && list.length > 0 && me.role === "driver" && <p className="small muted">В городе получателя: полный осмотр, получатель проверяет машину и расписывается «Принял» на вашем телефоне.</p>}
           <div className="actlist">
             {list.map((r) => <ActRowCard key={`${r.no}-${r.stage}`} r={r} />)}
           </div>
@@ -71,18 +81,20 @@ function ActRowCard({ r }: { r: ActRow }) {
         <small className="muted"><span className="mono">{r.vin}</span> · {r.client} · в {r.city}</small>
         {r.group === "incoming" && <small className="muted">{r.trip ? `Рейс ${r.trip.id} · ${r.trip.truck} · ${r.trip.driver || "водитель не назначен"}` : "Рейс до терминала не назначен"}</small>}
         {r.group === "yard" && <small className="muted">{r.trip2 ? `Дальше рейсом ${r.trip2.id} · ${r.trip2.driver || "водитель не назначен"}` : "Рейс дальше не назначен: его ставит менеджер"}</small>}
+        {r.group === "load" && <small className="muted">{r.trip ? `Рейс ${r.trip.id} · ${r.trip.truck} · ${r.trip.driver || "водитель не назначен"}` : "Рейс не назначен: машина на стоянке"}</small>}
+        {r.group === "deliver" && r.trip && <small className="muted">Рейс {r.trip.id} · получатель {r.client}</small>}
       </div>
       <div className="actrow-side">
         <span className="pill gray">{STAGES[r.stage].name}</span>
-        {r.group === "incoming" && r.trip && <span className={`pill ${here ? "warn" : "gray"}`}>{here ? "на терминале" : `${r.trip.kmLeft.toLocaleString("ru-RU")} км`}</span>}
+        {(r.group === "incoming" || r.group === "deliver") && r.trip && <span className={`pill ${here ? "warn" : "gray"}`}>{here ? (r.group === "deliver" ? "на месте" : "на терминале") : `${r.trip.kmLeft.toLocaleString("ru-RU")} км`}</span>}
         {r.closedAt ? <span className="pill ok">подписан {fmt(r.closedAt)}</span> : (
           <>
             {r.orderStatus === "draft" && <span className="pill warn">договор не подписан</span>}
-            {(r.photos > 0 || r.videos > 0) && <small className="muted">фото {r.photos}/{PHOTO_SLOTS.length} · видео {r.videos}/{VIDEO_SLOTS.length}</small>}
+            {(r.photos > 0 || r.videos > 0) && <small className="muted">фото {r.photos}/{photoSlotsFor(r.stage).length}{videoSlotsFor(r.stage).length ? ` · видео ${r.videos}/${videoSlotsFor(r.stage).length}` : ""}</small>}
             {r.pending > 0 && <span className="pill ai">ИИ: {r.pending} на проверку</span>}
           </>
         )}
-        <button className={`btn sm ${r.closedAt ? "ghost" : "primary"}`} onClick={open}>{r.closedAt ? "Акт" : r.group === "incoming" ? "Принять" : r.group === "yard" ? "Погрузить" : "Открыть"}</button>
+        <button className={`btn sm ${r.closedAt ? "ghost" : "primary"}`} onClick={open}>{r.closedAt ? "Акт" : ({ incoming: "Принять", yard: "Погрузить", load: "Погрузка", deliver: "Выдать" } as Record<string, string>)[r.group] ?? "Открыть"}</button>
       </div>
     </div>
   );
@@ -127,8 +139,8 @@ function ActScreen({ me, no, stage }: { me: StaffMe; no: number; stage: StageId 
   }
 
   if (!a) return <p className="muted">{error || "Загружаем акт…"}</p>;
-  const gate = a.blockers.find((b) => b.startsWith("Сначала закройте"));
-  const edit = can(me.role, "acts.edit") && !a.closedAt && (!me.site || me.site === STAGES[stage].site) && !gate;
+  const gate = a.blockers.find((b) => b.startsWith("Сначала закройте") || b.startsWith("Рейс для"));
+  const edit = a.canEdit;
   const manager = can(me.role, "acts.manage");
   const patch = (p: ActPatch) => run(() => staffApi.patchAct(no, stage, p));
 
@@ -141,7 +153,7 @@ function ActScreen({ me, no, stage }: { me: StaffMe; no: number; stage: StageId 
           <div>
             <div className="eyebrow">Акт приёма-передачи · раздел {stageNo(a, stage)} из {a.sections.length}</div>
             <h2>{STAGES[stage].title}</h2>
-            <div className="muted small">к договору № {a.no} от {a.contractDate.split("-").reverse().join(".")} · {STAGES[stage].site}</div>
+            <div className="muted small">к договору № {a.no} от {a.contractDate.split("-").reverse().join(".")} · {a.place}</div>
           </div>
           {a.closedAt && <ActPdfButton a={a} />}
         </div>
@@ -163,13 +175,14 @@ function ActScreen({ me, no, stage }: { me: StaffMe; no: number; stage: StageId 
           {a.transfer && <> · <span className="pill warn">перегруз в {a.transfer}</span></>}
         </div>
         {gate && <div className="callout warn">{gate}. Этот раздел можно посмотреть, но оформлять его пока нельзя.</div>}
+        {!gate && !a.canEdit && !a.closedAt && <div className="callout info">{STAGES[stage].by === "driver" ? "Эту передачу оформляет водитель рейса на своём телефоне." : `Эту передачу оформляет площадка ${STAGES[stage].site}.`}</div>}
         {!a.storage && <div className="callout warn">Хранилище фото (S3) не настроено на сервере: фото и видео загрузить нельзя.</div>}
       </section>
 
       {error && <div className="callout warn" role="alert">{error}</div>}
       {notice && <div className="callout warn" role="status">{notice} <button className="linkbtn" onClick={() => setNotice("")}>Понятно</button></div>}
 
-      {DEMO && edit && a.media.length < PHOTO_SLOTS.length + VIDEO_SLOTS.length && (
+      {DEMO && edit && a.media.length < photoSlotsFor(stage).length + videoSlotsFor(stage).length && (
         <div className="callout info demo-note">
           Демо: в браузере можно снять каждое фото по-настоящему или{" "}
           <button className="linkbtn" onClick={() => run(() => call<ActView>(`/api/staff/acts/${no}/${stage}/demo-fill`, { method: "POST" }))}>заполнить пустые ячейки примерами</button>.
@@ -264,8 +277,9 @@ function MediaSection({ a, edit, setZoom, onDone, onError, recheck, remove }: {
 }) {
   const [progress, setProgress] = useState<Record<string, number>>({});
   const bySlot = new Map(a.media.map((m) => [m.slot, m]));
-  const photos = PHOTO_SLOTS.filter((s) => bySlot.has(s.id)).length;
-  const videos = VIDEO_SLOTS.filter((s) => bySlot.has(s.id)).length;
+  const PS = photoSlotsFor(a.stage), VS = videoSlotsFor(a.stage);
+  const photos = PS.filter((s) => bySlot.has(s.id)).length;
+  const videos = VS.filter((s) => bySlot.has(s.id)).length;
 
   async function pick(slot: string, kind: "photo" | "video", file: File | undefined) {
     if (!file) return;
@@ -293,21 +307,22 @@ function MediaSection({ a, edit, setZoom, onDone, onError, recheck, remove }: {
     <>
       <section className="card">
         <div className="row-between">
-          <h3>Фото · {photos} из {PHOTO_SLOTS.length}</h3>
-          <div className="progress" style={{ width: 140 }}><i style={{ width: `${(photos / PHOTO_SLOTS.length) * 100}%` }} /></div>
+          <h3>Фото · {photos} из {PS.length}</h3>
+          <div className="progress" style={{ width: 140 }}><i style={{ width: `${(photos / PS.length) * 100}%` }} /></div>
         </div>
-        {a.ai ? <p className="small muted">Наружные фото проверяет ИИ: возможные повреждения появятся ниже, в «Дефектах», <span style={{ color: AI_COLOR, fontWeight: 600 }}>красным пунктиром</span>.{a.sections.length > 1 && a.stage !== "priemka" ? " На перегрузе ИИ сравнивает с тем же ракурсом прошлой передачи и ищет только новое." : ""}</p>
+        {a.stage === "pogruzka" && <p className="small">При погрузке во Владивостоке машину только что осмотрел приёмщик: достаточно 4 углов под 45°, видео не нужны.</p>}
+        {a.ai ? <p className="small muted">Наружные фото проверяет ИИ: возможные повреждения появятся ниже, в «Дефектах», <span style={{ color: AI_COLOR, fontWeight: 600 }}>красным пунктиром</span>.{a.stage !== "priemka" ? " ИИ сравнивает с тем же ракурсом прошлой передачи и ищет только новое." : ""}</p>
           : <p className="small muted">ИИ-проверка не настроена на сервере: осмотрите фото сами.</p>}
-        {(Object.keys(PHOTO_GROUPS) as Array<keyof typeof PHOTO_GROUPS>).map((g) => (
+        {(Object.keys(PHOTO_GROUPS) as Array<keyof typeof PHOTO_GROUPS>).filter((g) => PS.some((s) => s.group === g)).map((g) => (
           <div key={g} className="stack" style={{ gap: 6 }}>
             <div className="eyebrow">{PHOTO_GROUPS[g]}</div>
             <div className="shots">
-              {PHOTO_SLOTS.filter((s) => s.group === g).map((s) => {
+              {PS.filter((s) => s.group === g).map((s) => {
                 const m = bySlot.get(s.id);
                 const p = progress[s.id];
                 return (
                   <div key={s.id} className={`shot${m ? " done" : ""}`}>
-                    <small><b>{PHOTO_SLOTS.indexOf(s) + 1}.</b> {s.label}</small>
+                    <small><b>{PS.indexOf(s) + 1}.</b> {s.label}</small>
                     {p !== undefined ? <div className="shot-ph"><span className="spin" aria-hidden="true" /> {Math.round(p * 100)}%</div>
                       : m ? (m.url ? <button className="shot-img" onClick={() => setZoom(m.url)} aria-label={`Открыть фото: ${s.label}`}><img src={m.url} alt="" loading="lazy" /></button>
                         : <div className="shot-ph">✓ снято</div>)
@@ -322,14 +337,14 @@ function MediaSection({ a, edit, setZoom, onDone, onError, recheck, remove }: {
         ))}
       </section>
 
-      <section className="card">
+      {VS.length > 0 && <section className="card">
         <div className="row-between">
-          <h3>Видео · {videos} из {VIDEO_SLOTS.length}</h3>
-          <div className="progress" style={{ width: 140 }}><i style={{ width: `${(videos / VIDEO_SLOTS.length) * 100}%` }} /></div>
+          <h3>Видео · {videos} из {VS.length}</h3>
+          <div className="progress" style={{ width: 140 }}><i style={{ width: `${(videos / VS.length) * 100}%` }} /></div>
         </div>
         <p className="small muted">Каждое видео не длиннее минуты. Снимайте медленно, при хорошем свете.</p>
         <div className="videos">
-          {VIDEO_SLOTS.map((s) => {
+          {VS.map((s) => {
             const m = bySlot.get(s.id);
             const p = progress[s.id];
             return (
@@ -349,7 +364,7 @@ function MediaSection({ a, edit, setZoom, onDone, onError, recheck, remove }: {
             );
           })}
         </div>
-      </section>
+      </section>}
     </>
   );
 }
@@ -492,7 +507,7 @@ function MarkCard({ a, m, stage, edit, manager, me, refine, removeMark }: {
   const [reason, setReason] = useState("");
   const f = m.history[0];
   const n = stageNo(a, m.stage);
-  const canRemove = !m.removed && ((edit && can(me.role, "acts.edit")) || manager);
+  const canRemove = !m.removed && (edit || manager);
   return (
     <div className={`defitem${m.removed ? " removed" : ""}`}>
       <div className="inline" style={{ gap: 6 }}>
@@ -565,11 +580,15 @@ function SignSection({ a, edit, busy, patch, sign }: {
     <section className="card">
       <h3>Подписи</h3>
       {a.closedAt ? (
-        <div className="callout ok">Раздел подписан и закрыт {fmt(a.closedAt)}. С этого момента за машину отвечает: <b>{a.takeName}</b> ({a.takeRole}).</div>
+        <div className="callout ok">{a.stage === "vygruzka"
+          ? <>Машина выдана получателю {fmt(a.closedAt)}: <b>{a.takeName}</b>. Перевозка завершена.</>
+          : <>Раздел подписан и закрыт {fmt(a.closedAt)}. С этого момента за машину отвечает: <b>{a.takeName}</b> ({a.takeRole}).</>}</div>
       ) : blocked ? (
         <div className="callout warn"><b>Перед подписью:</b><ul>{a.blockers.map((b) => <li key={b}>{b}</li>)}</ul></div>
       ) : edit ? (
-        <p className="small muted">Порядок: сдающий проверяет акт и подписывает «Сдал», потом принимающий подписывает «Принял», и раздел закрывается. Изменение после подписи сбрасывает подписи.</p>
+        <p className="small muted">{a.stage === "vygruzka"
+          ? "Порядок: вы подписываете «Сдал», затем дайте телефон получателю: он проверяет машину по акту и расписывается «Принял». Если получатель не согласен с состоянием, отметьте дефект до подписей."
+          : "Порядок: сдающий проверяет акт и подписывает «Сдал», потом принимающий подписывает «Принял», и раздел закрывается. Изменение после подписи сбрасывает подписи."}</p>
       ) : null}
       {edit && !a.give && (
         <div className="row2">

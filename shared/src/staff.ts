@@ -17,6 +17,7 @@ export const PERMISSIONS = {
   "acts.read": "Акты приёма автомобилей",
   "acts.edit": "Приёмка: фото, видео, дефекты, подписи",
   "acts.manage": "Снимать отметки дефектов в подписанном акте",
+  "acts.driver": "Передачи машин своего рейса: погрузка, выдача получателю, подписи",
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -30,7 +31,7 @@ export const ROLES = {
   },
   accountant: { name: "Бухгалтер", perms: ["orders.read", "orders.personal", "payments.edit", "reports.read"] },
   acceptor: { name: "Приёмщик", perms: ["orders.read", "trips.read", "acts.read", "acts.edit"] },
-  driver: { name: "Водитель", perms: ["trips.driver"] },
+  driver: { name: "Водитель", perms: ["trips.driver", "acts.driver"] },
 } satisfies Record<string, { name: string; perms: Permission[] }>;
 
 export type Role = keyof typeof ROLES;
