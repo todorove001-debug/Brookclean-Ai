@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { EXPENSE_KINDS, NET, RECEIPT_FIELDS, can, routeFor, rub, type ExpenseKind, type RecognizeResult, type StaffMe, type TripReport, type WaitingCar } from "@brookclean/shared";
+import { EXPENSE_KINDS, NET, RECEIPT_FIELDS, REPORT_STATUS, can, routeFor, rub, type ExpenseKind, type RecognizeResult, type StaffMe, type TripReport, type WaitingCar } from "@brookclean/shared";
 import { ApiError } from "../api.ts";
 import { DEMO, navigate } from "../router.ts";
 import { staffApi } from "./api.ts";
@@ -42,7 +42,9 @@ export function TripReportScreen({ me, id }: { me: StaffMe; id: string }) {
   if (!r) return <div className="stack">{back}<p className="muted">{error || "Загружаем отчёт…"}</p></div>;
 
   const t = r.trip;
-  const edit = t.editable;
+  // Сданный отчёт водитель не меняет, пока менеджер не вернёт его на доработку
+  const locked = !manager && (t.reportStatus === "submitted" || t.reportStatus === "accepted");
+  const edit = t.editable && !locked;
   const [st, cls] = TRIP_STATUS[t.status];
   return (
     <div className="stack report">
@@ -59,16 +61,22 @@ export function TripReportScreen({ me, id }: { me: StaffMe; id: string }) {
           <div className="kpi"><b>{km(r.totals.mileage)}</b><span>пробег по одометру</span></div>
           <div className="kpi"><b>{rub(r.totals.expenses)}</b><span>расходы рейса</span></div>
           <div className="kpi"><b>{r.totals.fuelLiters.toLocaleString("ru-RU")} л</b><span>топливо</span></div>
+          <div className="kpi"><b>{rub(t.advance)}</b><span>аванс водителю</span></div>
+          <div className={`kpi${r.totals.balance < 0 ? " neg" : ""}`}><b>{rub(Math.abs(r.totals.balance))}</b>
+            <span>{r.totals.balance < 0 ? "перерасход, вернуть водителю" : "остаток аванса у водителя"}</span></div>
           {r.finance && <>
             <div className="kpi"><b>{rub(r.totals.delivery!)}</b><span>перевозка по договорам</span></div>
             <div className="kpi"><b>{rub(r.totals.unpaid!)}</b><span>не оплачено</span></div>
+            <div className="kpi"><b>{rub(r.totals.revenue!)}</b><span>выручка рейса по тарифам (перегруз — по доле км)</span></div>
+            <div className={`kpi ${r.totals.revenue! - r.totals.expenses >= 0 ? "pos" : "neg"}`}><b>{rub(r.totals.revenue! - r.totals.expenses)}</b><span>результат рейса до зарплаты</span></div>
           </>}
         </div>
       </section>
       {error && <div className="callout warn" role="alert">{error}</div>}
 
-      <Cars r={r} waiting={waiting} edit={edit} act={act} />
-      <Route r={r} edit={edit} act={act} />
+      <Review r={r} me={me} manager={manager} act={act} />
+      <Cars r={r} waiting={waiting} edit={t.editable} act={act} />
+      <Route r={r} edit={t.editable} act={act} />
       <Expenses r={r} edit={edit} act={act} />
       <Odometer r={r} edit={edit} manager={manager} act={act} />
 
@@ -306,6 +314,54 @@ function Odometer({ r, edit, manager, act }: { r: TripReport; edit: boolean; man
       <p className="small muted">{t.closedAt
         ? `Рейс закрыт ${fmt(t.closedAt)}.${manager ? "" : " Исправить что-то может менеджер."}`
         : "Закройте рейс, когда вернулись: нужен одометр по возвращении. Пробег посчитается сам."}</p>
+    </section>
+  );
+}
+
+/** Сдача отчёта водителем и решение менеджера: принять или вернуть с комментарием. */
+function Review({ r, me, manager, act }: { r: TripReport; me: StaffMe; manager: boolean; act: Act }) {
+  const t = r.trip;
+  const [comment, setComment] = useState("");
+  const [advance, setAdvance] = useState(String(t.advance || ""));
+  const [label, cls] = REPORT_STATUS[t.reportStatus];
+  const reviewer = can(me.role, "reports.read");
+  const canSubmit = t.editable && (t.reportStatus === "draft" || t.reportStatus === "returned");
+  const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "");
+  return (
+    <section className="card">
+      <div className="row-between">
+        <h3>Отчёт водителя</h3>
+        <span className={`pill ${cls}`}>{label}</span>
+      </div>
+      {t.reportStatus === "returned" && t.reportComment && <div className="callout warn"><b>Менеджер вернул отчёт:</b> {t.reportComment}</div>}
+      {t.reportStatus === "submitted" && <div className="callout info">Отчёт сдан {when(t.submittedAt)}. {reviewer ? "Проверьте чеки и пробег." : "Пока менеджер проверяет, изменения недоступны."}</div>}
+      {t.reportStatus === "accepted" && <div className="callout ok">Отчёт принят {when(t.acceptedAt)}. {r.totals.balance >= 0
+        ? `Водитель возвращает остаток аванса ${rub(r.totals.balance)}.` : `Водителю компенсируют перерасход ${rub(-r.totals.balance)}.`}{t.reportComment ? ` Комментарий: ${t.reportComment}` : ""}</div>}
+      {t.reportStatus === "draft" && <p className="small muted">{canSubmit && !manager
+        ? "Когда все чеки внесены, сдайте отчёт: менеджер проверит и примет его или вернёт с комментарием."
+        : "Водитель заполняет отчёт. Чеки появляются здесь сразу после загрузки."}</p>}
+      {canSubmit && <button className="btn dark self-start" disabled={!r.expenses.length} onClick={() => act(() => staffApi.submitReport(t.id))}>
+        {t.reportStatus === "returned" ? "Сдать исправленный отчёт" : "Сдать отчёт на проверку"}</button>}
+      {reviewer && t.reportStatus === "submitted" && <>
+        <div className="field">
+          <label htmlFor="rep-cmt">Комментарий водителю</label>
+          <textarea id="rep-cmt" rows={2} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Например: нет чека за стоянку в Чите" />
+        </div>
+        <div className="inline">
+          <button className="btn ghost" disabled={!comment.trim()} onClick={() => act(() => staffApi.decideReport(t.id, false, comment))}>Вернуть на доработку</button>
+          <button className="btn primary" onClick={() => act(() => staffApi.decideReport(t.id, true, comment))}>Принять отчёт</button>
+        </div>
+      </>}
+      {manager && (
+        <div className="inline">
+          <div className="field">
+            <label htmlFor="rep-adv">Аванс водителю, ₽</label>
+            <input id="rep-adv" inputMode="numeric" value={advance} onChange={(e) => setAdvance(e.target.value)} />
+          </div>
+          <button className="btn sm ghost self-end" disabled={Number(advance.replace(/\D/g, "")) === t.advance}
+            onClick={() => act(() => staffApi.tripMeta(t.id, { advance: Number(advance.replace(/\D/g, "")) || 0 }))}>Сохранить аванс</button>
+        </div>
+      )}
     </section>
   );
 }

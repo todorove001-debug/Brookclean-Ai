@@ -1,17 +1,21 @@
-import type { ActCar, ActRow, ActView, Condition, StageId, CarForm, CustomerForm, ExpenseKind, OrderRowView, OrderStatus, PartnerRequestView, Quote, RecognizeKind, RecognizeResult, Role, SecurityReport, StaffMe, TripReport, TripView, WaitingCar } from "@brookclean/shared";
+import type { BackhaulRow, Deliveries, DistributionItem, DriverCard, DriverInput, ActCar, ActRow, ActView, Condition, StageId, CarForm, CustomerForm, ExpenseKind, OrderRowView, OrderStatus, PartnerRequestView, Quote, RecognizeKind, RecognizeResult, Role, SecurityReport, StaffMe, TripReport, TripView, WaitingCar } from "@brookclean/shared";
 import { call } from "../api.ts";
 import { SITE_ORIGIN } from "../router.ts";
 
 /** Панель работает на staff.<домен>: ссылки для клиентов (трекинг, партнёры) ведут на сайт клиента. */
 export const CLIENT_ORIGIN = SITE_ORIGIN.replace("://staff.", "://");
 
-export interface StaffUser { id: number; name: string; login: string; role: Role; active: boolean; createdAt: string; site: string | null }
+export interface StaffUser { id: number; name: string; login: string; role: Role; active: boolean; createdAt: string; site: string | null; pending?: boolean; phone?: string | null }
 export interface ReviewRow { no: number; client: string; phone: string; rating: number; text: string; createdAt: string }
 export interface PartnerLink { token: string; partner: string; cashback: number; createdAt: string }
 export interface GoogleStatus { configured: boolean; connected: boolean; folderUrl: string | null }
-export interface NewTripBody { dest: string; truck: string; driver?: string; driverId?: number | null; loadDate?: string; odometerStart?: number | null }
+export interface NewTripBody {
+  dest: string; truck: string; trailer?: string; carrier?: string; driver?: string; driverId?: number | null; regDriverId?: number | null;
+  loadDate?: string; odometerStart?: number | null; advance?: number;
+}
 export type TripPatch = Partial<{ odometerStart: number | null; odometerEnd: number | null; closed: boolean }>;
-export type OrderPatch = Partial<{ status: OrderStatus; tripId: string | null; transfer: string | null; trip2Id: string | null; paidDelivery: boolean; paidInsurance: boolean; payTo: string; payForm: string }>;
+export type OrderPatch = Partial<{ status: OrderStatus; tripId: string | null; transfer: string | null; trip2Id: string | null; paidDelivery: boolean; paidInsurance: boolean; payTo: string; payForm: string; policyNo: string }>;
+export type DriverPatch = Partial<DriverInput> & { active?: boolean };
 
 export type ActPatch = Partial<{
   details: Partial<ActCar>; cond: Condition[]; condOther: string; notes: string; giveName: string; takeName: string;
@@ -75,6 +79,25 @@ export const staffApi = {
   removeMark: (no: number, st: StageId, id: number, reason: string) => call<ActView>(`${act(no, st)}/marks/${id}/remove`, { body: { reason } }),
   sign: (no: number, st: StageId, who: "give" | "take", img: string, device: string) =>
     call<ActView>(`${act(no, st)}/sign`, { body: { who, img, device } }),
+
+  // Автопарк
+  registry: () => call<DriverCard[]>("/api/staff/registry"),
+  createDriver: (body: Partial<DriverInput>) => call<DriverCard>("/api/staff/registry", { body }),
+  patchDriver: (id: number, body: DriverPatch) => call<DriverCard>(`/api/staff/registry/${id}`, { method: "PATCH", body }),
+  importDrivers: (drivers: Array<DriverInput & { importKey: string }>) => call<{ added: number; skipped: number }>("/api/staff/registry/import", { body: { drivers } }),
+  myCard: () => call<DriverCard | null>("/api/staff/registry/me"),
+  patchMyCard: (body: Partial<DriverInput>) => call<DriverCard>("/api/staff/registry/me", { method: "PATCH", body }),
+  tripMeta: (id: string, body: Partial<{ advance: number; truck: string; trailer: string; carrier: string }>) => call<TripView>(`${trip(id)}/meta`, { body }),
+  formTrip: (id: string, formed: boolean) => call<TripView>(`${trip(id)}/form`, { body: { formed } }),
+  submitReport: (id: string) => call<TripReport>(`${trip(id)}/report/submit`, { method: "POST" }),
+  decideReport: (id: string, accept: boolean, comment: string) => call<TripReport>(`${trip(id)}/report/decision`, { body: { accept, comment } }),
+  distribution: () => call<DistributionItem[]>("/api/staff/distribution"),
+  deliveries: (id: string) => call<Deliveries>(`${trip(id)}/deliveries`),
+  addBackhaul: (id: string, body: { car: string; vin: string; route: string; client: string; price: number | null }) => call<BackhaulRow[]>(`${trip(id)}/backhaul`, { body }),
+  deleteBackhaul: (id: string, bid: number) => call<BackhaulRow[]>(`${trip(id)}/backhaul/${bid}`, { method: "DELETE" }),
+  register: (body: { name: string; phone: string; password: string; role: Role; site?: string }) => call<{ ok: true }>("/api/staff/register", { body }),
+  registrations: () => call<StaffUser[]>("/api/staff/registrations"),
+  decideRegistration: (id: number, approve: boolean) => call<StaffUser[]>(`/api/staff/registrations/${id}`, { body: { approve } }),
 
   security: () => call<SecurityReport>("/api/staff/security"),
   block: (value: string, note = "") => call<SecurityReport>("/api/staff/security/block", { body: { value, note } }),

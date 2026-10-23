@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { PERMISSIONS, ROLES, SITES, type Permission, type Role, type StaffMe } from "@brookclean/shared";
+import { PERMISSIONS, ROLES, SITES, can, type Permission, type Role, type StaffMe } from "@brookclean/shared";
 import { ApiError } from "../api.ts";
 import { staffApi, type StaffUser } from "./api.ts";
+import { Registrations } from "./Drivers.tsx";
 
 const ROLE_KEYS = Object.keys(ROLES) as Role[];
 
@@ -30,6 +31,7 @@ export function StaffScreen({ me }: { me: StaffMe }) {
   if (!users) return <p className="muted">{error || "Загружаем…"}</p>;
   return (
     <div className="stack">
+      {can(me.role, "staff.approve") && <Registrations />}
       {error && <div className="callout warn" role="alert">{error}</div>}
       <div className="tablewrap">
         <table className="sheet narrow">
