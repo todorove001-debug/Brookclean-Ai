@@ -250,6 +250,12 @@ export function registerStaff(app: FastifyInstance, ctx: StaffContext) {
         if (!transfer && started) return reply.code(409).send({ error: "Машину уже принимали на терминале: перегруз не отменить" });
         db.prepare("UPDATE orders SET transfer = ?, trip2_id = CASE WHEN ? IS NULL THEN NULL ELSE trip2_id END WHERE id = ?").run(transfer, transfer, o.id);
         o.transfer = transfer;
+        // Рейс, который не доходит до нового конца плеча, снимаем: менеджер выберет подходящий
+        const t = o.trip_id ? db.prepare("SELECT dest FROM trips WHERE id = ?").get(o.trip_id) as { dest: string } | undefined : undefined;
+        if (t && !routeFor(t.dest).includes(legEnd(o)) && !("tripId" in b)) {
+          db.prepare("UPDATE orders SET trip_id = NULL, status = CASE WHEN status = 'loading' THEN 'signed' ELSE status END WHERE id = ?").run(o.id);
+          scheduleSync(o.trip_id!);
+        }
       }
       if ("trip2Id" in b) {
         const trip2 = b.trip2Id || null;

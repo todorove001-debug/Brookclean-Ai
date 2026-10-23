@@ -1,18 +1,24 @@
-import type { CarForm, CustomerForm, ExpenseKind, OrderRowView, OrderStatus, PartnerRequestView, Quote, RecognizeKind, RecognizeResult, Role, SecurityReport, StaffMe, TripReport, TripView, WaitingCar } from "@brookclean/shared";
+import type { ActCar, ActRow, ActView, Condition, StageId, CarForm, CustomerForm, ExpenseKind, OrderRowView, OrderStatus, PartnerRequestView, Quote, RecognizeKind, RecognizeResult, Role, SecurityReport, StaffMe, TripReport, TripView, WaitingCar } from "@brookclean/shared";
 import { call } from "../api.ts";
 import { SITE_ORIGIN } from "../router.ts";
 
 /** Панель работает на staff.<домен>: ссылки для клиентов (трекинг, партнёры) ведут на сайт клиента. */
 export const CLIENT_ORIGIN = SITE_ORIGIN.replace("://staff.", "://");
 
-export interface StaffUser { id: number; name: string; login: string; role: Role; active: boolean; createdAt: string }
+export interface StaffUser { id: number; name: string; login: string; role: Role; active: boolean; createdAt: string; site: string | null }
 export interface ReviewRow { no: number; client: string; phone: string; rating: number; text: string; createdAt: string }
 export interface PartnerLink { token: string; partner: string; cashback: number; createdAt: string }
 export interface GoogleStatus { configured: boolean; connected: boolean; folderUrl: string | null }
 export interface NewTripBody { dest: string; truck: string; driver?: string; driverId?: number | null; loadDate?: string; odometerStart?: number | null }
 export type TripPatch = Partial<{ odometerStart: number | null; odometerEnd: number | null; closed: boolean }>;
-export type OrderPatch = Partial<{ status: OrderStatus; tripId: string | null; paidDelivery: boolean; paidInsurance: boolean; payTo: string; payForm: string }>;
+export type OrderPatch = Partial<{ status: OrderStatus; tripId: string | null; transfer: string | null; trip2Id: string | null; paidDelivery: boolean; paidInsurance: boolean; payTo: string; payForm: string }>;
 
+export type ActPatch = Partial<{
+  details: Partial<ActCar>; cond: Condition[]; condOther: string; notes: string; giveName: string; takeName: string;
+  disagree: boolean; disComment: string; absent: boolean; absentReason: string;
+}>;
+
+const act = (no: number, st: StageId) => `/api/staff/acts/${no}/${st}`;
 const trip = (id: string) => `/api/staff/trips/${encodeURIComponent(id)}`;
 
 export const staffApi = {
@@ -47,9 +53,28 @@ export const staffApi = {
     call<PartnerRequestView>(`/api/staff/partner-requests/${id}`, { method: "PATCH", body: { status } }),
   createPartnerLink: (partner: string, cashback: number) => call<{ token: string; url: string }>("/api/staff/partner-links", { body: { partner, cashback } }),
   users: () => call<StaffUser[]>("/api/staff/users"),
-  createUser: (body: { name: string; login: string; password: string; role: Role }) => call<StaffUser>("/api/staff/users", { body }),
-  patchUser: (id: number, body: Partial<{ name: string; role: Role; active: boolean; password: string }>) =>
+  createUser: (body: { name: string; login: string; password: string; role: Role; site?: string }) => call<StaffUser>("/api/staff/users", { body }),
+  patchUser: (id: number, body: Partial<{ name: string; role: Role; active: boolean; password: string; site: string }>) =>
     call<StaffUser>(`/api/staff/users/${id}`, { method: "PATCH", body }),
+
+  acts: () => call<ActRow[]>("/api/staff/acts"),
+  act: (no: number, st: StageId) => call<ActView>(act(no, st)),
+  patchAct: (no: number, st: StageId, body: ActPatch) => call<ActView>(act(no, st), { method: "PATCH", body }),
+  uploadUrl: (no: number, st: StageId, body: { slot: string; contentType: string; size: number; durationSec?: number }) =>
+    call<{ key: string; url: string }>(`${act(no, st)}/upload`, { body }),
+  /** preview — только демо: файл остаётся в браузере. */
+  confirmMedia: (no: number, st: StageId, body: { slot: string; key: string; contentType: string; durationSec?: number; preview?: string }) =>
+    call<ActView>(`${act(no, st)}/media`, { body }),
+  deleteMedia: (no: number, st: StageId, slot: string) => call<ActView>(`${act(no, st)}/media/${slot}`, { method: "DELETE" }),
+  recheck: (no: number, st: StageId, slot: string) => call<ActView>(`${act(no, st)}/ai/${slot}`, { method: "POST" }),
+  decide: (no: number, st: StageId, id: number, state: "yes" | "no" | "pending", code?: string) =>
+    call<ActView>(`${act(no, st)}/suggestions/${id}`, { body: { state, code } }),
+  addMark: (no: number, st: StageId, body: { code: string; part?: string; x: number; y: number }) => call<ActView>(`${act(no, st)}/marks`, { body }),
+  patchMark: (no: number, st: StageId, id: number, body: { code?: string; part?: string }) =>
+    call<ActView>(`${act(no, st)}/marks/${id}`, { method: "PATCH", body }),
+  removeMark: (no: number, st: StageId, id: number, reason: string) => call<ActView>(`${act(no, st)}/marks/${id}/remove`, { body: { reason } }),
+  sign: (no: number, st: StageId, who: "give" | "take", img: string, device: string) =>
+    call<ActView>(`${act(no, st)}/sign`, { body: { who, img, device } }),
 
   security: () => call<SecurityReport>("/api/staff/security"),
   block: (value: string, note = "") => call<SecurityReport>("/api/staff/security/block", { body: { value, note } }),
