@@ -236,6 +236,19 @@ export function demoStaffFetch(path: string, method: string, body: any): Res {
     t.expenses = t.expenses.filter((e) => e.id !== Number(m![2]));
     return ok(report(t));
   }
+  if (path === "/api/staff/recognize") {
+    // В демо ответ подставлен заранее; на сервере фото читает Yandex AI Studio. ФП прочитан с ошибкой, как бывает у модели.
+    return ok({
+      kind: "receipt", model: "демо", ms: 4200, fromQr: [],
+      fields: { date: "21.10.2026", time: "19:05", seller: "АЗС №12 «ДВ-Ойл»", city: "Хабаровск", category: "fuel", description: "ДТ-Л-К5, 160 л × 72,10",
+        liters: "160", amount: "11536", fn: "7380440700123456", fd: "48211", fp: "3912345678" },
+      checks: [
+        { field: "amount", level: "ok", msg: "Два прочтения совпали" },
+        { field: "fd", level: "ok", msg: "Два прочтения совпали" },
+        { field: "fp", level: "error", msg: "Два прочтения разошлись: «3912345678» и «3912346578». Сверьте с фото", suggest: "3912346578" },
+      ],
+    });
+  }
   if (path === "/api/staff/google") return need("reports.read") ?? ok({ configured: false, connected: false, folderUrl: null });
 
   if (path === "/api/staff/reviews") {

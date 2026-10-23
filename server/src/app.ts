@@ -11,12 +11,15 @@ import { contractPayload, sha256 } from "./contract.ts";
 import type { SmsSender } from "./sms.ts";
 import { registerStaff } from "./staff.ts";
 import type { GoogleDrive } from "./drive.ts";
+import type { Vision } from "./recognize.ts";
 
 export interface AppOptions {
   db: DB;
   sms: SmsSender;
   adminToken?: string;
   drive?: GoogleDrive;
+  /** Распознавание фото (Yandex AI Studio). Без него сотрудник заполняет поля вручную. */
+  vision?: Vision;
   webDist?: string;
   /** Адрес сайта для ссылок в SMS. */
   publicUrl?: string;
@@ -247,7 +250,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   });
 
   registerStaff(app, {
-    db, sms, now, publicUrl, adminToken: opts.adminToken, drive: opts.drive,
+    db, sms, now, publicUrl, adminToken: opts.adminToken, drive: opts.drive, vision: opts.vision,
     secureCookies: publicUrl.startsWith("https://") && process.env.NODE_ENV === "production",
     requestReview, randomToken,
   });

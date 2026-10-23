@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { EXPENSE_KINDS, NET, can, routeFor, rub, type ExpenseKind, type StaffMe, type TripReport, type WaitingCar } from "@brookclean/shared";
+import { EXPENSE_KINDS, NET, RECEIPT_FIELDS, can, routeFor, rub, type ExpenseKind, type RecognizeResult, type StaffMe, type TripReport, type WaitingCar } from "@brookclean/shared";
 import { ApiError } from "../api.ts";
 import { DEMO, navigate } from "../router.ts";
 import { staffApi } from "./api.ts";
 import { TRIP_STATUS, fmt } from "./Trips.tsx";
+import { RecognizedFields, photoToJpeg } from "./Recognized.tsx";
 
 const km = (n: number | null) => (n === null ? "—" : `${n.toLocaleString("ru-RU")} км`);
 const digits = (v: string) => (v.trim() ? Number(v.replace(/[^\d]/g, "")) : null);
@@ -180,6 +181,7 @@ function Expenses({ r, edit, act }: { r: TripReport; edit: boolean; act: Act }) 
   return (
     <section className="card">
       <h3>Расходы</h3>
+      {edit && <ReceiptPhoto tripId={t.id} act={act} />}
       {edit && (
         <div className="grid4 expense-form">
           <div className="field"><label htmlFor="ex-kind">Вид</label>
@@ -213,6 +215,68 @@ function Expenses({ r, edit, act }: { r: TripReport; edit: boolean; act: Act }) 
         </>
       )}
     </section>
+  );
+}
+
+/** Вид расхода в отчёте по категории чека. */
+const KIND_OF: Record<string, ExpenseKind> = { fuel: "fuel", toll: "toll", parking: "parking", food: "food", repair: "repair", wash: "wash" };
+const RX_FIELDS = RECEIPT_FIELDS.filter(([k]) => k !== "category");
+
+/** Чек по фото: Яндекс читает поля, водитель сверяет с фото и только потом расход сохраняется. */
+function ReceiptPhoto({ tripId, act }: { tripId: string; act: Act }) {
+  const [s, setS] = useState<null | { photo: string; busy: boolean; r: RecognizeResult | null; v: Record<string, string>; kind: ExpenseKind; msg: string }>(null);
+
+  async function pick(file: File | undefined) {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { setS(null); return; }
+    const photo = await photoToJpeg(file);
+    setS({ photo, busy: true, r: null, v: {}, kind: "other", msg: "" });
+    try {
+      const r = await staffApi.recognize("receipt", photo);
+      const msg = r.error === "not_receipt" ? "На фото не видно кассового чека. Сфотографируйте чек целиком при хорошем свете или заполните поля вручную."
+        : r.error ? "Чек не прочитался. Заполните поля по фото." : "";
+      setS({ photo, busy: false, r, v: r.fields, kind: KIND_OF[r.fields.category] ?? "other", msg });
+    } catch (e) {
+      setS({ photo, busy: false, r: null, v: {}, kind: "other", msg: (e as ApiError).message });
+    }
+  }
+
+  async function save() {
+    if (!s) return;
+    const v = s.v;
+    const fiscal = [v.fn && `ФН ${v.fn}`, v.fd && `ФД ${v.fd}`, v.fp && `ФП ${v.fp}`].filter(Boolean).join(" ");
+    const note = [[v.seller, v.city].filter(Boolean).join(", "), [v.date, v.time].filter(Boolean).join(" "), v.description, fiscal].filter(Boolean).join(" · ");
+    const ok = await act(() => staffApi.addExpense(tripId, {
+      kind: s.kind, amount: Math.round(Number(String(v.amount ?? "").replace(/\s/g, "").replace(",", "."))),
+      liters: s.kind === "fuel" && v.liters ? Number(String(v.liters).replace(",", ".")) : null, note,
+    }));
+    if (ok) setS(null);
+  }
+
+  if (!s) return (
+    <div className="inline">
+      <label className="btn sm dark filebtn">Чек по фото
+        <input type="file" accept="image/*" capture="environment" aria-label="Сфотографировать чек" onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
+      </label>
+      <span className="small muted">Сумма, дата, ФД и ФП подставятся с фото, вы сверите и сохраните.</span>
+    </div>
+  );
+  if (s.busy) return <p className="small muted">Читаем чек… обычно 5–15 секунд.</p>;
+  return (
+    <div className="stack">
+      {s.msg && <div className="callout warn">{s.msg}</div>}
+      <RecognizedFields
+        r={s.r} photo={s.photo} fields={RX_FIELDS} values={s.v}
+        onChange={(k, val) => setS((x) => x && { ...x, v: { ...x.v, [k]: val } })}
+        onConfirm={save} onCancel={() => setS(null)} confirmLabel="Сохранить расход"
+        extra={
+          <div className="field"><label htmlFor="rx-kind">Вид расхода</label>
+            <select id="rx-kind" value={s.kind} onChange={(e) => setS((x) => x && { ...x, kind: e.target.value as ExpenseKind })}>
+              {Object.entries(EXPENSE_KINDS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+            </select></div>
+        }
+      />
+    </div>
   );
 }
 
