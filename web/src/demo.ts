@@ -116,6 +116,8 @@ export async function demoFetch(path: string, method: string, body: any): Promis
   if (path === "/api/auth/logout") return (demoPhone = null), ok({ ok: true });
   if (path === "/api/quote") {
     if (!demoPhone) return fail(401, "Подтвердите номер телефона, чтобы увидеть цену");
+    if (!clientMe(demoPhone).canOrder)
+      return { status: 403, data: { error: "Обычный клиент может оформить один автомобиль в сутки. Чтобы оформлять больше, заполните карточку партнёра.", needPartner: true } };
     const car = body?.car as CarForm;
     return ok(quote({ city: car.city, body: car.body, value: parseRub(car.value) }));
   }
