@@ -1,26 +1,28 @@
 // Демо панели управления: примерные заявки и рейсы, вход под любой ролью с паролем «demo».
 import {
-  BODY, EXPENSE_KINDS, NET, ROLES, can, isRole, kmTo, normalizePhone, parseRub, routeFor, validateCar, validateCustomer,
+  BODY, CAPACITY, EXPENSE_KINDS, legShare, NET, ROLES, can, isRole, kmTo, normalizePhone, parseRub, routeFor, validateCar, validateCustomer,
   type CarForm, type CustomerForm, type OrderRowView, type ExpenseKind, type OrderStatus, type Permission, type Role, type StaffMe,
   type TripCar, type TripExpense, type TripReport, type TripView,
 } from "@brookclean/shared";
 import { quote } from "../../server/src/pricing.ts";
 import { partnerRequests } from "./demo-partners.ts";
 import { demoActsFetch, seedActs } from "./demo-acts.ts";
+import { demoDriverCard, demoFleetFetch, seedFleet } from "./demo-fleet.ts";
 
 type Res = { status: number; data: unknown };
 const ok = (data: unknown): Res => ({ status: 200, data });
 const fail = (status: number, error: string, errors?: unknown): Res => ({ status, data: { error, errors } });
 
-interface Row extends OrderRowView { fio: string; fullPhone: string }
+export interface Row extends OrderRowView { fio: string; fullPhone: string; deliveredAt?: string | null }
 
-const users = [
-  { id: 1, name: "Евгений", login: "owner", role: "owner" as Role, active: true, createdAt: "2026-10-01T00:00:00Z", site: null as string | null },
-  { id: 2, name: "Анна", login: "manager", role: "manager" as Role, active: true, createdAt: "2026-10-02T00:00:00Z", site: null },
-  { id: 3, name: "Ирина", login: "accountant", role: "accountant" as Role, active: true, createdAt: "2026-10-03T00:00:00Z", site: null },
-  { id: 4, name: "Ольга", login: "acceptor", role: "acceptor" as Role, active: true, createdAt: "2026-10-04T00:00:00Z", site: "Владивосток" },
-  { id: 5, name: "Сергей", login: "driver", role: "driver" as Role, active: true, createdAt: "2026-10-05T00:00:00Z", site: null },
-  { id: 6, name: "Андрей", login: "terminal", role: "acceptor" as Role, active: true, createdAt: "2026-10-06T00:00:00Z", site: "Новосибирск" },
+export const users = [
+  { id: 1, name: "Евгений", login: "owner", role: "owner" as Role, active: true, createdAt: "2026-10-01T00:00:00Z", site: null as string | null, pending: false, phone: null as string | null },
+  { id: 2, name: "Анна", login: "manager", role: "manager" as Role, active: true, createdAt: "2026-10-02T00:00:00Z", site: null, pending: false, phone: null },
+  { id: 3, name: "Ирина", login: "accountant", role: "accountant" as Role, active: true, createdAt: "2026-10-03T00:00:00Z", site: null, pending: false, phone: null },
+  { id: 4, name: "Ольга", login: "acceptor", role: "acceptor" as Role, active: true, createdAt: "2026-10-04T00:00:00Z", site: "Владивосток", pending: false, phone: null },
+  { id: 5, name: "Сергей", login: "driver", role: "driver" as Role, active: true, createdAt: "2026-10-05T00:00:00Z", site: null, pending: false, phone: null },
+  { id: 7, name: "Ким Олег Сергеевич", login: "+79140007788", role: "driver" as Role, active: false, createdAt: "2026-10-22T09:00:00Z", site: null, pending: true, phone: "+79140007788" },
+  { id: 6, name: "Андрей", login: "terminal", role: "acceptor" as Role, active: true, createdAt: "2026-10-06T00:00:00Z", site: "Новосибирск", pending: false, phone: null },
 ];
 let me: StaffMe | null = null;
 
@@ -31,11 +33,12 @@ function seedRow(no: number, date: string, car: string, vin: string, year: numbe
     no, id: "demo-" + no, createdAt: date, status: tripId === "R-01" ? "in_transit" : tripId ? "loading" : "signed", car, vin, year: String(year), color,
     body: BODY[body].name, city, client: fio, phone, fio, fullPhone: phone, partner, tariff: q.tariff, cashback, delivery: q.delivery, value,
     insurance: q.insurance, total: q.total, paidDelivery: false, paidInsurance: false, payTo: "", payForm: "", tripId,
-    transfer: null, trip2Id: null, trackToken: null, signedAt: date, ...extra,
+    transfer: null, trip2Id: null, trackToken: null, signedAt: date, policyNo: "", ...extra,
   };
 }
 
 const rows: Row[] = [
+  seedRow(686, "2026-10-22T03:20:00Z", "Mazda CX-5", "KF5P-512345", 2020, "Красный", "cross", "Екатеринбург", "Сидоренко Виктор Павлович", "+79145550021", 0, 2100000, null, null),
   seedRow(685, "2026-10-21T10:05:00Z", "Mazda CX-5", "KF5P-451207", 2022, "Красный", "cross", "Иркутск", "Дорохова Елена Сергеевна", "+79025550071", 0, 2600000, null, null),
   seedRow(684, "2026-10-21T09:10:00Z", "Toyota Yaris", "KSP210-0089458", 2023, "Белый", "sedan", "Новосибирск", "Юферов Павел Юрьевич", "+79135550053", 5000, 1000000, null, "R-01"),
   seedRow(683, "2026-10-21T08:40:00Z", "Toyota Yaris", "KSP210-0094312", 2023, "Чёрный", "sedan", "Кемерово", "Юферов Павел Юрьевич", "+79135550053", 5000, 1000000, null, "R-01"),
@@ -51,20 +54,27 @@ const rows: Row[] = [
     { paidDelivery: true, payTo: "Ким", payForm: "перевод" }),
 ];
 
-type DemoTrip = Omit<TripView, "status" | "orders" | "expensesTotal" | "editable"> & { expenses: TripExpense[] };
-const blank = { driverId: null, odometerStart: null, odometerEnd: null, closedAt: null, driveUrl: null, driveError: null, driveSyncedAt: null };
+export type DemoTrip = Omit<TripView, "status" | "orders" | "expensesTotal" | "editable" | "seats"> & { expenses: TripExpense[] };
+const blank = {
+  driverId: null, odometerStart: null, odometerEnd: null, closedAt: null, driveUrl: null, driveError: null, driveSyncedAt: null,
+  trailer: "", carrier: "собственный", regDriverId: null, formedAt: null, advance: 0, reportStatus: "draft" as const, reportComment: "", submittedAt: null, acceptedAt: null,
+};
 const trips: DemoTrip[] = [
   { ...blank, id: "R-01", dest: "Новосибирск", truck: "Volvo FH · А 482 КР 125", driver: "Сергей", driverId: 5, loadDate: "2026-10-21", km: 760, odometerStart: 412300,
+    trailer: "LUXUDA LZC9407BG · ОО 5642 25", regDriverId: 1, formedAt: "2026-10-20T19:00:00Z", advance: 120000,
     events: [{ at: "2026-10-20T20:10:00Z", city: "Владивосток", note: "Погружен, выехал" }, { at: "2026-10-21T08:40:00Z", city: "Хабаровск", note: "В пути" }],
     expenses: [
       { id: 1, at: "2026-10-20T20:30:00Z", kind: "fuel", amount: 21600, liters: 300, note: "АЗС Роснефть, Владивосток", by: "Сергей" },
       { id: 2, at: "2026-10-21T08:55:00Z", kind: "parking", amount: 400, liters: null, note: "Стоянка, Хабаровск", by: "Сергей" },
     ] },
-  { ...blank, id: "R-02", dest: "Краснодар", truck: "Scania R · В 117 ОМ 125", driver: "Алексей", loadDate: "2026-10-23", km: 0, events: [], expenses: [] },
-  { ...blank, id: "R-03", dest: "Москва", truck: "MAN TGX · Е 905 УА 125", driver: "Дмитрий", loadDate: "2026-10-24", km: 0, events: [], expenses: [] },
+  { ...blank, id: "R-02", dest: "Краснодар", truck: "Scania R · В 117 ОМ 125", driver: "Смирнов Алексей Викторович", loadDate: "2026-10-23", km: 0, events: [], expenses: [],
+    trailer: "LOHR S2M52X · АО 0802 25", regDriverId: 2, advance: 150000 },
+  { ...blank, id: "R-03", dest: "Москва", truck: "MAN TGX · Е 905 УА 54", driver: "Волков Дмитрий Олегович", loadDate: "2026-10-24", km: 0, events: [], expenses: [],
+    trailer: "LUXUDA LZC9405BG · АО 2148 54", carrier: "ООО «Сибирь-Транзит» (пример)", regDriverId: 3, advance: 150000 },
 ];
 let expenseId = 10;
 seedActs(rows, trips);
+seedFleet();
 
 const reviews = [
   { no: 671, client: "Петров Илья Сергеевич", phone: "+79145550012", rating: 2, text: "Задержали на неделю, никто не предупредил.", createdAt: "2026-10-18T10:00:00Z" },
@@ -88,26 +98,30 @@ const canEdit = (t: DemoTrip) => !!me && (can(me.role, "trips.edit") || (can(me.
 function tripView(t: DemoTrip): TripView {
   const status = t.km >= kmTo(t.dest) && t.km > 0 ? "arrived" : t.km > 0 ? "in_transit" : "loading";
   const { expenses, ...rest } = t;
-  return { ...rest, status, orders: rows.filter((r) => r.tripId === t.id || r.trip2Id === t.id).map((r) => r.no).sort(), expensesTotal: expenses.reduce((s, e) => s + e.amount, 0), editable: canEdit(t) };
+  const orders = rows.filter((r) => r.tripId === t.id || r.trip2Id === t.id).map((r) => r.no).sort();
+  return { ...rest, status, orders, seats: CAPACITY - orders.length, expensesTotal: expenses.reduce((s, e) => s + e.amount, 0), editable: canEdit(t) };
 }
 const STATUS_RU: Record<string, string> = { signed: "Подписан", paid: "Оплачен", loading: "Погрузка", in_transit: "В пути", arrived: "Прибыл", delivered: "Выдан" };
 function report(t: DemoTrip): TripReport {
   const finance = can(me!.role, "reports.read");
-  const cars = rows.filter((r) => r.tripId === t.id).sort((a, b) => a.no - b.no).map((r): TripCar => {
+  const mine = rows.filter((r) => r.tripId === t.id || r.trip2Id === t.id);
+  const cars = mine.sort((a, b) => a.no - b.no).map((r): TripCar => {
     const base = { no: r.no, car: r.car, vin: r.vin, year: r.year, color: r.color, city: r.city, km: kmTo(r.city), client: shortName(r.fio), phone: maskPhone(r.fullPhone), status: STATUS_RU[r.status] ?? r.status };
     return finance ? { ...base, delivery: r.delivery, insurance: r.insurance, total: r.total, paidDelivery: r.paidDelivery, paidInsurance: r.paidInsurance, payTo: r.payTo, payForm: r.payForm } : base;
   });
   const byKind: TripReport["totals"]["byKind"] = {};
   for (const e of t.expenses) byKind[e.kind] = (byKind[e.kind] ?? 0) + e.amount;
   const sum = (f: (c: TripCar) => number) => cars.reduce((s, c) => s + f(c), 0);
+  const spent = t.expenses.reduce((s, e) => s + e.amount, 0);
+  const revenue = mine.reduce((s, r) => s + r.delivery * legShare(!r.transfer ? null : r.tripId === t.id ? 1 : 2, kmTo(r.transfer ?? r.city), kmTo(r.city)), 0);
   return {
     trip: tripView(t), cars, expenses: t.expenses, finance,
     totals: {
-      cars: cars.length, expenses: t.expenses.reduce((s, e) => s + e.amount, 0), byKind,
+      cars: cars.length, expenses: spent, balance: t.advance - spent, byKind,
       fuelLiters: t.expenses.reduce((s, e) => s + (e.liters ?? 0), 0),
       mileage: t.odometerStart !== null && t.odometerEnd !== null ? t.odometerEnd - t.odometerStart : null,
       ...(finance ? { delivery: sum((c) => c.delivery!), insurance: sum((c) => c.insurance!),
-        unpaid: sum((c) => (c.paidDelivery ? 0 : c.delivery!) + (c.paidInsurance ? 0 : c.insurance!)) } : {}),
+        unpaid: sum((c) => (c.paidDelivery ? 0 : c.delivery!) + (c.paidInsurance ? 0 : c.insurance!)), revenue: Math.round(revenue) } : {}),
     },
   };
 }
@@ -122,13 +136,23 @@ function tripFor(id: string, edit: boolean): DemoTrip | Res {
   return t;
 }
 const isRes = (x: DemoTrip | Res): x is Res => "status" in x && "data" in x;
+/** Отчёт сдан или принят: водитель больше не меняет расходы и одометр. */
+const locked = (t: DemoTrip) => !can(me!.role, "trips.edit") && (t.reportStatus === "submitted" || t.reportStatus === "accepted");
+function seatError(tripId: string, no: number) {
+  const t = trips.find((x) => x.id === tripId);
+  if (t?.formedAt) return `Рейс ${tripId} сформирован: сначала верните его в формирование`;
+  if (rows.filter((r) => r.no !== no && (r.tripId === tripId || r.trip2Id === tripId)).length >= CAPACITY) return `В рейсе ${tripId} нет мест: занято ${CAPACITY} из ${CAPACITY}`;
+  return "";
+}
 const need = (p: Permission) => (!me ? fail(401, "Войдите в панель") : !can(me.role, p) ? fail(403, "Нет доступа к этому разделу") : null);
 
 export function demoStaffFetch(path: string, method: string, body: any): Res {
   let m: RegExpExecArray | null;
   if (path === "/api/staff/login") {
-    const u = users.find((x) => x.login === String(body?.login).toLowerCase() && x.active);
+    const login = String(body?.login).toLowerCase(), asPhone = normalizePhone(login);
+    const u = users.find((x) => (x.login === login || (asPhone && x.login === asPhone)) && (x.active || x.pending));
     if (!u || body?.password !== "demo") return fail(401, "Неверный логин или пароль. В демо пароль: demo");
+    if (u.pending) return fail(403, "Заявка на доступ ждёт подтверждения менеджером");
     me = { id: u.id, name: u.name, login: u.login, role: u.role, perms: [...ROLES[u.role].perms], site: u.site };
     return ok(me);
   }
@@ -136,6 +160,8 @@ export function demoStaffFetch(path: string, method: string, body: any): Res {
   if (path === "/api/staff/me") return me ? ok(me) : fail(401, "Войдите в панель");
 
   if (path.startsWith("/api/staff/acts")) return demoActsFetch(path, method, body, me, rows, trips);
+  const fleet = demoFleetFetch(path, method, body, { me, rows, trips, users, tripFor, isRes, tripView, report });
+  if (fleet) return fleet;
   if (path === "/api/staff/quote") {
     const denied = need("orders.create");
     if (denied) return denied;
@@ -173,8 +199,14 @@ export function demoStaffFetch(path: string, method: string, body: any): Res {
     if (!r) return fail(404, "Заявка не найдена");
     const b = body ?? {};
     if (["status", "tripId", "transfer", "trip2Id"].some((k) => k in b) && !can(me!.role, "orders.edit")) return fail(403, "Нет доступа к этому полю");
-    if (["paidDelivery", "paidInsurance", "payTo", "payForm"].some((k) => k in b) && !can(me!.role, "payments.edit")) return fail(403, "Нет доступа к этому полю");
+    if (["paidDelivery", "paidInsurance", "payTo", "payForm", "policyNo"].some((k) => k in b) && !can(me!.role, "payments.edit")) return fail(403, "Нет доступа к этому полю");
+    for (const id of [b.tripId, b.trip2Id]) {
+      const full = id && seatError(id, r.no);
+      if (full) return fail(409, full);
+    }
+    if ("tripId" in b && r.tripId && r.tripId !== b.tripId && trips.find((t) => t.id === r.tripId)?.formedAt) return fail(409, `Рейс ${r.tripId} сформирован: сначала верните его в формирование`);
     Object.assign(r, b);
+    if (b.status === "delivered") r.deliveredAt ??= new Date().toISOString();
     if ("tripId" in b && b.tripId && (r.status === "signed" || r.status === "paid")) r.status = "loading";
     if (r.paidDelivery && r.paidInsurance && r.status === "signed") r.status = "paid";
     return ok(view(r));
@@ -186,14 +218,23 @@ export function demoStaffFetch(path: string, method: string, body: any): Res {
   if (path === "/api/staff/trips" && method === "POST") {
     const denied = needAny("trips.edit", "trips.driver");
     if (denied) return denied;
-    if (!NET[body?.dest] || !String(body?.truck ?? "").trim()) return fail(400, "Укажите город назначения и автовоз");
     const manager = can(me!.role, "trips.edit");
+    const card = manager && body.regDriverId ? demoDriverCard(Number(body.regDriverId)) : undefined;
+    if (card) {
+      body.truck ||= [card.tractorModel, card.tractorPlate].filter(Boolean).join(" · ");
+      body.trailer ||= [card.trailerModel, card.trailerPlate].filter(Boolean).join(" · ");
+      body.carrier ||= card.own ? "собственный" : card.companyName || "наёмный";
+      body.driver = card.name;
+    }
+    if (!NET[body?.dest] || !String(body?.truck ?? "").trim()) return fail(400, "Укажите город назначения и автовоз");
     const d = manager && body.driverId ? users.find((u) => u.id === Number(body.driverId) && u.role === "driver") : undefined;
     let n = trips.length + 1;
     while (trips.some((t) => t.id === `R-${String(n).padStart(2, "0")}`)) n++;
     const t: DemoTrip = { ...blank, id: `R-${String(n).padStart(2, "0")}`, dest: body.dest, truck: body.truck.trim(),
       driver: manager ? d?.name ?? String(body.driver ?? "").trim() : me!.name, driverId: manager ? d?.id ?? null : me!.id,
-      loadDate: body.loadDate || null, km: 0, odometerStart: body.odometerStart ?? null, events: [], expenses: [] };
+      loadDate: body.loadDate || null, km: 0, odometerStart: body.odometerStart ?? null, events: [], expenses: [],
+      trailer: String(body.trailer ?? ""), carrier: String(body.carrier ?? ""), regDriverId: card?.id ?? null,
+      advance: manager ? Number(String(body.advance ?? 0).replace(/\D/g, "")) || 0 : 0 };
     trips.unshift(t);
     return ok(tripView(t));
   }
@@ -202,6 +243,7 @@ export function demoStaffFetch(path: string, method: string, body: any): Res {
     if (reopening && !can(me!.role, "trips.edit")) return fail(403, "Открыть закрытый рейс может менеджер");
     const t = tripFor(m[1], !reopening);
     if (isRes(t)) return t;
+    if (("odometerStart" in body || "odometerEnd" in body) && locked(t)) return fail(409, "Отчёт сдан на проверку: изменения недоступны");
     const start = "odometerStart" in body ? body.odometerStart : t.odometerStart;
     const end = "odometerEnd" in body ? body.odometerEnd : t.odometerEnd;
     if (start !== null && end !== null && end < start) return fail(400, "Одометр в конце меньше, чем в начале");
@@ -239,9 +281,12 @@ export function demoStaffFetch(path: string, method: string, body: any): Res {
     if (!r) return fail(404, "Заявка не найдена");
     if (body.load) {
       if (r.tripId) return fail(409, "Машина уже в рейсе " + r.tripId);
+      const full = seatError(t.id, r.no);
+      if (full) return fail(409, full);
       r.tripId = t.id;
       r.status = "loading";
     } else {
+      if (t.formedAt) return fail(409, `Рейс ${t.id} сформирован: сначала верните его в формирование`);
       r.tripId = null;
       if (r.status === "loading") r.status = "signed";
     }
@@ -250,6 +295,7 @@ export function demoStaffFetch(path: string, method: string, body: any): Res {
   if ((m = /^\/api\/staff\/trips\/([\w-]+)\/expenses$/.exec(path))) {
     const t = tripFor(m[1], true);
     if (isRes(t)) return t;
+    if (locked(t)) return fail(409, "Отчёт сдан на проверку: изменения недоступны");
     const amount = Math.round(Number(body?.amount));
     if (!(body?.kind in EXPENSE_KINDS)) return fail(400, "Выберите вид расхода");
     if (!(amount > 0)) return fail(400, "Сумма в рублях больше нуля");
@@ -260,6 +306,7 @@ export function demoStaffFetch(path: string, method: string, body: any): Res {
   if ((m = /^\/api\/staff\/trips\/([\w-]+)\/expenses\/(\d+)$/.exec(path))) {
     const t = tripFor(m[1], true);
     if (isRes(t)) return t;
+    if (locked(t)) return fail(409, "Отчёт сдан на проверку: изменения недоступны");
     t.expenses = t.expenses.filter((e) => e.id !== Number(m![2]));
     return ok(report(t));
   }
@@ -301,7 +348,7 @@ export function demoStaffFetch(path: string, method: string, body: any): Res {
     if (!body.password || body.password.length < 8) return fail(400, "Пароль не короче 8 символов");
     if (!isRole(body.role)) return fail(400, "Выберите роль");
     const u = { id: users.length + 1, name: body.name, login: body.login.toLowerCase(), role: body.role, active: true, createdAt: new Date().toISOString(),
-      site: body.role === "acceptor" ? body.site ?? "Владивосток" : null };
+      site: body.role === "acceptor" ? body.site ?? "Владивосток" : null, pending: false, phone: null };
     users.push(u);
     return ok(u);
   }

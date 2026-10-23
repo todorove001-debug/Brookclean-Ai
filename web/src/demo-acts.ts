@@ -321,3 +321,6 @@ export function demoActsFetch(path: string, method: string, body: any, me: Staff
   }
   return fail(404, "В демо это не работает");
 }
+
+/** Раздел акта закрыт (для распределения и таблицы доставок в демо). */
+export const demoActClosedAt = (no: number, st: StageId) => acts.get(key(no, st))?.closedAt ?? null;
