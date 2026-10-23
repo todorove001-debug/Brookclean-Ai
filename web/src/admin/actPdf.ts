@@ -48,6 +48,7 @@ async function asDataUrl(src: string) {
 }
 
 const t = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleString("ru-RU", { timeZone: "Asia/Vladivostok" }) : "");
+const lowerFirst = (s: string) => s[0].toLowerCase() + s.slice(1);
 const line = (label: string, value: string): Content => ({ text: [label + ": ", { text: value || "—", bold: true }], margin: [0, 0, 0, 3] });
 
 export async function actPdfDefinition(a: ActView): Promise<TDocumentDefinitions> {
@@ -101,7 +102,7 @@ export async function actPdfDefinition(a: ActView): Promise<TDocumentDefinitions
       { columns: [
         { image: diagram, width: 300 },
         { stack: [
-          ...a.sections.slice(0, upto).map((s, i): Content => ({ text: [{ text: "● ", color: STAGES[s.stage].color }, `${i + 1} · ${STAGES[s.stage].name}`], fontSize: 8 })),
+          ...a.sections.slice(0, upto).map((s, i): Content => ({ text: `${i + 1} · ${STAGES[s.stage].name}`, color: STAGES[s.stage].color, bold: true, fontSize: 8 })),
           { table: { widths: [22, "*"], body: codes.slice(0, half).map(([k, v]) => [{ text: k, bold: true }, v]) },
             layout: "lightHorizontalLines", fontSize: 7.5, margin: [0, 6, 0, 0] },
           { table: { widths: [22, "*"], body: codes.slice(half).map(([k, v]) => [{ text: k, bold: true }, v]) }, layout: "lightHorizontalLines", fontSize: 7.5 },
@@ -142,9 +143,9 @@ export async function actPdfDefinition(a: ActView): Promise<TDocumentDefinitions
           body: a.sections.slice(0, upto).map((s, i) => [
             { stack: [{ text: `${i + 1}. ${STAGES[s.stage].name}`, bold: true, color: STAGES[s.stage].color }, { text: STAGES[s.stage].site, fontSize: 8 },
               { text: s.closedAt ? `закрыт ${t(s.closedAt)}` : "не закрыт", fontSize: 8, color: "#555555" }] },
-            sigCell(`Сдал, ${STAGES[s.stage].give.toLowerCase()}`, s.giveName, s.give,
+            sigCell(`Сдал, ${lowerFirst(STAGES[s.stage].give)}`, s.giveName, s.give,
               s.stage === a.stage && a.disagree ? `Не согласен с отметками: ${a.disComment}` : s.stage === a.stage && a.absent ? `Не подписал: ${a.absentReason}` : ""),
-            sigCell(`Принял, ${STAGES[s.stage].take.toLowerCase()}`, s.takeName, s.take),
+            sigCell(`Принял, ${lowerFirst(STAGES[s.stage].take)}`, s.takeName, s.take),
           ]),
         },
         layout: { hLineColor: () => "#bbbbbb", vLineColor: () => "#bbbbbb", paddingTop: () => 4, paddingBottom: () => 4 },
