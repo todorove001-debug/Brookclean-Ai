@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import {
   CONDITIONS, DMG_CODES, PHOTO_GROUPS, PHOTO_SLOTS, PTS_TYPES, STAGES, VIDEO_SLOTS, can, isStage, slotLabel,
   type ActMark, type ActMedia, type ActRow, type ActSuggestion, type ActView, type Condition, type DmgCode, type StageId, type StaffMe,
@@ -183,6 +183,16 @@ function ActScreen({ me, no, stage }: { me: StaffMe; no: number; stage: StageId 
 
       <section className="card">
         <h3>Акт</h3>
+        <p className="small">
+          К договору № <b>{a.no}</b> от {a.contractDate.split("-").reverse().join(".")} · Заказчик: <b>{a.client}</b>
+        </p>
+        <p className="small muted">Легковой автомобиль, данные из заявки №{a.no}:</p>
+        <div className="grid4">
+          <Field label="Марка" value={a.car.car} edit={false} onSave={() => {}} />
+          <Field label="VIN" value={a.car.vin} edit={false} onSave={() => {}} />
+          <Field label="Год выпуска" value={a.car.year} edit={false} onSave={() => {}} />
+          <Field label="Цвет" value={a.car.color} edit={false} onSave={() => {}} />
+        </div>
         {stage === "priemka" ? (
           <>
             <div className="grid4">
@@ -243,7 +253,7 @@ function Field({ label, value, edit, onSave, numeric, multiline }: {
 }) {
   const [v, setV] = useState(value);
   useEffect(() => setV(value), [value]);
-  const id = "f-" + label.replace(/\W+/g, "");
+  const id = useId();
   const save = () => v.trim() !== value && onSave(v.trim());
   return (
     <div className="field">
