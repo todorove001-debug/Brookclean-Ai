@@ -29,6 +29,8 @@ export interface DamageSuggestion {
   part: string;
   desc: string;
   confidence: "high" | "medium" | "low";
+  /** Код из акта приёма (A1…X): ИИ предлагает, приёмщик может уточнить. */
+  code?: string;
   /** Где на фото: весь кадр или его часть (фото режется на части, чтобы мелкие сколы были видны). */
   where: string;
 }

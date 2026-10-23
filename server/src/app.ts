@@ -16,6 +16,8 @@ import type { SmsSender } from "./sms.ts";
 import { cookie, registerStaff } from "./staff.ts";
 import type { GoogleDrive } from "./drive.ts";
 import type { Vision } from "./recognize.ts";
+import type { MediaStore } from "./media.ts";
+import { migrateActs } from "./acts.ts";
 
 export interface AppOptions {
   db: DB;
@@ -24,6 +26,8 @@ export interface AppOptions {
   drive?: GoogleDrive;
   /** Распознавание фото (Yandex AI Studio). Без него сотрудник заполняет поля вручную. */
   vision?: Vision;
+  /** Хранилище фото и видео приёмки (S3 Reg.ru). Без него приёмщик не может загрузить фото. */
+  media?: MediaStore;
   webDist?: string;
   /** Адрес сайта для ссылок в SMS. */
   publicUrl?: string;
@@ -65,6 +69,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   const app = Fastify({ logger: process.env.NODE_ENV === "production", trustProxy: process.env.TRUST_PROXY ?? "127.0.0.1" });
   migrateGuard(db);
   migratePartners(db);
+  migrateActs(db);
   const guard = new Guard(db, now);
 
   const publicUrl = (opts.publicUrl ?? "https://brookclean-reg.ru").replace(/\/$/, "");
@@ -407,7 +412,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   });
 
   registerStaff(app, {
-    db, sms, now, publicUrl, adminToken: opts.adminToken, drive: opts.drive, guard, vision: opts.vision,
+    db, sms, now, publicUrl, adminToken: opts.adminToken, drive: opts.drive, guard, vision: opts.vision, store: opts.media,
     secureCookies: (opts.staffUrl ?? publicUrl).startsWith("https://") && process.env.NODE_ENV === "production",
     requestReview, randomToken,
   });

@@ -3,7 +3,7 @@
 import jpeg from "jpeg-js";
 import jsQR from "jsqr";
 import {
-  DOC_KINDS, RECEIPT_CATEGORIES, checkDocument, checkReceipt, normDate,
+  DMG_CODES, DOC_KINDS, RECEIPT_CATEGORIES, guessCode, isDmgCode, checkDocument, checkReceipt, normDate,
   type DamageSuggestion, type DocKind, type FieldCheck, type RecognizeKind, type RecognizeResult,
 } from "@brookclean/shared";
 
@@ -87,7 +87,8 @@ const DAMAGE_PROMPT = (part: string, compare: boolean) =>
   + ` Ищи царапины, вмятины, сколы, трещины, следы ремонта на кузове, стёклах, фарах и дисках.`
   + ` Подсказки: рыжая или светлая точка на тёмной краске — скол до металла; светлые полосы и потёртости по кромке обода — удар о бордюр.`
   + ` Грязь, пыль, блики, отражения, листья и капли воды — не повреждения.`
-  + ` Верни только JSON: {"quality":"ok|blurry|dark|partial","damages":[{"part":"элемент по-русски","desc":"что видно и где именно","confidence":"high|medium|low"}]}. Нет повреждений — "damages": [].`;
+  + ` Верни только JSON: {"quality":"ok|blurry|dark|partial","damages":[{"part":"элемент по-русски","code":"код","desc":"что видно и где именно","confidence":"high|medium|low"}]}. Нет повреждений — "damages": [].`
+  + ` Коды как в акте приёма: ${Object.entries(DMG_CODES).map(([k, v]) => `${k} — ${v.toLowerCase()}`).join("; ")}.`;
 
 /** Поля без контрольной цифры, где ошибка в одной цифре дорого стоит: их модель читает второй раз отдельным вопросом. */
 const KEY_FIELDS: Partial<Record<RecognizeKind, string[]>> = {
@@ -242,7 +243,8 @@ async function damages(vision: Vision, img: Buffer, prev: Buffer | undefined, st
       const key = `${part.toLowerCase()}|${desc.toLowerCase()}`;
       if (!part || seen.has(key)) continue;
       seen.add(key);
-      found.push({ part, desc, where, confidence: ["high", "medium", "low"].includes(d?.confidence) ? d.confidence : "medium" });
+      const code = str(d?.code).toUpperCase();
+      found.push({ part, desc, where, code: isDmgCode(code) ? code : guessCode(desc), confidence: ["high", "medium", "low"].includes(d?.confidence) ? d.confidence : "medium" });
     }
   }
   const full = ok.find((x) => x.where === "весь кадр");
