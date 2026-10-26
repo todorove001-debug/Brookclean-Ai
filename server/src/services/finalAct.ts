@@ -19,6 +19,8 @@ const STAGE_COLORS = ["#6b7280", "#2563eb", "#d97706", "#7c3aed", "#dc2626"];
 const DMG_NAME = Object.fromEntries(DMG_CODES);
 
 const fmt = (d: Date | string | null | undefined) => (d ? new Date(d).toLocaleString("ru-RU", { timeZone: config.tz, day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).replace(",", "") : "");
+// время передачи в строке акта: без года, чтобы строка помещалась
+const fmtShort = (d: Date | string | null | undefined) => (d ? new Date(d).toLocaleString("ru-RU", { timeZone: config.tz, day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).replace(",", "") : "");
 const fmtDate = (d: Date | string | null | undefined) => (d ? new Date(d).toLocaleDateString("ru-RU", { timeZone: config.tz }) : "");
 const short = (n: string) => { const p = String(n ?? "").trim().split(/\s+/); return p.length >= 3 && p[1].length > 1 ? `${p[0]} ${p[1][0]}. ${p[2][0]}.` : String(n ?? ""); };
 const phoneFmt = (d: string) => (/^7\d{10}$/.test(d) ? `+7 ${d.slice(1, 4)} ${d.slice(4, 7)}-${d.slice(7, 9)}-${d.slice(9)}` : d);
@@ -56,107 +58,90 @@ export async function buildFinalAct(db: Db, storage: Storage, no: number): Promi
     return `водитель ${short(d.name)}: ВУ ${d.docs?.license?.number ?? d.license ?? "—"}, тягач ${d.tractor_plate ?? "—"}, прицеп ${d.trailer_plate ?? "—"}`;
   };
 
-  const doc = new PDFDocument({ size: "A4", margin: 40, bufferPages: true, info: { Title: `Акт приёма-передачи № ${no}`, Author: "Brookclean" } });
-  doc.registerFont("r", path.join(FONTS, "DejaVuSerif.ttf"));
-  doc.registerFont("b", path.join(FONTS, "DejaVuSerif-Bold.ttf"));
+  // один лист A4: реквизиты, схема и журнал дефектов, передачи с подписями, получение автомобиля
+  const doc = new PDFDocument({ size: "A4", margin: 0, info: { Title: `Акт приёма-передачи № ${no}`, Author: "Brookclean" } });
+  doc.registerFont("r", path.join(FONTS, "DejaVuSerifCondensed.ttf"));
+  doc.registerFont("b", path.join(FONTS, "DejaVuSerifCondensed-Bold.ttf"));
   const out: Buffer[] = [];
   doc.on("data", (c: Buffer) => out.push(c));
   const done = new Promise<void>((ok) => doc.on("end", () => ok()));
-  const W = doc.page.width - 80;
-  const h2 = (t: string) => { doc.moveDown(0.6).font("b").fontSize(12).fillColor("#111").text(t); doc.moveDown(0.2).font("r").fontSize(10); };
-  const room = (h: number) => { if (doc.y + h > doc.page.height - 50) doc.addPage(); };
+  const PW = doc.page.width, PH = doc.page.height, L = 24, R = PW - 24;
+  // текст с переносом по ширине; возвращает y под ним
+  const t = (s: string, x: number, y: number, o: { size?: number; bold?: boolean; color?: string; width?: number; align?: "center" } = {}) => {
+    doc.font(o.bold ? "b" : "r").fontSize(o.size ?? 7.5).fillColor(o.color ?? "#111");
+    const width = o.width ?? R - x;
+    doc.text(s, x, y, { width, lineGap: 1, align: o.align });
+    return y + doc.heightOfString(s, { width, lineGap: 1 });
+  };
+  const line = (x1: number, y: number, x2: number, w = 0.5, c = "#999") => doc.moveTo(x1, y).lineTo(x2, y).lineWidth(w).strokeColor(c).stroke();
+  const sigCell = async (x: number, y: number, label: string, s: any, name: string) => {
+    t(label, x, y, { size: 6.3, color: "#555", width: 240 });
+    const img = await sigImg(s);
+    if (img) doc.image(img, x, y + 8, { fit: [60, 19] });
+    line(x, y + 28, x + 150);
+    t(`подпись / ${short(name)}${s?.at ? " · " + fmtShort(s.at) : ""}`, x, y + 30, { size: 6.3, color: "#444", width: 250 });
+  };
+  const rep = fin.receiver === "rep", vyg = stages.find((x) => x.stage === "vygruzka");
 
-  // шапка
-  doc.image(path.join(ASSETS, "logo.jpg"), doc.page.width - 40 - 60, 36, { width: 60 });
-  doc.font("b").fontSize(16).text("АКТ ПРИЁМА – ПЕРЕДАЧИ АВТОМОБИЛЯ", 40, 42, { width: W - 70 });
-  doc.font("r").fontSize(10).fillColor("#444").text("итоговый, при выдаче получателю");
-  const vyg = stages.find((x) => x.stage === "vygruzka");
-  doc.fillColor("#111").text(`к договору перевозки № ${no} от ${fmtDate(o.created_at)} · ${vyg?.place ?? o.city}, ${fmtDate(vyg?.done_at)}`);
+  // шапка и стороны
+  doc.image(path.join(ASSETS, "logo.jpg"), R - 40, 14, { width: 40 });
+  t("АКТ ПРИЁМА – ПЕРЕДАЧИ АВТОМОБИЛЯ", L, 20, { size: 13, bold: true, width: R - L - 50 });
+  t(`итоговый, при выдаче получателю · к договору перевозки № ${no} от ${fmtDate(o.created_at)} · ${vyg?.place ?? o.city}, ${fmtDate(vyg?.done_at)}`, L, 38, { size: 7.7, color: "#444", width: R - L - 50 });
+  let y = 56;
+  y = t(`Перевозчик: ${config.carrier.name}, ИНН ${config.carrier.inn}, тел. ${config.carrier.phone}.`, L, y, { width: R - L - 50 });
+  y = t(`Заказчик: ${o.client_fio}, паспорт ${o.passport_series ?? ""} ${o.passport_number ?? ""}, выдан ${o.passport_issued ?? ""} ${fmtDate(o.passport_date)}, тел. ${phoneFmt(o.client_phone)}.`, L, y);
+  y = t(`Автомобиль: ${o.car} · VIN / кузов ${o.vin} · ${o.year} г. · ${o.color} · гос. номер ${o.plate || "без номера"} · ключей ${o.keys_count || "—"} · ПТС ${[o.pts_type, o.pts_no].filter(Boolean).join(" ") || "—"}${o.extra_docs ? " · " + o.extra_docs : ""}. Маршрут: Владивосток → ${o.transfer_city ? o.transfer_city + " (перегрузка) → " : ""}${o.city}.`, L, y);
 
-  h2("Стороны");
-  doc.text(`Перевозчик: ${config.carrier.name}, ИНН ${config.carrier.inn}, тел. ${config.carrier.phone}.`);
-  doc.text(`Заказчик: ${o.client_fio}, паспорт ${o.passport_series ?? ""} ${o.passport_number ?? ""}, выдан ${o.passport_issued ?? ""} ${fmtDate(o.passport_date)}, тел. ${phoneFmt(o.client_phone)}.`);
-
-  h2("Автомобиль");
-  doc.text(`${o.car} · VIN / кузов ${o.vin} · ${o.year} г. · цвет ${o.color} · гос. номер ${o.plate || "без номера"} · ключей ${o.keys_count || "—"} · ПТС ${o.pts_type || "—"} ${o.pts_no || ""}${o.extra_docs ? " · " + o.extra_docs : ""}`);
-  doc.text(`Маршрут: Владивосток → ${o.transfer_city ? o.transfer_city + " (перегрузка на терминале) → " : ""}${o.city}.`);
-
-  // схема кузова с отметками: цвет — этап, на котором отметку поставили
-  doc.moveDown(0.6);
-  const dx = 40, dy = doc.y, dw = 300, dh = dw * 514 / 702;
-  doc.image(path.join(ASSETS, "diagram.jpg"), dx, dy, { width: dw });
+  // схема слева: цвет отметки — этап, на котором её поставили; справа легенда и журнал дефектов
+  const dy = y + 6, dw = 250, dh = dw * 514 / 702, cx = L + dw + 16, cw = R - cx;
+  doc.image(path.join(ASSETS, "diagram.jpg"), L, dy, { width: dw });
   for (const m of marks.filter((m) => !m.removed)) {
-    const mx = dx + m.x * dw, my = dy + m.y * dh;
-    doc.circle(mx, my, 8).fill(color(m.firstStage));
-    doc.font("b").fontSize(7).fillColor("#fff").text(m.code, mx - 8, my - 3.5, { width: 16, align: "center" });
+    const mx = L + m.x * dw, my = dy + m.y * dh;
+    doc.circle(mx, my, 7).fill(color(m.firstStage));
+    t(m.code, mx - 10, my - 3.6, { size: 6, bold: true, color: "#fff", width: 20, align: "center" });
   }
-  cps.forEach((cp, i) => {
-    doc.circle(dx + dw + 30, dy + 10 + i * 16, 4).fill(color(cp.id));
-    doc.font("r").fontSize(9).fillColor("#111").text(`${i + 1} · ${STAGES[cp.id].name}`, dx + dw + 40, dy + 5 + i * 16);
-  });
-  doc.x = 40; doc.y = dy + dh + 6;
-
-  h2("Журнал дефектов");
-  if (!marks.length) doc.text("Дефектов при передачах не отмечено.");
-  for (const m of marks) {
+  let ry = dy + 2;
+  cps.forEach((cp, i) => { doc.circle(cx + 3.5, ry + 4, 3.5).fill(color(cp.id)); t(`${i + 1} · ${STAGES[cp.id].name}`, cx + 11, ry, { size: 7.2 }); ry += 10; });
+  ry = t("Журнал дефектов", cx, ry + 6, { size: 8, bold: true }) + 2;
+  if (!marks.length) ry = t("Дефектов при передачах не отмечено.", cx, ry, { size: 6.9 });
+  const bottom = dy + dh;
+  for (const [i, m] of marks.entries()) {
     const f = m.history[0];
-    const more = m.history.slice(1).map((h) => h.action === "refine" ? `эт.${num(h.stage)} ${short(h.who)}: ${h.from}→${h.to}` : h.action === "remove" ? `эт.${num(h.stage)} ${short(h.who)}: снята («${h.reason}»)` : "").filter(Boolean).join("; ");
-    room(30);
-    doc.fontSize(9).fillColor(m.removed ? "#888" : "#111").text(`${m.code} (${DMG_NAME[m.code]}) — ${m.part || "отмечено на схеме"}. Этап ${num(m.firstStage)} «${STAGES[m.firstStage as Stage].name}», ${short(f.who)}, ${fmt(f.at)}${f.src === "ai" ? ", по находке ИИ" : ""}${more ? ". " + more : ""}${m.removed ? ". СНЯТА" : ""}`);
+    const more = m.history.slice(1).map((h) => h.action === "refine" ? `эт.${num(h.stage)}: ${h.from}→${h.to}` : h.action === "remove" ? `эт.${num(h.stage)} снята: ${h.reason}` : "").filter(Boolean).join("; ");
+    const s = `${m.code} ${m.part || "на схеме"} — эт.${num(m.firstStage)}, ${short(f.who)}, ${fmtShort(f.at)}${f.src === "ai" ? ", ИИ" : ""}${more ? "; " + more : ""}${m.removed ? " (снята)" : ""}`;
+    if (ry + 9 > bottom) { t(`… ещё ${marks.length - i} — в системе`, cx, ry, { size: 6.5, color: "#666" }); break; }
+    ry = t(s, cx, ry, { size: 6.9, color: m.removed ? "#888" : "#111", width: cw });
   }
 
   // передачи и подписи с расшифровкой
-  doc.addPage();
-  doc.font("b").fontSize(13).fillColor("#111").text(`Акт № ${no} · передачи и подписи`);
-  const sigCell = async (x: number, y: number, label: string, s: any, name: string) => {
-    doc.font("r").fontSize(8).fillColor("#555").text(label, x, y, { width: 240 });
-    const img = await sigImg(s);
-    if (img) doc.image(img, x, y + 12, { fit: [120, 36] });
-    doc.moveTo(x, y + 52).lineTo(x + 220, y + 52).lineWidth(0.5).strokeColor("#999").stroke();
-    doc.fontSize(8).fillColor("#555").text(`подпись / ${short(name)}${s?.at ? " · " + fmt(s.at) : ""}`, x, y + 55, { width: 240 });
-  };
+  y = Math.max(bottom, ry) + 10;
+  y = t("Передачи и подписи", L, y, { size: 8.7, bold: true }) + 2;
+  const rowH = Math.min(57, Math.floor((PH - y - 175) / cps.length));
   for (const cp of cps) {
-    const s = sec(cp.id), st = stages.find((x) => x.stage === cp.id), dl = drvLine(cp.id);
+    const s = sec(cp.id), st = stages.find((x) => x.stage === cp.id), dl = drvLine(cp.id), last = cp.id === "vygruzka";
     if (!s) continue;
-    const h = dl ? 98 : 86;
-    room(h + 8);
-    const y = doc.y + 8;
-    doc.rect(40, y, 3, h - 6).fill(color(cp.id));
-    doc.font("b").fontSize(10).fillColor("#111").text(`${num(cp.id)}. ${STAGES[cp.id].name} · ${st?.place ?? ""} · ${fmt(s.closed_at) || "не закрыт"}`, 50, y);
-    if (dl) doc.font("r").fontSize(8).fillColor("#444").text(dl, 50, y + 13);
-    const yy = y + (dl ? 26 : 14);
-    const rep = cp.id === "vygruzka" && fin.receiver === "rep";
-    await sigCell(50, yy, `Сдал: ${s.give_role}`, s.give_sig, s.give_name + (s.absent ? ` (не подписал: ${s.absent_reason})` : ""));
-    await sigCell(310, yy, `Принял: ${rep ? "представитель по доверенности" : s.take_role}`, s.take_sig, rep ? fin.rep_fio : s.take_name);
-    doc.x = 40; doc.y = y + h;
-    if (s.disagree) doc.font("r").fontSize(8).fillColor("#9a5b00").text(`Сдающая сторона не согласна: ${s.dis_comment}`, 50);
+    doc.rect(L, y + 3, 2.4, rowH - 6).fill(color(cp.id));
+    t(`${num(cp.id)}. ${STAGES[cp.id].name} · ${st?.place ?? ""} · ${fmtShort(s.closed_at) || "не закрыт"}`, L + 7, y + 4, { size: 7.5, bold: true, width: 276 });
+    if (dl) t(dl, 309, y + 5, { size: 6.3, color: "#555", width: R - 309 });
+    if (s.disagree) t(`Сдающая сторона не согласна: ${s.dis_comment}`, L + 7, y + 13, { size: 6.3, color: "#9a5b00", width: 276 });
+    await sigCell(L + 7, y + 17, `Сдал: ${s.give_role}`, s.give_sig, s.give_name + (s.absent ? ` (не подписал: ${s.absent_reason})` : ""));
+    await sigCell(309, y + 17, `Принял: ${last && rep ? "представитель по доверенности" : s.take_role}`, s.take_sig, last && rep ? fin.rep_fio : s.take_name);
+    y += rowH;
   }
 
   // заключение получателя
-  room(200);
-  doc.moveDown(0.8).moveTo(40, doc.y).lineTo(40 + W, doc.y).lineWidth(1).strokeColor("#111").stroke();
-  doc.x = 40; h2("Получение автомобиля");
-  doc.fontSize(10.5).fillColor("#111").text(fin.receiver === "rep"
+  y += 4; line(L, y, R, 0.9, "#111"); y += 8;
+  y = t("Получение автомобиля", L, y, { size: 8.7, bold: true }) + 2;
+  y = t(rep
     ? `Автомобиль получил представитель заказчика ${fin.rep_fio}, паспорт ${fin.rep_passport}, по доверенности № ${fin.poa_no}${fin.poa_date ? " от " + fin.poa_date : ""}.`
-    : `Автомобиль получил заказчик ${o.client_fio}, паспорт ${o.passport_series ?? ""} ${o.passport_number ?? ""}, выдан ${o.passport_issued ?? ""} ${fmtDate(o.passport_date)}.`, { width: W });
-  doc.moveDown(0.3).text(fin.outcome === "remarks"
-    ? `Автомобиль получен с замечаниями: ${dot(fin.final_remarks)}`
-    : "Автомобиль получен. Состояние соответствует отметкам в акте, комплектность проверена. Претензий к перевозчику нет.", { width: W });
-  if (fin.notes) doc.moveDown(0.3).fontSize(9.5).text(`Дополнительно: ${fin.notes}`, { width: W });
-  doc.moveDown(1);
-  const y = doc.y;
-  await sigCell(40, y, "Выдал (перевозчик)", fin.give_sig, fin.give_name ?? "");
-  await sigCell(310, y, "Получил", fin.take_sig, fin.receiver === "rep" ? fin.rep_fio : fin.take_name ?? "");
-  doc.x = 40; doc.y = y + 80;
-  doc.font("r").fontSize(7.5).fillColor("#666").text(`Сформировано в системе Brookclean · ${fmt(new Date())} · фото и видео всех передач хранятся в папке автомобиля`, { width: W });
-
-  // номера страниц
-  const range = doc.bufferedPageRange();
-  for (let i = 0; i < range.count; i++) {
-    doc.switchToPage(range.start + i);
-    doc.page.margins.bottom = 0;   // иначе подпись страницы внизу листа переносится на новую страницу
-    doc.font("r").fontSize(7.5).fillColor("#666").text(`стр. ${i + 1} из ${range.count}`, 40, doc.page.height - 32, { width: W, align: "right", lineBreak: false });
-  }
+    : `Автомобиль получил заказчик ${o.client_fio}, паспорт ${o.passport_series ?? ""} ${o.passport_number ?? ""}, выдан ${o.passport_issued ?? ""} ${fmtDate(o.passport_date)}.`, L, y, { size: 7.7 });
+  y = t(fin.outcome === "remarks" ? `Автомобиль получен с замечаниями: ${dot(fin.final_remarks)}`
+    : "Автомобиль получен. Состояние соответствует отметкам в акте, комплектность проверена. Претензий к перевозчику нет.", L, y, { size: 7.7, bold: true });
+  if (fin.notes) y = t(`Дополнительно: ${fin.notes}`, L, y, { size: 7.1, color: "#333" });
+  y += 8;
+  await sigCell(L, y, "Выдал (перевозчик)", fin.give_sig, fin.give_name ?? "");
+  await sigCell(309, y, "Получил", fin.take_sig, rep ? fin.rep_fio : fin.take_name ?? "");
+  t(`Сформировано в системе Brookclean · ${fmt(new Date())} · фото и видео всех передач хранятся в папке автомобиля`, L, PH - 18, { size: 6.3, color: "#777" });
   doc.end();
   await done;
   return Buffer.concat(out);

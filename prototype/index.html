@@ -2137,61 +2137,60 @@ function vReceipt(o,s,edit){const c=clientData(o),dis=edit?"":"disabled",rep=s.r
 
 /* итоговый акт клиенту при выдаче: реквизиты, все передачи, дефекты, заключение получателя */
 async function renderFinalAct(o){
-  const cps=checkpointsOf(o),c=chainOf(o),cl=clientData(o),fin=secOf(o,"vygruzka"),W=1000,H=1414;
+  const cps=checkpointsOf(o),c=chainOf(o),cl=clientData(o),fin=secOf(o,"vygruzka"),W=1000,H=1414,L=40,R=W-40;
   const [logo,diag]=await Promise.all([loadImg(LOGO_IMG),loadImg(DIAG_IMG)]);
   const sigs=await Promise.all(cps.map(cp=>{const s=secOf(o,cp.id);return Promise.all([s.give?loadImg(s.give.img):null,s.take?loadImg(s.take.img):null])}));
-  const page=()=>{const cv=document.createElement("canvas");cv.width=W;cv.height=H;const g=cv.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,W,H);return [cv,g]};
-  const mk=g=>(t,x,y,sz=15,b=false,col="#111")=>{g.fillStyle=col;g.font=(b?"bold ":"")+sz+"px Georgia, 'Times New Roman', serif";g.fillText(t,x,y)};
-  // переносит длинный текст по ширине, возвращает новую высоту
-  const wrap=(g,T,t,x,y,w,sz=14,lh=19)=>{g.font=sz+"px Georgia, serif";let line="";for(const word of String(t).split(" ")){const test=line?line+" "+word:word;if(g.measureText(test).width>w&&line){T(line,x,y,sz);y+=lh;line=word}else line=test}if(line){T(line,x,y,sz);y+=lh}return y};
-  const sigLine=(g,T,img,x,y,name)=>{if(img)g.drawImage(img,x,y,150,50);g.strokeStyle="#999";g.lineWidth=1;g.beginPath();g.moveTo(x,y+54);g.lineTo(x+300,y+54);g.stroke();T("подпись / "+name,x,y+72,12,false,"#555")};
+  const cv=document.createElement("canvas");cv.width=W;cv.height=H;const g=cv.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,W,H);
+  const font=(sz,b)=>g.font=(b?"bold ":"")+sz+"px Georgia, 'Times New Roman', serif";
+  const T=(t,x,y,sz=13,b=false,col="#111")=>{g.fillStyle=col;font(sz,b);g.fillText(t,x,y)};
+  // переносит текст по ширине; возвращает y под последней строкой
+  const wrap=(t,x,y,w,sz=13,lh=17,col="#111",b=false)=>{font(sz,b);let line="";const out=[];for(const word of String(t).split(" ")){const test=line?line+" "+word:word;if(g.measureText(test).width>w&&line){out.push(line);line=word}else line=test}if(line)out.push(line);out.forEach((l,i)=>T(l,x,y+i*lh,sz,b,col));return y+out.length*lh};
   const short=n=>{const p=String(n||"").trim().split(/\s+/);return p.length>=3&&p[1].length>1?`${p[0]} ${p[1][0]}. ${p[2][0]}.`:String(n||"")};
-  const pages=[];
-  // стр. 1: стороны, автомобиль, схема и журнал дефектов
-  {const [cv,g]=page(),T=mk(g);if(logo)g.drawImage(logo,W-140,26,100,103);
-    T("АКТ ПРИЁМА – ПЕРЕДАЧИ АВТОМОБИЛЯ",50,62,25,true);T("итоговый, при выдаче получателю",50,88,16,false,"#444");
-    T(`к договору перевозки № ${o.no} от ${o.date} · ${hoOf(o,"vygruzka").place}, ${hoOf(o,"vygruzka").date}`,50,114,15);
-    let y=150;T("Стороны",50,y,17,true);y+=24;
-    y=wrap(g,T,`Перевозчик: ${CARRIER.name}, ИНН ${CARRIER.inn}, тел. ${CARRIER.phone}.`,50,y,900);
-    y=wrap(g,T,`Заказчик: ${cl.fio}, паспорт ${cl.ser} ${cl.num}, выдан ${cl.issued} ${cl.date}, тел. ${cl.phone}.`,50,y,900);
-    y+=10;T("Автомобиль",50,y,17,true);y+=24;
-    y=wrap(g,T,`${o.car} · VIN / кузов ${o.vin} · ${o.year} г. · цвет ${o.color} · гос. номер ${c.car.plate} · ключей ${c.car.keys} · ПТС ${c.car.ptsType} ${c.car.ptsNo||""}${c.car.docs?" · "+c.car.docs:""}`,50,y,900);
-    y=wrap(g,T,`Маршрут: Владивосток → ${o.transfer?o.transfer+" (перегрузка на терминале) → ":""}${o.city}.`,50,y,900);
-    y+=8;
-    if(diag){const dw=520,dh=dw*diag.height/diag.width;g.drawImage(diag,50,y,dw,dh);
-      c.marks.filter(m=>!m.removed).forEach(m=>{const mx=50+m.x*dw,my=y+m.y*dh;g.fillStyle=stageColor(o,m.first);g.beginPath();g.arc(mx,my,14,0,7);g.fill();g.fillStyle="#fff";g.font="bold 12px sans-serif";g.textAlign="center";g.fillText(m.code,mx,my+4);g.textAlign="left"});
-      cps.forEach((cp,i)=>{g.fillStyle=stageColor(o,cp.id);g.beginPath();g.arc(605,y+16+i*24,7,0,7);g.fill();T(`${i+1} · ${STAGES[cp.id].name}`,619,y+21+i*24,14)});
-      y+=dh+24}
-    T("Журнал дефектов",50,y,17,true);y+=22;
-    if(!c.marks.length){T("Дефектов при передачах не отмечено.",50,y,14);y+=20}
-    c.marks.slice(0,14).forEach(m=>{const f=m.history[0],more=m.history.slice(1).map(h=>h.act==="refine"?`эт.${secNum(o,h.st)} ${short(h.who)}: ${h.from}→${h.to}`:h.act==="remove"?`эт.${secNum(o,h.st)} ${short(h.who)}: снята («${h.reason}»)`:"").filter(Boolean).join("; ");
-      y=wrap(g,T,`${m.code} (${DMG_NAME[m.code]}) — ${m.part||"отмечено на схеме"}. Этап ${secNum(o,m.first)} «${STAGES[m.first].name}», ${short(f.who)}, ${f.at}${f.src==="ai"?", по находке ИИ":""}${more?". "+more:""}${m.removed?". СНЯТА":""}`,50,y,900,13,18)});
-    T("стр. 1 из 2",W-130,H-20,11,false,"#666");pages.push(cv.toDataURL("image/jpeg",.88))}
-  // стр. 2: передачи с подписями и получение автомобиля
-  {const [cv,g]=page(),T=mk(g);let y=56;T(`Акт № ${o.no} · передачи и подписи`,50,y,19,true);y+=20;
-    cps.forEach((cp,i)=>{const s=secOf(o,cp.id),[sg,stk]=sigs[i],dl=drvActLine(o,cp.id);
-      g.fillStyle=stageColor(o,cp.id);g.fillRect(50,y+8,5,dl?136:118);
-      T(`${i+1}. ${STAGES[cp.id].name} · ${hoOf(o,cp.id).place} · ${s.closedAt||"не закрыт"}`,64,y+24,14,true);
-      if(dl)T(dl.slice(3,110),64,y+42,12,false,"#444");
-      const yy=y+(dl?50:32);T("Сдал: "+s.giveRole,64,yy+12,12,false,"#555");T("Принял: "+(cp.id==="vygruzka"&&fin.rep==="rep"?"представитель грузополучателя по доверенности":s.takeRole),540,yy+12,12,false,"#555");
-      sigLine(g,T,sg,64,yy+18,short(s.giveName)+(s.give?" · "+s.give.at:s.absent?" · не подписал: "+s.absentReason:""));
-      sigLine(g,T,stk,540,yy+18,short(cp.id==="vygruzka"&&fin.rep==="rep"?fin.repFio:s.takeName)+(s.take?" · "+s.take.at:""));
-      if(s.disagree)T("Сдающая сторона не согласна: "+s.disComment,64,yy+108,12,false,"#9a5b00");
-      y+=(dl?150:132)});
-    y+=10;g.strokeStyle="#111";g.lineWidth=1.5;g.beginPath();g.moveTo(50,y);g.lineTo(W-50,y);g.stroke();y+=30;
-    T("Получение автомобиля",50,y,18,true);y+=26;
-    y=fin.rep==="rep"?wrap(g,T,`Автомобиль получил представитель заказчика ${fin.repFio}, паспорт ${fin.repPass}, по доверенности № ${fin.poaNo}${fin.poaDate?" от "+fin.poaDate:""}.`,50,y,900,15,21)
-      :wrap(g,T,`Автомобиль получил заказчик ${cl.fio}, паспорт ${cl.ser} ${cl.num}, выдан ${cl.issued} ${cl.date}.`,50,y,900,15,21);
-    y+=6;
-    y=fin.outcome==="remarks"?wrap(g,T,`Автомобиль получен с замечаниями: ${String(fin.finalRemarks).trim().replace(/([^.!?])$/,"$1.")}`,50,y,900,15,21)
-      :wrap(g,T,"Автомобиль получен. Состояние соответствует отметкам в акте, комплектность проверена. Претензий к перевозчику нет.",50,y,900,15,21);
-    if(fin.notes)y=wrap(g,T,"Дополнительно: "+fin.notes,50,y+4,900,14,20);
-    y+=24;const [vg,vt]=sigs[cps.length-1];
-    T("Выдал (перевозчик)",50,y,13,false,"#555");T("Получил",540,y,13,false,"#555");
-    sigLine(g,T,vg,50,y+8,short(fin.giveName));sigLine(g,T,vt,540,y+8,short(fin.rep==="rep"?fin.repFio:fin.takeName));
-    T(`Сформировано в системе Brookclean · ${nowStamp()} · фото и видео всех передач хранятся в папке автомобиля`,50,H-40,11,false,"#666");
-    T("стр. 2 из 2",W-130,H-20,11,false,"#666");pages.push(cv.toDataURL("image/jpeg",.88))}
-  return pages;
+  const sigCell=(img,x,y,label,name)=>{T(label,x,y,10.5,false,"#555");if(img)g.drawImage(img,x,y+3,96,32);g.strokeStyle="#aaa";g.lineWidth=1;g.beginPath();g.moveTo(x,y+37);g.lineTo(x+250,y+37);g.stroke();T("подпись / "+name,x,y+50,10.5,false,"#444")};
+  const rep=fin.rep==="rep",vy=hoOf(o,"vygruzka");
+  // шапка и стороны
+  if(logo)g.drawImage(logo,R-66,24,66,68);
+  T("АКТ ПРИЁМА – ПЕРЕДАЧИ АВТОМОБИЛЯ",L,54,22,true);
+  T(`итоговый, при выдаче получателю · к договору перевозки № ${o.no} от ${o.date} · ${vy.place}, ${vy.date}`,L,78,13,false,"#444");
+  let y=106;
+  y=wrap(`Перевозчик: ${CARRIER.name}, ИНН ${CARRIER.inn}, тел. ${CARRIER.phone}.`,L,y,R-L-80,12.5,17);
+  y=wrap(`Заказчик: ${cl.fio}, паспорт ${cl.ser} ${cl.num}, выдан ${cl.issued} ${cl.date}, тел. ${cl.phone}.`,L,y,R-L,12.5,17);
+  y=wrap(`Автомобиль: ${o.car} · VIN / кузов ${o.vin} · ${o.year} г. · ${o.color} · гос. номер ${c.car.plate} · ключей ${c.car.keys} · ПТС ${[c.car.ptsType,c.car.ptsNo].filter(Boolean).join(" ")}${c.car.docs?" · "+c.car.docs:""}. Маршрут: Владивосток → ${o.transfer?o.transfer+" (перегрузка) → ":""}${o.city}.`,L,y,R-L,12.5,17);
+  // схема слева, легенда и журнал дефектов справа
+  y+=6;const dw=420,dh=diag?dw*diag.height/diag.width:300,dy=y,cx=L+dw+26,cw=R-cx;
+  if(diag){g.drawImage(diag,L,dy,dw,dh);
+    c.marks.filter(m=>!m.removed).forEach(m=>{const mx=L+m.x*dw,my=dy+m.y*dh;g.fillStyle=stageColor(o,m.first);g.beginPath();g.arc(mx,my,12,0,7);g.fill();g.fillStyle="#fff";g.font="bold 11px sans-serif";g.textAlign="center";g.fillText(m.code,mx,my+4);g.textAlign="left"})}
+  let ry=dy+12;cps.forEach((cp,i)=>{g.fillStyle=stageColor(o,cp.id);g.beginPath();g.arc(cx+6,ry-4,6,0,7);g.fill();T(`${i+1} · ${STAGES[cp.id].name}`,cx+18,ry,12);ry+=17});
+  ry+=10;T("Журнал дефектов",cx,ry,13.5,true);ry+=18;
+  if(!c.marks.length){T("Дефектов при передачах не отмечено.",cx,ry,11.5);ry+=15}
+  const bottom=dy+dh+4;let shown=0;
+  for(const m of c.marks){const f=m.history[0],more=m.history.slice(1).map(h=>h.act==="refine"?`эт.${secNum(o,h.st)}: ${h.from}→${h.to}`:h.act==="remove"?`эт.${secNum(o,h.st)} снята: ${h.reason}`:"").filter(Boolean).join("; ");
+    const t=`${m.code} ${m.part||"на схеме"} — эт.${secNum(o,m.first)}, ${short(f.who)}, ${f.at}${f.src==="ai"?", ИИ":""}${more?"; "+more:""}${m.removed?" (снята)":""}`;
+    if(ry+15>bottom){T(`… ещё ${c.marks.length-shown} — в системе`,cx,ry,11,false,"#666");break}
+    ry=wrap(t,cx,ry,cw,11.5,15,m.removed?"#888":"#111");shown++}
+  // передачи и подписи
+  y=Math.max(dy+dh,ry)+22;T("Передачи и подписи",L,y,14.5,true);y+=10;
+  const rowH=Math.min(96,Math.floor((H-y-300)/cps.length));
+  cps.forEach((cp,i)=>{const s=secOf(o,cp.id),[sg,stk]=sigs[i],dl=drvActLine(o,cp.id),last=cp.id==="vygruzka";
+    g.fillStyle=stageColor(o,cp.id);g.fillRect(L,y+6,4,rowH-10);
+    T(`${i+1}. ${STAGES[cp.id].name} · ${hoOf(o,cp.id).place} · ${s.closedAt||"не закрыт"}`,L+12,y+20,12.5,true);
+    if(dl)T(dl.slice(3,120),L+380,y+20,10.5,false,"#555");
+    sigCell(sg,L+12,y+36,"Сдал: "+s.giveRole,short(s.giveName)+(s.give?" · "+s.give.at:s.absent?" · не подписал: "+s.absentReason:""));
+    sigCell(stk,520,y+36,"Принял: "+(last&&rep?"представитель по доверенности":s.takeRole),short(last&&rep?fin.repFio:s.takeName)+(s.take?" · "+s.take.at:""));
+    if(s.disagree)T("Сдающая сторона не согласна: "+s.disComment,L+290,y+20,10.5,false,"#9a5b00");
+    y+=rowH});
+  // получение автомобиля
+  y+=8;g.strokeStyle="#111";g.lineWidth=1.5;g.beginPath();g.moveTo(L,y);g.lineTo(R,y);g.stroke();y+=24;
+  T("Получение автомобиля",L,y,14.5,true);y+=20;
+  y=wrap(rep?`Автомобиль получил представитель заказчика ${fin.repFio}, паспорт ${fin.repPass}, по доверенности № ${fin.poaNo}${fin.poaDate?" от "+fin.poaDate:""}.`
+    :`Автомобиль получил заказчик ${cl.fio}, паспорт ${cl.ser} ${cl.num}, выдан ${cl.issued} ${cl.date}.`,L,y,R-L,13,18);
+  y=wrap(fin.outcome==="remarks"?`Автомобиль получен с замечаниями: ${String(fin.finalRemarks).trim().replace(/([^.!?])$/,"$1.")}`
+    :"Автомобиль получен. Состояние соответствует отметкам в акте, комплектность проверена. Претензий к перевозчику нет.",L,y,R-L,13,18,"#111",true);
+  if(fin.notes)y=wrap("Дополнительно: "+fin.notes,L,y,R-L,12,16,"#333");
+  y+=12;const [vg,vt]=sigs[cps.length-1];
+  sigCell(vg,L,y,"Выдал (перевозчик)",short(fin.giveName));sigCell(vt,520,y,"Получил",short(rep?fin.repFio:fin.takeName));
+  T(`Сформировано в системе Brookclean · ${nowStamp()} · фото и видео всех передач хранятся в папке автомобиля`,L,H-24,10.5,false,"#777");
+  return [cv.toDataURL("image/jpeg",.9)];
 }
 // PDF из страниц-картинок: по странице A4 на каждую
 function makePdf(pages){

@@ -188,7 +188,7 @@ describe("выдача в Москве", () => {
     expect(act.statusCode).toBe(200);
     expect(act.headers["content-type"]).toBe("application/pdf");
     expect(act.rawPayload.subarray(0, 5).toString()).toBe("%PDF-");
-    expect((act.rawPayload.toString("latin1").match(/\/Type \/Page\b/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    expect((act.rawPayload.toString("latin1").match(/\/Type \/Page\b/g) ?? []).length).toBe(1);   // весь акт на одном листе
     if (process.env.SAVE_ACT) (await import("node:fs")).writeFileSync(process.env.SAVE_ACT, act.rawPayload);
     expect((await api("GET", `/api/orders/${no}/act`, undefined, T.other)).status).toBe(403);
 
