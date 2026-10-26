@@ -899,6 +899,9 @@ function vManager(part){
 
 /* --- Рейсовый отчёт водителя --- */
 // статьи расходов в рейсовом отчёте водителя
+// что относится к статье — подсказка водителю под выбором статьи
+const CAT_HINT={zip:"Шланги, перчатки, масло, антифриз, тормозная и омывающая жидкость, фитинги, инструменты, болты, дворники, тряпки",
+  repair:"Работы сервиса: ремонт и техобслуживание",parking:"Платная стоянка и душ",pass:"Проездной, разрешение на проезд",daily:"Суточные водителю, без чека"};
 const CATS={fuel:"Топливо",parking:"Стоянка / душ",zip:"Мелкий ЗИП",repair:"Ремонт и техобслуживание",tires:"Шины",tirefit:"Шиномонтаж",wash:"Мойка",pass:"Проездной",daily:"Суточные",toll:"Платные дороги"};
 const AI={fn:null,images:false,ctl:null};
 function emptyDraft(){return {d:today(),time:"",cat:"fuel",seller:"",city:"",desc:"",liters:"",amount:"",fiscal:""}}
@@ -1097,7 +1100,7 @@ function vRxAdder(ex){
       ${rx.msg?`<div class="callout ${rx.msgType||"info"}">${esc(rx.msg)}</div>`:""}
       ${dup?`<div class="callout warn">Похоже, этот чек уже есть в отчёте: ${esc(dup.d)}, ${esc(dup.seller)}, ${rub(dup.amount)}.</div>`:""}
       <div class="row2">${rf("d","Дата")}${rf("amount","Сумма, ₽",'inputmode="decimal"')}</div>
-      <div class="field"><label for="rx-cat">Статья</label><select id="rx-cat" data-r="cat">${Object.entries(CATS).map(([k,v])=>`<option value="${k}" ${k===d.cat?"selected":""}>${v}</option>`).join("")}</select></div>
+      <div class="field"><label for="rx-cat">Статья</label><select id="rx-cat" data-r="cat">${Object.entries(CATS).map(([k,v])=>`<option value="${k}" ${k===d.cat?"selected":""}>${v}</option>`).join("")}</select>${CAT_HINT[d.cat]?`<span class="hint">${CAT_HINT[d.cat]}</span>`:""}</div>
       <div class="row2">${rf("seller","Продавец / АЗС")}${rf("city","Город")}</div>
       <div class="row2">${rf("desc","Что куплено")}${rf("liters","Литры (для топлива)",'inputmode="decimal"')}</div>
       ${d.fiscal?`<div class="muted mono" style="font-size:12px">${esc(d.fiscal)}</div>`:""}
@@ -2494,7 +2497,7 @@ function vStaff(){
 
 const RX_PROMPT=`На фото кассовый чек водителя автовоза (Россия, расходы в рейсе). Прочитай его и верни только JSON-объект:
 {"date":"ДД.ММ.ГГГГ или null","time":"ЧЧ:ММ или null","seller":"название продавца или АЗС с номером","city":"город, если указан, иначе null","category":"одно из: fuel, parking, zip, repair, tires, tirefit, wash, pass, toll","description":"коротко, что куплено, например «ДТ, 160 л × 72,10»","liters":число литров для топлива или null,"amount":итоговая сумма чека числом,"fiscal":"ФН, ФД, ФП, если видны, иначе null","confidence":"high, medium или low","notes":"что не удалось прочитать, иначе пустая строка"}
-Топливо (ДТ, АИ-92/95, газ, AdBlue) — fuel. Стоянка, душ — parking. Мелкие запчасти, лампы, предохранители, жидкости, ремни — zip. Ремонт, ТО, масло и фильтры с работой — repair. Покупка шин — tires. Шиномонтаж, балансировка, ремонт колеса — tirefit. Мойка — wash. Проездной, разрешение на проезд — pass. Платон и платные трассы — toll. Если на фото не кассовый чек, верни {"error":"not_receipt"}.`;
+Топливо (ДТ, АИ-92/95, газ, AdBlue) — fuel. Стоянка, душ — parking. Мелкий ЗИП — zip: шланги, перчатки, масло, антифриз, тормозная жидкость, омывающая жидкость, фитинги, инструменты, болты, дворники, тряпки. Работы сервиса по ремонту и ТО — repair. Покупка шин — tires. Шиномонтаж, балансировка, ремонт колеса — tirefit. Мойка — wash. Проездной, разрешение на проезд — pass. Платон и платные трассы — toll. Если на фото не кассовый чек, верни {"error":"not_receipt"}.`;
 async function readReceipt(file,isDemo){
   if(!/^image\//.test(file.type)){toast("Нужна фотография чека: JPG, PNG или WebP");return}
   const url=URL.createObjectURL(file);
@@ -2727,6 +2730,7 @@ document.addEventListener("input",e=>{
 });
 document.addEventListener("change",e=>{
   const el=e.target;
+  if(el.dataset.r==="cat"&&S.rx.draft){S.rx.draft.cat=el.value;render()}   // подсказка к выбранной статье
   if(el.dataset.f&&el.tagName==="SELECT"){S.f[el.dataset.f]=el.value;render()}
   if(el.dataset.agree){S.agree[el.dataset.agree]=el.checked;$("#dockHost").innerHTML=vDock()}
   if(el.dataset.p&&el.tagName==="SELECT"){S.pp[el.dataset.p]=el.value;S.partnerLink=null;render()}
