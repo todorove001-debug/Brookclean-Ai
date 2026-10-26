@@ -5,7 +5,7 @@ import {
   canEditMarks, canShoot, canSign, checkpointsOf, cpGate, isParticipant, isSide, photoSpec, sidesOf, stageMode, vidSpec,
   type OrderCtx, type Stage, type StageMode, type UserCtx,
 } from "../domain/stages.js";
-import { doneStages, ensureSection, ensureStage, loadOrder, type OrderRow } from "./context.js";
+import { clientOf, doneStages, ensureSection, ensureStage, loadOrder, type OrderRow } from "./context.js";
 
 export const ROLE_NAME = { manager: "Менеджер", driver: "Водитель", partner: "Партнёр", terminal: "Терминал" } as const;
 
@@ -94,6 +94,8 @@ export function stateOut(u: UserCtx, s: StageState, marks: any[]) {
       give: sig(sec.give_sig), take: sig(sec.take_sig), disagree: sec.disagree, disComment: sec.dis_comment, absent: sec.absent, absentReason: sec.absent_reason,
       cond: sec.cond, condOther: sec.cond_other, notes: sec.notes, driverMode: sec.driver_mode, closedAt: sec.closed_at,
     },
+    // клиент сдаёт машину при приёмке и получает при выгрузке: его данные видит другая сторона передачи и менеджер
+    client: (s.st === "priemka" || s.st === "vygruzka") && (u.role === "manager" || isParticipant(u, s.ctx, s.st)) ? clientOf(s.row) : null,
     marks, perms: permsOf(u, s),
   };
 }

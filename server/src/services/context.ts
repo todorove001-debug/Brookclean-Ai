@@ -56,3 +56,9 @@ export async function doneStages(db: Db, no: number) {
 }
 
 export const stageNum = (ctx: OrderCtx, st: Stage) => checkpointsOf(ctx).findIndex((c) => c.id === st) + 1;
+
+// данные клиента из заявки: для сверки паспорта при приёмке и выдаче
+export const clientOf = (o: any) => ({
+  fio: o.client_fio, phone: o.client_phone,
+  passport: { series: o.passport_series, number: o.passport_number, issued: o.passport_issued, date: o.passport_date },
+});

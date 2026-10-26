@@ -6,7 +6,7 @@ import { bad, conflict, forbidden, notFound } from "../errors.js";
 import { ORIGIN_CITY, routeFor, NET } from "../domain/route.js";
 import { requireUser, type AuthUser } from "../services/auth.js";
 import { audit } from "../services/audit.js";
-import { doneStages } from "../services/context.js";
+import { clientOf, doneStages } from "../services/context.js";
 import { CAPACITY } from "./orders.js";
 
 const myBase = (u: AuthUser) => (u.role === "terminal" && u.terminalCity !== ORIGIN_CITY ? u.terminalCity! : "common");
@@ -57,8 +57,14 @@ export default async function (app: FastifyInstance) {
     const t = await load(id);
     const drv = t.driver_id ? await one(pool, "select user_id from drivers where id = $1", [t.driver_id]) : null;
     if (!(u.role === "manager" || (u.role === "terminal" && (t.origin === u.terminalCity || t.dest === u.terminalCity)) || drv?.user_id === u.id)) throw forbidden();
-    const cars = await many(pool, `select o.no, o.car, o.vin, o.color, o.city, o.client_fio, l.idx leg from order_legs l join orders o on o.no = l.order_no
-      where l.trip_id = $1 order by o.no`, [id]);
+    const rows = await many(pool, `select o.*, l.idx leg, (select count(*)::int from order_legs x where x.order_no = o.no) legs
+      from order_legs l join orders o on o.no = l.order_no where l.trip_id = $1 order by o.no`, [id]);
+    // паспорт и телефон клиента — водителю, который принимает машину у клиента или выдаёт её получателю, и менеджеру
+    const meets = (r: any) => r.leg === r.legs - 1 || (r.leg === 0 && t.load_city !== ORIGIN_CITY);
+    const cars = rows.map((r) => ({
+      no: r.no, car: r.car, vin: r.vin, color: r.color, city: r.city, leg: r.leg, client_fio: r.client_fio,
+      client: u.role === "manager" || (drv?.user_id === u.id && meets(r)) ? clientOf(r) : null,
+    }));
     const events = await many(pool, "select at, city, note from trip_events where trip_id = $1 order by at", [id]);
     return { trip: tripOut(t), cars, events };
   });

@@ -292,10 +292,11 @@ export default async function (app: FastifyInstance) {
     const media = await many(pool, "select id, stage, kind, slot, mime, uploaded_as, created_at from media where order_no = $1 and not replaced order by created_at", [no]);
     const marks = await marksOf(pool, no);
     return {
-      stages: checkpointsOf(ctx).filter((c) => stages.some((x) => x.stage === c.id)).map((c, i) => {
+      // этап попадает в историю, когда по нему что-то сняли или подписали, а не когда его просто открыли
+      stages: checkpointsOf(ctx).filter((c) => stages.some((x) => x.stage === c.id) && (media.some((m) => m.stage === c.id) || stages.find((x) => x.stage === c.id).done_at)).map((c, i) => {
         const x = stages.find((r) => r.stage === c.id), sec = secs.find((r) => r.stage === c.id), spec = photoSpec(c.id as Stage), vids = hoVideos(c.id as Stage);
         return {
-          stage: c.id, num: i + 1, name: STAGES[c.id].name, place: x.place, startedAt: x.started_at, doneAt: x.done_at,
+          stage: c.id, num: stageNum(ctx, c.id as Stage), name: STAGES[c.id].name, place: x.place, startedAt: x.started_at, doneAt: x.done_at,
           give: sec ? { role: sec.give_role, name: sec.give_name, signedAt: sec.give_sig?.at ?? null } : null,
           take: sec ? { role: sec.take_role, name: sec.take_name, signedAt: sec.take_sig?.at ?? null } : null,
           disagree: sec?.disagree ? sec.dis_comment : null, absent: sec?.absent ? sec.absent_reason : null, notes: sec?.notes ?? "",

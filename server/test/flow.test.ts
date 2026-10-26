@@ -155,6 +155,13 @@ describe("отгрузка с терминала", () => {
     expect((await sign(T.nsk, "term_out", "give")).status).toBe(200);
     expect((await sign(T.nsk, "term_out", "take")).status).toBe(403);
     expect((await sign(T.b, "term_out", "take")).body.closed).toBe(true);
+    // паспорт и телефон получателя — у водителя, который выдаёт машину; водитель до терминала их не видит
+    const t2 = (await api("GET", `/api/trips/${trip2}`, undefined, T.b)).body;
+    expect(t2.cars[0].client).toMatchObject({ fio: "Белов Дмитрий Сергеевич", phone: "79770000085", passport: { series: "4510", number: "123456" } });
+    expect((await api("GET", `/api/trips/${trip1}`, undefined, T.a)).body.cars[0].client).toBeNull();
+    expect((await stage(T.b, "vygruzka")).client.passport.number).toBe("123456");
+    expect((await stage(T.b, "term_out")).client).toBeNull();
+    expect((await stage(T.nsk, "vygruzka")).client).toBeNull();
     expect((await api("POST", `/api/orders/${no}/stages/term_out/marks`, { code: "A1", x: 0.1, y: 0.1 }, T.b)).status).toBe(409);
   });
 });

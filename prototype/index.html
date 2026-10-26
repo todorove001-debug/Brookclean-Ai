@@ -1169,7 +1169,8 @@ function vDriverTrip(){
       const prevOk=cpGate(o,c.id).ok&&(c.id!=="term_out"||cpDone(o,"term_in"));
       return `<button class="btn sm ${st.done?"ghost":prevOk?"primary":"ghost"}" data-act="ho-open" data-stage="${c.id}" data-no="${o.no}">${short[c.id]}${st.done?" ✓":""}</button>`}).join("");
     const prog=mine.map(c=>{const st=hoStat(o,c.id);return st.started&&!st.done&&c.role==="driver"?`${short[c.id].toLowerCase()}: фото ${st.pc}/10, видео ${st.vc}`:""}).filter(Boolean)[0];
-    return `<div class="pi"><span style="min-width:0">№${o.no} · <b>${esc(o.car)}</b>, ${esc(o.color)}<br><small class="muted"><span class="mono">${esc(o.vin)}</span> → ${esc(leg.to)}${o.transfer?(li===0?" (терминал, дальше "+esc(o.city)+")":" (с терминала "+esc(o.transfer)+")"):""} · ${esc(o.client)}</small></span>
+    return `<div class="pi"><span style="min-width:0">№${o.no} · <b>${esc(o.car)}</b>, ${esc(o.color)}<br><small class="muted"><span class="mono">${esc(o.vin)}</span> → ${esc(leg.to)}${o.transfer?(li===0?" (терминал, дальше "+esc(o.city)+")":" (с терминала "+esc(o.transfer)+")"):""}</small>
+      ${clientMeets(o,li)?(c=>`<small>${li===legsOf(o).length-1?"Получатель":"Отправитель"}: <b>${esc(c.fio)}</b> · <a href="tel:${esc(c.phone.replace(/[^\d+]/g,""))}">${esc(c.phone)}</a><br>паспорт <span class="mono">${esc(c.ser)} ${esc(c.num)}</span>, выдан ${esc(c.issued)}, ${esc(c.date)}</small>`)(clientData(o)):""}</span>
       <span style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">${o.delivered?`<span class="pill ok">Выдан</span>`:li===0&&o.transfer&&cpDone(o,"term_in")?`<span class="pill ok">сдан на терминал</span>`:`<span class="pill gray">${arrived?"на месте":km_(endKm-t.km)+" км"}</span>`}
       <span class="inline" style="justify-content:flex-end;gap:4px">${btns}</span>
       ${prog?`<small class="muted">${prog}</small>`:""}</span></div>`}).join("");
@@ -1190,6 +1191,22 @@ function vDriverTrip(){
    <div class="card"><h3>Машины в автовозе · ${on.length}</h3><div class="plist">${cars||`<span class="muted">Машин нет</span>`}</div>
      <div class="muted" style="font-size:12px">На каждой передаче машины — 10 фото по списку, 5–7 видео и подписанный акт. Осматривает тот, кто принимает машину: во Владивостоке — приёмщик площадки, при погрузке в другом городе и при выдаче — вы, на терминале — приёмщик терминала.</div></div>`;
 }
+
+/* данные клиента: нужны тому, кто принимает машину у клиента или выдаёт её получателю */
+function clientData(o){
+  if(o.passport)return {fio:o.fio||o.client,phone:o.phoneFull,ser:o.passport.ser,num:o.passport.num,issued:o.passport.issued,date:o.passport.date,demo:false};
+  // в демо-заказах данные сокращены — подставляем пример
+  const ph=String(o.phone||""),d=ph.replace(/\D/g,""),n=o.no;
+  return {fio:o.fio||o.client,phone:d.length>=6?`+7 ${d.slice(1,4)} 000-00-${d.slice(-2)}`:ph,ser:String(45+n%30)+" "+String(10+n%12),num:String(500000+n*731%499999),
+    issued:"ГУ МВД России (пример)",date:"1"+(n%9)+".0"+(1+n%9)+".20"+(15+n%8),demo:true};
+}
+// водитель видит данные клиента, если сам принимает у него машину или выдаёт её получателю
+function clientMeets(o,li){return li===legsOf(o).length-1||(li===0&&loadCityOf(o)!=="Владивосток")}
+function vClientCard(o,st){const c=clientData(o),tel=c.phone.replace(/[^\d+]/g,"");
+  return `<div class="card"><div class="drvact"><div class="eyebrow">${st==="priemka"?"Отправитель":"Получатель"} · данные из заявки${c.demo?" (пример)":""}</div><dl class="kv">
+    <dt>ФИО</dt><dd>${esc(c.fio)}</dd><dt>Телефон</dt><dd><a href="tel:${esc(tel)}">${esc(c.phone)}</a></dd>
+    <dt>Паспорт</dt><dd class="mono">${esc(c.ser)} ${esc(c.num)}</dd><dt>Выдан</dt><dd>${esc(c.issued)}, ${esc(c.date)}</dd></dl>
+    <small class="muted">${st==="priemka"?"Сверьте паспорт отправителя при приёмке.":"Выдавайте машину только по паспорту получателя. Если приехал представитель — нужна доверенность, впишите его ФИО в акт."}</small></div></div>`}
 
 /* фото, видео и акт по машине: приёмка и выгрузка */
 const HO_PHOTOS=[
@@ -1297,6 +1314,7 @@ function vHandover(o,st,ro){
        ${s.done?`<span class="pill ok">Завершено ${esc(h.doneAt)}</span>`:""}</div>
      <div class="copyline"><code>…/${esc(carFolder(o))}/${esc(stageFolder(o,st))}/</code></div>
    </div>
+   ${st==="priemka"||st==="vygruzka"?vClientCard(o,st):""}
    <div class="card" style="gap:8px">
      ${edit?`<button class="linkbtn" data-act="ho-demo" style="align-self:flex-start">Заполнить примером (демо)</button>`:""}
    </div>
@@ -2658,7 +2676,8 @@ async function sign(){
   const order={no,date:today(),fio:fioFull,car:f.car,vin:f.vin.toUpperCase(),year:+f.year,color:f.color,body:f.body,city:f.city,client:short,
     phone:"+7 "+digits.slice(1,4)+" ***-**-"+digits.slice(-2),tariff:q.tariff,cashback:q.cashback,value:q.value,
     partner:S.partner?PARTNERS[S.partner].name:"—",trip:null,payDel:false,payIns:false,payTo:"",payForm:"",
-    signedAt:"21.10 "+time+" ПЭП",token:tok(no),fresh:true,hash:hash.slice(0,32)+"…",time,loginPhone:digits};
+    signedAt:"21.10 "+time+" ПЭП",token:tok(no),fresh:true,hash:hash.slice(0,32)+"…",time,loginPhone:digits,
+    phoneFull:f.phone,passport:{ser:f.pser,num:f.pnum,issued:f.pissued,date:f.pdate.split("-").reverse().join(".")},address:f.addr};
   S.orders.forEach(o=>o.fresh=false);S.orders.push(order);S.signed=order;render();window.scrollTo(0,0);
 }
 
