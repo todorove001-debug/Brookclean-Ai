@@ -423,6 +423,15 @@ table.exp{border-collapse:collapse;font-size:13px;width:100%;min-width:720px}
 .mv-chips{display:flex;gap:6px;overflow-x:auto;padding:4px max(16px,env(safe-area-inset-left,0px)) 8px}
 .mv-ovleg{padding:8px max(16px,env(safe-area-inset-left,0px))}
 html.mv-lock,html.mv-lock body{overflow:hidden}
+.ab{display:inline-grid;place-items:center;width:1.5em;height:1.5em;border-radius:50%;font-style:normal;font-weight:800;font-size:.75em;color:#fff;vertical-align:.12em;flex:none}
+.ab.a{background:var(--ok)}.ab.b{background:var(--err)}
+.pm-legend .ab{font-size:10px}
+.pm-abline{font-weight:600}
+.mv-pin path{stroke:var(--surface);stroke-width:2px;vector-effect:non-scaling-stroke}
+.mv-pin.a path{fill:var(--ok)}.mv-pin.b path{fill:var(--err)}
+.mv-pin text{fill:#fff;font-family:var(--f-body);font-weight:800;pointer-events:none}
+.mv-end.j{fill:var(--surface);stroke:var(--route);stroke-width:2.5px}
+.lg.dot.j{background:var(--surface);border:2px solid var(--route);width:10px;height:10px}
 .pm details summary{cursor:pointer;min-height:32px;display:flex;align-items:center}
 </style>
 
@@ -1292,14 +1301,19 @@ function pmLayers(st){
   // подписи: начало и конец разрешений, затем города по уровню приближения, без наложений
   const placed=[],labels=[];const box=(x,y,t,f)=>{const tw=t.length*f*.56;return [x+f*.55,y-f*.85,x+f*.55+tw,y+f*.3]};
   const fits=b=>b[0]>x0&&b[2]<x0+w&&b[1]>y0&&b[3]<y0+h&&!placed.some(c=>!(b[2]<c[0]||b[0]>c[2]||b[3]<c[1]||b[1]>c[3]));
-  const ends=[];st.lines.filter(l=>l.p&&l.on).forEach(l=>{ends.push([l.pts[0],"s"]);ends.push([l.pts[l.pts.length-1],"e"])});
+  // точка А — начало маршрута (или выбранного разрешения), Б — конец; стыки разрешений — точками
+  const on=st.lines.filter(l=>l.p&&l.on),A=on.length?on[0].pts[0]:null,B=on.length?on[on.length-1].pts[on[on.length-1].pts.length-1]:null;
+  const ends=[];on.forEach((l,i)=>{if(i>0)ends.push([l.pts[0],"j"]);if(i<on.length-1)ends.push([l.pts[l.pts.length-1],"j"])});
+  const pins=[];for(const [p,k,t] of [[A,"a","А"],[B,"b","Б"]]){if(!p)continue;const [x,y]=pmXY(p),f=fs*1.15,name=t+" · "+permPlace(p),tw=name.length*f*.58,left=x+15*u+tw>x0+w-8*u,bx=left?[x-15*u-tw,y-26*u,x-15*u,y-12*u]:[x+15*u,y-26*u,x+15*u+tw,y-12*u];
+    placed.push([x-12*u,y-34*u,x+12*u,y],bx);labels.push(`<text x="${(left?x-15*u:x+15*u).toFixed(1)}" y="${(y-15*u).toFixed(1)}" font-size="${f.toFixed(2)}" text-anchor="${left?"end":"start"}" class="mv-lbl strong">${esc(name)}</text>`);
+    pins.push(`<g transform="translate(${x.toFixed(1)},${y.toFixed(1)}) scale(${u.toFixed(4)})" class="mv-pin ${k}"><path d="M0,0 C-3,-7 -12,-12 -12,-21 A12,12 0 1 1 12,-21 C12,-12 3,-7 0,0Z"/><text y="-16.5" text-anchor="middle" font-size="14">${t}</text></g>`)}
   st.lines.filter(l=>l.gap).forEach(l=>ends.push([l.pts[0],"g"]));
-  for(const [p,k] of ends){const [x,y]=pmXY(p),t=permPlace(p),f=fs*1.1,b=box(x,y,t,f);if(fits(b)){placed.push(b);labels.push(`<text x="${b[0].toFixed(1)}" y="${y.toFixed(1)}" font-size="${f.toFixed(2)}" class="mv-lbl strong">${esc(t)}</text>`)}}
+  for(const [p,k] of ends){const [x,y]=pmXY(p),t=permPlace(p),f=fs*(k==="j"?1:1.1),b=box(x,y,t,f);if(fits(b)){placed.push(b);labels.push(`<text x="${b[0].toFixed(1)}" y="${y.toFixed(1)}" font-size="${f.toFixed(2)}" class="mv-lbl strong">${esc(t)}</text>`)}}
   const dots=[];for(const c of PMAP.places){if(c[3]>z)continue;const x=c[1],y=c[2];if(x<x0||x>x0+w||y<y0||y>y0+h)continue;const big=c[3]<=4.5,f=fs*(big?1:.9),b=box(x,y,c[0],f);
     dots.push(`<circle cx="${x}" cy="${y}" r="${((big?2.6:1.9)*u).toFixed(2)}" class="mv-city"/>`);if(fits(b)){placed.push(b);labels.push(`<text x="${b[0].toFixed(1)}" y="${y.toFixed(1)}" font-size="${f.toFixed(2)}" class="mv-lbl${big?"":" sm"}">${esc(c[0])}</text>`)}}
   if(z>4)for(const [n,x,y] of PMAP.lakeNames){if(x>x0&&x<x0+w&&y>y0&&y<y0+h)labels.push(`<text x="${x}" y="${y}" font-size="${(fs*.95).toFixed(2)}" text-anchor="middle" class="mv-lbl water">${esc(n)}</text>`)}
-  const endDots=ends.map(([p,k])=>{const [x,y]=pmXY(p);return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(5*u).toFixed(2)}" class="mv-end ${k}"/>`}).join("");
-  st.rl.innerHTML=R.join("")+dots.join("")+endDots+roadLbl.join("");st.ll.innerHTML=labels.join("");
+  const endDots=ends.map(([p,k])=>{const [x,y]=pmXY(p);return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${((k==="j"?4:5)*u).toFixed(2)}" class="mv-end ${k}"/>`}).join("");
+  st.rl.innerHTML=R.join("")+dots.join("")+endDots+roadLbl.join("")+pins.join("");st.ll.innerHTML=labels.join("");
   // масштабная линейка
   const kmpx=u*PM_KMU,nice=[1,2,5,10,20,50,100,200,500,1000,2000].find(n=>n/kmpx>=70)||2000,sc=st.host.querySelector(".mv-scale");
   if(sc){sc.querySelector("i").style.width=(nice/kmpx).toFixed(0)+"px";sc.querySelector("span").textContent=km(nice)+" км"}
@@ -1309,10 +1323,10 @@ function pmOpen(route,sel){
   let ov=document.getElementById("pm-ov");const items=route.legs.filter(l=>!l.gap).map(l=>l.p);
   if(!ov){ov=document.createElement("div");ov.id="pm-ov";ov.setAttribute("role","dialog");ov.setAttribute("aria-modal","true");document.body.appendChild(ov);
     document.addEventListener("keydown",e=>{if(e.key==="Escape"&&document.getElementById("pm-ov"))pmClose()})}
-  ov.innerHTML=`<div class="mv-ovbar"><div class="mv-ovt"><b>${esc(route.name)}</b><span class="muted">${km(route.km)} км по разрешениям · колесо, щипок или кнопки — масштаб</span></div><button type="button" class="btn sm dark" data-mvx="1">Закрыть</button></div>
+  ov.innerHTML=`<div class="mv-ovbar"><div class="mv-ovt"><b>${(()=>{const sp=sel&&items.find(p=>p.no===sel);return sp?pmAB(permPlace(sp.start),permPlace(sp.end)):pmAB(permPlace(items[0].start,true),permPlace(items[items.length-1].end,true))})()}</b><span class="muted">${km(route.km)} км по разрешениям · колесо, щипок или кнопки — масштаб</span></div><button type="button" class="btn sm dark" data-mvx="1">Закрыть</button></div>
     <div class="mv-chips"><button type="button" class="subtab" data-mvsel="" aria-current="${!sel}">Весь маршрут</button>${items.map(p=>`<button type="button" class="subtab" data-mvsel="${esc(p.no)}" aria-current="${sel===p.no}">${esc(permPlace(p.start))} → ${esc(permPlace(p.end))}</button>`).join("")}</div>
     <div class="pmv ov" data-mode="ov">${pmCtl(true)}</div>
-    <div class="pm-legend muted mv-ovleg"><span><i class="lg on"></i>${sel?"выбранное разрешение":"по разрешениям"}</span>${route.gaps.length?`<span><i class="lg gap"></i>не покрыто разрешением</span>`:""}<span><i class="lg dot s"></i>начало</span><span><i class="lg dot e"></i>конец</span><span><i class="lg shield"></i>трасса из разрешения</span></div>`;
+    <div class="pm-legend muted mv-ovleg"><span><i class="lg on"></i>${sel?"выбранное разрешение":"по разрешениям"}</span>${route.gaps.length?`<span><i class="lg gap"></i>не покрыто разрешением</span>`:""}<span><i class="ab a">А</i>начало</span><span><i class="ab b">Б</i>конец</span><span><i class="lg shield"></i>трасса из разрешения</span></div>`;
   document.documentElement.classList.add("mv-lock");
   ov.querySelector("[data-mvx]").onclick=pmClose;
   ov.querySelectorAll("[data-mvsel]").forEach(b=>b.onclick=()=>{S.pm.sel=b.dataset.mvsel||null;pmOpen(route,S.pm.sel);render()});
@@ -1334,7 +1348,7 @@ function permDetail(p,mgr){const st=permState(p),key=p.conds.filter(c=>PM_KEY.te
   const cond=c=>`<li><span>${esc(c.t)}</span><small class="muted">${esc(c.roads.join(", "))} · ${c.n} ${c.n===1?"участок":c.n<5?"участка":"участков"}${c.km.length<=6?": км "+esc(c.km.join(", ")):""}</small></li>`;
   const roads=[];for(const s of p.segs){const r=s[2].replace(/^.*?,\s*/,"");const last=roads[roads.length-1];if(last&&last.r===r)last.km+=s[1];else roads.push({r,reg:s[2].split(",")[0],km:s[1]})}
   return `<section class="card pm-det" aria-label="Разрешение ${esc(pmShort(p.no))}">
-    <div class="inline" style="justify-content:space-between;align-items:flex-start"><div><h2>Разрешение № ${esc(p.no)}</h2><div class="muted">выдано ${esc(p.issued)} · ${esc(permPlace(p.start))} → ${esc(permPlace(p.end))}, ${km(Math.round(p.km))} км</div></div><span class="pill ${st.k}">${esc(st.l)}</span></div>
+    <div class="inline" style="justify-content:space-between;align-items:flex-start"><div><h2>Разрешение № ${esc(p.no)}</h2><div class="muted">выдано ${esc(p.issued)} · ${km(Math.round(p.km))} км</div><div class="pm-abline">${pmAB(permPlace(p.start),permPlace(p.end))}</div></div><span class="pill ${st.k}">${esc(st.l)}</span></div>
     <div class="pm-validity"><div><small class="muted">Срок выполнения поездок</small><div class="pm-big">${esc(p.from)} <span class="muted">—</span> ${esc(p.to)}</div></div>
       <div class="pm-left ${st.k}"><b>${Math.max(0,st.left)}</b><small>${dn(Math.max(0,st.left))} осталось</small></div></div>
     ${permBar(st)}
@@ -1459,7 +1473,7 @@ function vPermits(){
   const worst=items.map(permState).sort((a,b)=>a.left-b.left)[0],lead=S.settings.permitLead||7,kd=S.settings.kmDay||500;
   const drive=Math.ceil((r.km+r.gaps.reduce((s,g)=>s+g.km,0))/kd),lastDep=pmAdd(r.to,-drive);
   const head=`<section class="card pm-head">
-    <div class="inline" style="justify-content:space-between;align-items:flex-start"><div><small class="muted">${cpName(cp)}</small><h2>${esc(r.name)}${r.main?` <span class="pill info">основной маршрут</span>`:""}</h2>
+    <div class="inline" style="justify-content:space-between;align-items:flex-start"><div><small class="muted">${cpName(cp)}</small><h2>${pmAB(permPlace(items[0].start,true),permPlace(items[items.length-1].end,true))}${r.main?` <span class="pill info">основной маршрут</span>`:""}</h2>
       <div class="muted">${items.length} ${items.length===1?"разрешение":items.length<5?"разрешения":"разрешений"} · ${km(r.km)} км по разрешениям · тягач ${esc(items[0].tractor?items[0].tractor.model:"—")}</div></div>
       <span class="pill ${worst.k}">${esc(worst.l)}</span></div>
     <div class="pm-validity"><div><small class="muted">Маршрут открыт, пока действуют все разрешения</small><div class="pm-big">${pmFmt(r.from)} <span class="muted">—</span> ${pmFmt(r.to)}</div></div>
@@ -1480,11 +1494,12 @@ function vPermits(){
   return `<div class="${wrap}">${cps}${cpHead}${tabs}${head}
     <section class="card pm-mapcard"><div class="inline" style="justify-content:space-between"><h2>Маршрут на карте</h2>${sel?`<button class="btn sm ghost" data-act="pm-sel" data-no="">Весь маршрут</button>`:""}</div>
       ${permMap(r,sel,mgr?1150:430)}
-      <div class="pm-legend muted"><span><i class="lg on"></i>${sel?"выбранное разрешение":"по разрешениям"}</span>${sel?`<span><i class="lg off"></i>другие разрешения маршрута</span>`:""}${r.gaps.length?`<span><i class="lg gap"></i>не покрыто разрешением</span>`:""}<span><i class="lg dot s"></i>начало</span><span><i class="lg dot e"></i>конец</span><span><i class="lg shield"></i>трасса из разрешения</span></div>
+      <div class="pm-legend muted"><span><i class="lg on"></i>${sel?"выбранное разрешение":"по разрешениям"}</span>${sel?`<span><i class="lg off"></i>другие разрешения маршрута</span>`:""}${r.gaps.length?`<span><i class="lg gap"></i>не покрыто разрешением</span>`:""}<span><i class="ab a">А</i>начало</span><span><i class="ab b">Б</i>конец</span>${items.length>1&&!sel?`<span><i class="lg dot j"></i>стык разрешений</span>`:""}<span><i class="lg shield"></i>трасса из разрешения</span></div>
       <div class="pm-legs">${legs}</div></section>
     ${selP?permDetail(selP,mgr):`<p class="muted" style="margin:0">Нажмите на разрешение, чтобы увидеть его на карте, дороги и особые условия.</p>`}
     ${memo}${otherBlk}${mgr?permFiles():""}</div>`;
 }
+const pmAB=(a,b)=>`<span class="ab a">А</span> ${esc(a)} <span class="muted">→</span> <span class="ab b">Б</span> ${esc(b)}`;
 function permBadge(){const u=me();if(!S.fleet)return 0;const cs=u&&u.role==="driver"?[cpOfDriver(u.id)].filter(Boolean):S.fleet.couplings;return cs.filter(c=>{const k=cpState(c).k;return k==="warn"||k==="err"}).length}
 
 function vCab(){
