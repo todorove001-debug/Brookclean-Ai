@@ -421,8 +421,8 @@ function seed(){
       advance:120000, expenses:[
         {d:"21.10.2026",time:"05:48",cat:"fuel",seller:"АЗС Роснефть №5",city:"Владивосток",desc:"ДТ, 220 л × 71,90 (пример)",liters:220,amount:15818,src:"фото",photo:null},
         {d:"21.10.2026",time:"",cat:"toll",seller:"Платон",city:"",desc:"Списание за 760 км (пример)",liters:"",amount:2280,src:"вручную",photo:null},
-        {d:"21.10.2026",time:"12:30",cat:"food",seller:"Кафе «Трасса»",city:"Лучегорск",desc:"Обед (пример)",liters:"",amount:620,src:"фото",photo:null},
-        {d:"21.10.2026",time:"18:55",cat:"parking",seller:"Стоянка «Южная»",city:"Хабаровск",desc:"Ночная стоянка (пример)",liters:"",amount:500,src:"фото",photo:null}]},
+        {d:"21.10.2026",time:"12:30",cat:"daily",seller:"Суточные",city:"",desc:"1 сутки в рейсе (пример)",liters:"",amount:1000,src:"вручную",photo:null},
+        {d:"21.10.2026",time:"18:55",cat:"parking",seller:"Стоянка «Южная»",city:"Хабаровск",desc:"Ночная стоянка и душ (пример)",liters:"",amount:500,src:"фото",photo:null}]},
     {id:"R-02",status:"forming",trailer:"LOHR S2M52X · АО 0802 25",carrier:"собственный",origin:"Владивосток",loadCity:"Владивосток",dest:"Краснодар",truck:"Scania R · В 117 ОМ 125",driverId:"u3",driver:"Алексей С.",km:0,loadDate:"23.10",report:{status:"draft",comment:"",odoStart:298410,odoNow:298410},events:[],advance:150000,expenses:[]},
     {id:"R-03",status:"forming",trailer:"LUXUDA LZC9405BG · АО 2148 54",carrier:"ООО «Сибирь-Транзит» (наёмный, пример)",origin:"Новосибирск",loadCity:"Новосибирск",dest:"Москва",truck:"MAN TGX · Е 905 УА 54",driverId:"u4",driver:"Дмитрий В.",km:5880,loadDate:"28.10",report:{status:"draft",comment:"",odoStart:517020,odoNow:517020},events:[],advance:150000,expenses:[]},
     {id:"R-04",status:"forming",trailer:"",carrier:"собственный",origin:"Владивосток",loadCity:"Владивосток",dest:"Новосибирск",truck:"Volvo FH · К 230 НС 125",driverId:null,driver:"не назначен",km:0,loadDate:"24.10",report:{status:"draft",comment:"",odoStart:0,odoNow:0},events:[],advance:0,expenses:[]},
@@ -898,7 +898,8 @@ function vManager(part){
 }
 
 /* --- Рейсовый отчёт водителя --- */
-const CATS={fuel:"Топливо",toll:"Платон / платные дороги",parking:"Стоянка",food:"Питание",lodging:"Ночлег",repair:"Ремонт / шины",wash:"Мойка",other:"Прочее"};
+// статьи расходов в рейсовом отчёте водителя
+const CATS={fuel:"Топливо",parking:"Стоянка / душ",zip:"Мелкий ЗИП",repair:"Ремонт и техобслуживание",tires:"Шины",tirefit:"Шиномонтаж",wash:"Мойка",pass:"Проездной",daily:"Суточные",toll:"Платные дороги"};
 const AI={fn:null,images:false,ctl:null};
 function emptyDraft(){return {d:today(),time:"",cat:"fuel",seller:"",city:"",desc:"",liters:"",amount:"",fiscal:""}}
 /* --- Кабинеты сотрудников --- */
@@ -2492,8 +2493,8 @@ function vStaff(){
 }
 
 const RX_PROMPT=`На фото кассовый чек водителя автовоза (Россия, расходы в рейсе). Прочитай его и верни только JSON-объект:
-{"date":"ДД.ММ.ГГГГ или null","time":"ЧЧ:ММ или null","seller":"название продавца или АЗС с номером","city":"город, если указан, иначе null","category":"одно из: fuel, toll, parking, food, lodging, repair, wash, other","description":"коротко, что куплено, например «ДТ, 160 л × 72,10»","liters":число литров для топлива или null,"amount":итоговая сумма чека числом,"fiscal":"ФН, ФД, ФП, если видны, иначе null","confidence":"high, medium или low","notes":"что не удалось прочитать, иначе пустая строка"}
-Топливо (ДТ, АИ-92/95, газ, AdBlue) — fuel. Платон и платные трассы — toll. Кафе и магазины еды — food. Если на фото не кассовый чек, верни {"error":"not_receipt"}.`;
+{"date":"ДД.ММ.ГГГГ или null","time":"ЧЧ:ММ или null","seller":"название продавца или АЗС с номером","city":"город, если указан, иначе null","category":"одно из: fuel, parking, zip, repair, tires, tirefit, wash, pass, toll","description":"коротко, что куплено, например «ДТ, 160 л × 72,10»","liters":число литров для топлива или null,"amount":итоговая сумма чека числом,"fiscal":"ФН, ФД, ФП, если видны, иначе null","confidence":"high, medium или low","notes":"что не удалось прочитать, иначе пустая строка"}
+Топливо (ДТ, АИ-92/95, газ, AdBlue) — fuel. Стоянка, душ — parking. Мелкие запчасти, лампы, предохранители, жидкости, ремни — zip. Ремонт, ТО, масло и фильтры с работой — repair. Покупка шин — tires. Шиномонтаж, балансировка, ремонт колеса — tirefit. Мойка — wash. Проездной, разрешение на проезд — pass. Платон и платные трассы — toll. Если на фото не кассовый чек, верни {"error":"not_receipt"}.`;
 async function readReceipt(file,isDemo){
   if(!/^image\//.test(file.type)){toast("Нужна фотография чека: JPG, PNG или WebP");return}
   const url=URL.createObjectURL(file);
@@ -2504,7 +2505,7 @@ async function readReceipt(file,isDemo){
     try{
       const r=await AI.fn.json(RX_PROMPT,{images:[file],signal:AI.ctl.signal});
       if(!r||r.error){done(emptyDraft(),{msg:"На фото не видно кассового чека. Сфотографируйте чек целиком при хорошем свете или заполните поля вручную.",msgType:"warn"});return}
-      const cat=CATS[r.category]?r.category:"other";
+      const cat=CATS[r.category]&&r.category!=="daily"?r.category:"zip";
       done({d:r.date||today(),time:r.time||"",cat,seller:r.seller||"",city:r.city||"",desc:r.description||"",liters:r.liters??"",amount:r.amount??"",fiscal:r.fiscal||""},
         {conf:r.confidence||"medium",msg:r.notes||"",msgType:"warn"});
     }catch(e){
