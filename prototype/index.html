@@ -927,9 +927,11 @@ function stats(t){
   const share=o=>{const L=legsOf(o);if(L.length<2)return 1;const tk=NET[o.transfer][1],d=NET[o.city][1];return L[0].trip===t.id?tk/d:(d-tk)/d};
   const spent=ex.reduce((s,e)=>s+(+e.amount||0),0), revenue=on.reduce((s,o)=>s+o.tariff*share(o),0);
   const fuel=ex.filter(e=>e.cat==="fuel"), liters=fuel.reduce((s,e)=>s+(+e.liters||0),0), fuelSum=fuel.reduce((s,e)=>s+(+e.amount||0),0);
-  const run=Math.max(0,(t.report.odoNow||0)-(t.report.odoStart||0)), per100=run&&liters?Math.round(liters/run*100):0;
+  // пробег для зарплаты: по одометру водителя, а если менеджер исправил — исправленный
+  const runDriver=Math.max(0,(t.report.odoNow||0)-(t.report.odoStart||0)), fix=t.report.runFix||null, run=fix?fix.km:runDriver;
+  const rate=t.report.rate??S.settings.kmRate, salary=run*rate, per100=run&&liters?Math.round(liters/run*100):0;
   const byCat=Object.keys(CATS).map(k=>[k,ex.filter(e=>e.cat===k).reduce((s,e)=>s+(+e.amount||0),0)]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
-  return {ex,on,spent,bal:t.advance-spent,revenue,liters,fuelSum,run,per100,byCat};
+  return {ex,on,spent,bal:t.advance-spent,revenue,liters,fuelSum,run,runDriver,fix,rate,salary,per100,byCat};
 }
 const km=n=>Number(n||0).toLocaleString("ru-RU");
 
@@ -1143,9 +1145,11 @@ function vDriverReport(){
      <div class="kpi"><b>${rub(t.advance)}</b><span>аванс на рейс</span></div>
      <div class="kpi"><b>${rub(s.spent)}</b><span>потрачено · ${s.ex.length} чек.</span></div>
      <div class="kpi ${s.bal<0?"neg":""}"><b>${rub(Math.abs(s.bal))}</b><span>${s.bal<0?"перерасход, вам вернут":"остаток аванса у вас"}</span></div>
-     <div class="kpi"><b>${km(s.run)} км</b><span>пробег${s.per100?" · "+s.per100+" л/100 км":""}</span></div>
+     <div class="kpi"><b>${km(s.run)} км</b><span>пробег${s.fix?" · исправлен менеджером":""}${s.per100?" · "+s.per100+" л/100 км":""}</span></div>
+     <div class="kpi pos"><b>${rub(s.salary)}</b><span>зарплата за рейс · ${km(s.run)} км × ${s.rate} ₽</span></div>
    </div>
-   <div class="card"><h3>Одометр</h3><div class="row2">
+   ${s.fix?`<div class="callout warn">Менеджер исправил пробег: по одометру ${km(s.fix.driverKm)} км, для зарплаты — <b>${km(s.fix.km)} км</b>. Причина: ${esc(s.fix.reason)} · ${esc(s.fix.by)}, ${esc(s.fix.at)}.</div>`:""}
+   <div class="card"><h3>Одометр</h3><div class="muted" style="font-size:13px">По пробегу считается зарплата: ${s.rate} ₽ за километр.</div><div class="row2">
      <div class="field"><label for="odo-start">При выезде, км</label><input id="odo-start" data-odo="odoStart" inputmode="numeric" value="${t.report.odoStart||""}" ${edit?"":"disabled"}></div>
      <div class="field"><label for="odo-now">Сейчас, км</label><input id="odo-now" data-odo="odoNow" inputmode="numeric" value="${t.report.odoNow||""}" ${edit?"":"disabled"}></div>
    </div></div>
@@ -1523,6 +1527,16 @@ function vNewTripForm(){
     <div class="row2"><div class="field"><label for="nt-l">Дата погрузки</label><input id="nt-l" placeholder="25.10" inputmode="numeric"></div>
     <div class="field" style="justify-content:flex-end"><button class="btn dark" data-act="nt-create">Создать рейс</button></div></div></div>`;
 }
+// менеджер исправляет пробег, если водитель ошибся в одометре; после принятия отчёта — только просмотр
+function vRunFix(t,s){const locked=t.report.status==="accepted";
+  return `<h3>Пробег и зарплата</h3>
+   <dl class="kv"><dt>Одометр при выезде</dt><dd>${km(t.report.odoStart)} км</dd><dt>Одометр сейчас</dt><dd>${km(t.report.odoNow)} км</dd><dt>Пробег по одометру</dt><dd>${km(s.runDriver)} км</dd>
+    ${s.fix?`<dt>Пробег для зарплаты</dt><dd><b>${km(s.fix.km)} км</b></dd>`:""}<dt>Ставка</dt><dd>${s.rate} ₽/км</dd><dt>Зарплата</dt><dd><b>${rub(s.salary)}</b></dd></dl>
+   ${s.fix?`<div class="callout warn" style="font-size:13px">Исправлено: ${esc(s.fix.by)}, ${esc(s.fix.at)} · было ${km(s.fix.driverKm)} км · «${esc(s.fix.reason)}»</div>`:""}
+   ${locked?`<div class="muted" style="font-size:12px">Отчёт принят — пробег и зарплата зафиксированы.</div>`
+    :`<div class="row2"><div class="field"><label for="rf-km">Пробег для зарплаты, км</label><input id="rf-km" inputmode="numeric" value="${s.run}"></div>
+      <div class="field"><label for="rf-why">Причина исправления</label><input id="rf-why" placeholder="Например: опечатка в одометре" value=""></div></div>
+     <div class="inline"><button class="btn sm dark" data-act="run-fix">Исправить пробег</button>${s.fix?`<button class="btn sm ghost" data-act="run-unfix">Вернуть пробег водителя</button>`:""}</div>`}`}
 function vSettings(){
   const r=S.settings.termOutRule;
   const opt=(v,t,d)=>`<label class="check"><input type="radio" name="tor" data-set="termOutRule" value="${v}" ${r===v?"checked":""}> <span><b>${t}</b><br><small class="muted">${d}</small></span></label>`;
@@ -1536,6 +1550,9 @@ function vSettings(){
      </tbody></table></div>
      <div class="inline"><input class="cellin" id="trp-city" placeholder="Новый город" style="max-width:200px"><button class="btn sm ghost" data-act="trp-add">Добавить город</button></div>
    </div>
+   <div class="card"><h3>Зарплата водителя</h3>
+    <div class="field" style="max-width:240px"><label for="set-rate">Ставка за километр, ₽</label><input id="set-rate" data-set="kmRate" inputmode="numeric" value="${S.settings.kmRate}"></div>
+    <div class="muted" style="font-size:12px">Зарплата за рейс = пробег по одометру × ставка. Новая ставка применяется к отчётам, которые ещё не приняты; в принятых она зафиксирована.</div></div>
    <div class="card"><h3>Подсказка перегрузки (3В)</h3>
     <div class="field"><label for="set-days">Предлагать терминал, если прямого рейса нет в ближайшие, дней</label><input id="set-days" data-set="directWaitDays" inputmode="numeric" value="${S.settings.directWaitDays}"></div>
    </div></div>`;
@@ -2457,7 +2474,7 @@ function vMgrReports(){
   const t=S.trips.find(x=>x.id===S.report.trip)||S.trips[0], s=stats(t), st=REP_ST[t.report.status];
   const list=S.trips.map(x=>{const xs=stats(x),xst=REP_ST[x.report.status];
     return `<tr class="${x.id===t.id?"fresh":""}"><td><button class="linkbtn" data-act="open-rep" data-trip="${x.id}">${x.id}</button></td><td>${esc(x.driver)}</td><td>до ${esc(x.dest)}</td>
-      <td><span class="pill ${xst[1]}">${xst[0]}</span></td><td class="r">${xs.ex.length}</td><td class="r">${rub(xs.spent)}</td><td class="r">${rub(x.advance)}</td><td class="r">${rub(xs.bal)}</td></tr>`}).join("");
+      <td><span class="pill ${xst[1]}">${xst[0]}</span></td><td class="r">${xs.ex.length}</td><td class="r">${rub(xs.spent)}</td><td class="r">${rub(x.advance)}</td><td class="r">${rub(xs.bal)}</td><td class="r">${km(xs.run)} км${xs.fix?" ✎":""}</td><td class="r">${rub(xs.salary)}</td></tr>`}).join("");
   const rows=s.ex.map(e=>`<tr><td class="mono" style="white-space:nowrap">${esc(e.d.slice(0,5))}${e.time?" "+esc(e.time):""}</td>
     <td><span class="pill gray">${CATS[e.cat]}</span></td>
     <td>${esc(e.seller)}<br><small class="muted">${esc(e.desc)}</small></td><td>${esc(e.city||"—")}</td>
@@ -2469,18 +2486,20 @@ function vMgrReports(){
   else if(t.report.status==="accepted")actions=`<div class="callout ok">Отчёт принят ${esc(t.report.acceptedAt||"")}. ${s.bal>=0?"Водитель возвращает остаток "+rub(s.bal):"Водителю компенсируют перерасход "+rub(-s.bal)}.</div>`;
   else if(t.report.status==="returned")actions=`<div class="callout warn">Возвращён водителю: «${esc(t.report.comment)}». Ждём исправленный отчёт.</div>`;
   else actions=`<div class="callout info">Водитель ещё заполняет отчёт. Чеки появляются здесь сразу после загрузки.</div>`;
-  return `<div class="tablewrap"><table class="exp"><thead><tr><th>Рейс</th><th>Водитель</th><th>Маршрут</th><th>Статус</th><th class="r">Чеков</th><th class="r">Расходы</th><th class="r">Аванс</th><th class="r">Остаток</th></tr></thead><tbody>${list}</tbody></table></div>
+  return `<div class="tablewrap"><table class="exp"><thead><tr><th>Рейс</th><th>Водитель</th><th>Маршрут</th><th>Статус</th><th class="r">Чеков</th><th class="r">Расходы</th><th class="r">Аванс</th><th class="r">Остаток</th><th class="r">Пробег</th><th class="r">Зарплата</th></tr></thead><tbody>${list}</tbody></table></div>
    <div class="rep-head"><h2 style="font-family:var(--f-display);font-weight:500;font-size:17px">Отчёт ${t.id} · ${esc(t.driver)} <span class="pill ${st[1]}">${st[0]}</span></h2>
      <div class="field" style="max-width:200px"><label for="rep-adv">Аванс водителю, ₽</label><input id="rep-adv" inputmode="numeric" value="${t.advance}"></div></div>
    <div class="kpis">
      <div class="kpi"><b>${rub(s.spent)}</b><span>расходы по чекам · ${s.ex.length} шт.</span></div>
      <div class="kpi ${s.bal<0?"neg":""}"><b>${rub(Math.abs(s.bal))}</b><span>${s.bal<0?"перерасход, вернуть водителю":"остаток аванса у водителя"}</span></div>
      <div class="kpi"><b>${rub(s.revenue)}</b><span>выручка рейса по тарифам · ${s.on.length} авто${s.on.some(o=>o.transfer)?" (перегрузка — по доле км)":""}</span></div>
-     <div class="kpi ${s.revenue-s.spent>=0?"pos":"neg"}"><b>${rub(s.revenue-s.spent)}</b><span>результат рейса до зарплаты</span></div>
+     <div class="kpi"><b>${rub(s.salary)}</b><span>зарплата водителя · ${km(s.run)} км × ${s.rate} ₽${s.fix?" · пробег исправлен":""}</span></div>
+     <div class="kpi ${s.revenue-s.spent-s.salary>=0?"pos":"neg"}"><b>${rub(s.revenue-s.spent-s.salary)}</b><span>результат рейса после расходов и зарплаты</span></div>
      <div class="kpi"><b>${km(s.run)} км</b><span>пробег · ${s.liters?km(s.liters)+" л, "+rub(s.fuelSum/s.liters).replace(" ₽","")+" ₽/л":"топливо —"}${s.per100?" · "+s.per100+" л/100 км":""}</span></div>
    </div>
    <div class="report">
      <div class="card"><h3>Решение по отчёту</h3>${actions}
+       ${vRunFix(t,s)}
        ${s.byCat.length?`<h3>По статьям</h3><div class="cats">${s.byCat.map(([k,v])=>`<div><span>${CATS[k]}</span><span>${rub(v)} · ${Math.round(v/s.spent*100)}%</span></div>`).join("")}</div>`:""}</div>
      <div class="card" style="min-width:0"><div class="sheet-head"><h3>Чеки рейса ${t.id}</h3><span class="muted" style="font-size:12px">${esc(t.truck)}</span></div>
        ${s.ex.length?`<div class="tablewrap"><table class="exp"><thead><tr><th>Дата</th><th>Статья</th><th>Продавец</th><th>Город</th><th class="r">Литры</th><th class="r">Сумма</th><th>Чек</th></tr></thead>
@@ -2643,7 +2662,12 @@ document.addEventListener("click",async e=>{
   if(act==="logout"){S.session=null;S.sub=null;S.drvOpen=null;S.compOpen=null;S.drvTab="drivers";S.ho=null;S.mgrHo=null;S.rx={status:"idle"};S.lastDel=null;render();window.scrollTo(0,0);toast("Вы вышли из кабинета")}
   if(act==="submit-report"){const t=S.trips.find(x=>x.id===repTrip());t.report.status="submitted";t.report.submittedAt=nowStamp();t.report.comment="";render();window.scrollTo(0,0);toast("Отчёт сдан менеджеру")}
   if(act==="open-rep"){S.report.trip=a.dataset.trip;render()}
-  if(act==="accept-rep"){const t=S.trips.find(x=>x.id===S.report.trip);t.report.status="accepted";t.report.acceptedAt=nowStamp();render();toast("Отчёт "+t.id+" принят")}
+  if(act==="accept-rep"){const t=S.trips.find(x=>x.id===S.report.trip);t.report.status="accepted";t.report.acceptedAt=nowStamp();t.report.rate=S.settings.kmRate;render();toast("Отчёт "+t.id+" принят, зарплата "+rub(stats(t).salary))}
+  if(act==="run-fix"){const t=S.trips.find(x=>x.id===S.report.trip),v=numOnly($("#rf-km").value),why=$("#rf-why").value.trim(),s=stats(t);
+    if(why.length<3){toast("Укажите причину исправления");return}
+    if(v===s.runDriver){t.report.runFix=null;render();toast("Пробег совпадает с одометром — исправление не нужно");return}
+    t.report.runFix={km:v,driverKm:s.runDriver,reason:why,by:me().name,at:nowStamp()};render();toast(`Пробег ${t.id}: ${km(v)} км, зарплата ${rub(v*s.rate)}`)}
+  if(act==="run-unfix"){const t=S.trips.find(x=>x.id===S.report.trip);t.report.runFix=null;render();toast("Пробег снова по одометру водителя")}
   if(act==="return-rep"){const t=S.trips.find(x=>x.id===S.report.trip);if(!t.report.comment.trim()){toast("Напишите водителю, что исправить");$("#rep-cmt")?.focus();return}
     t.report.status="returned";render();toast("Отчёт возвращён водителю")}
   if(act==="user-st"){const u=S.users.find(x=>x.id===a.dataset.uid);u.status=a.dataset.st;render();
@@ -2804,7 +2828,7 @@ document.addEventListener("change",e=>{
     const s=secOf(o,"term_out");s.named=false;render();if(d)toast(`${drvShort(d)} — водитель рейса ${t.id}: ${truckStr(d)}`)}
   if(el.dataset.doc&&el.files&&el.files[0]){const [id,k]=el.dataset.doc.split("|");readDoc(id,k,el.files[0])}
   if(el.dataset.loadcity){const t=S.trips.find(x=>x.id===el.dataset.loadcity);t.loadCity=el.value;t.km=NET[el.value][1];render();toast("Город погрузки: "+el.value)}
-  if(el.dataset.set){const k=el.dataset.set;S.settings[k]=k==="directWaitDays"?Math.max(0,numOnly(el.value)):el.value;render();toast("Настройка сохранена")}
+  if(el.dataset.set){const k=el.dataset.set;S.settings[k]=k==="directWaitDays"||k==="kmRate"?Math.max(0,numOnly(el.value)):el.value;render();toast("Настройка сохранена")}
   if(el.id==="rep-adv"){S.trips.find(x=>x.id===S.report.trip).advance=numOnly(el.value);render()}
   if(el.dataset.pay){const o=S.orders.find(x=>x.no===+el.dataset.no);o[el.dataset.pay]=el.checked;render()}
   if(el.dataset.sel){const o=S.orders.find(x=>x.no===+el.dataset.no);o[el.dataset.sel]=el.value||null;render()}
@@ -2830,6 +2854,7 @@ document.addEventListener("submit",e=>{e.preventDefault();if(e.target.id==="logi
 seed();
 seedScenario();
 seedNskBatch();
+S.settings.kmRate=S.settings.kmRate??12;   // ставка зарплаты водителя, ₽ за км
 S.orders.find(o=>o.no===663).loginPhone="79770000085";   // демо: клиент с личным кабинетом
 S.auth.reg=blankReg();
 const h=(location.hash||"").slice(1);if(CLIENT_VIEWS.includes(h))S.view=h;else if(["cab","staff","manager"].includes(h))S.view="cab";else if(h==="partner")S.view="lk";
