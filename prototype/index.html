@@ -46,6 +46,12 @@ button,input,select{font:inherit;color:inherit}
 .tab{background:none;border:0;color:inherit;opacity:.65;padding:8px 12px 10px;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap;font-weight:500}
 .tab[aria-selected="true"]{opacity:1;border-color:var(--accent)}
 .tab:hover{opacity:1}
+.sitebar{display:flex;align-items:center;gap:8px;font-size:12px;flex-wrap:wrap;opacity:.9}
+.sitebar .addr{display:flex;gap:2px;background:rgba(255,255,255,.1);border-radius:999px;padding:3px}
+.sitebar button{border:0;background:none;color:inherit;border-radius:999px;padding:4px 10px;cursor:pointer;font-family:var(--f-mono);font-size:12px;opacity:.75;min-height:28px}
+.sitebar button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);opacity:1;font-weight:600}
+.sms-in{background:var(--bg);border:1px solid var(--line);border-radius:14px 14px 14px 4px;padding:10px 12px;font-size:13px;max-width:300px}
+.sms-in small{display:block;color:var(--muted);font-size:11px;margin-bottom:2px}
 
 .note{max-width:1200px;margin:12px auto 0;font-size:13px;color:var(--muted)}
 .note b{color:var(--ink);font-weight:600}
@@ -315,7 +321,8 @@ table.exp{border-collapse:collapse;font-size:13px;width:100%;min-width:720px}
 
 <header class="top">
   <div class="top-in">
-    <div class="brand"><span class="plate">ВЛ → РФ</span> Brookclean · Автовоз <small>прототип</small></div>
+    <div class="sitebar" id="sitebar"></div>
+    <div class="brand"><span class="plate">ВЛ → РФ</span> Brookclean · Автовоз <small id="brandsub">прототип</small></div>
     <nav class="tabs" role="tablist" aria-label="Раздел" id="nav"></nav>
   </div>
 </header>
@@ -488,22 +495,31 @@ function validate(step){
 }
 
 /* ===== Рендер ===== */
+const CLIENT_HOST="brookclean.ru", STAFF_HOST="crm.brookclean.ru";
+const CLIENT_VIEWS=["client","track","lk"];
 function noteFor(){
-  if(S.view==="client")return "<b>Прототип.</b> Тарифы, страховка 0,3% и текст договора — ваши. SMS, PDF и выгрузка в таблицу здесь имитируются.";
+  if(S.site==="staff"&&!me())return `<b>Сайт для сотрудников</b> на поддомене ${STAFF_HOST}: менеджер, водители, приёмщики. Клиенты и партнёры сюда не попадают, поисковики сайт не индексируют.`;
+  if(S.view==="lk")return `<b>Личный кабинет</b> на сайте ${CLIENT_HOST}: клиент входит по коду из SMS на телефон из заявки, партнёр — по паролю. Входа для сотрудников здесь нет.`;
+  if(S.view==="client")return "<b>Сайт для клиентов.</b> Тарифы, страховка 0,3% и текст договора — ваши. SMS, PDF и выгрузка в таблицу здесь имитируются.";
   if(S.view==="track")return "<b>Ссылка на трекинг</b> приходит клиенту после подписания. Позицию отмечает водитель в своём кабинете, позже — GPS-трекер.";
   const u=me();
   if(!u)return "<b>Кабинеты сотрудников.</b> Вход по телефону и паролю. Новый сотрудник регистрируется сам, менеджер подтверждает доступ.";
   return {manager:"<b>Кабинет менеджера:</b> заказы, рейсы, проверка рейсовых отчётов и доступы сотрудников. Имена и телефоны клиентов в примере сокращены.",
     terminal:"<b>Кабинет приёмщика терминала:</b> машины, которые едут на перегрузку, приём с осмотром и площадка до отправки дальше.",
-    driver:"<b>Кабинет водителя.</b> Главный документ — рейсовый отчёт: чеки, аванс, пробег. Водитель сдаёт его менеджеру на проверку.",
-    partner:"<b>Кабинет партнёра:</b> ссылки для клиентов с вашим кэшбэком и список ваших заказов."}[u.role];
+    driver:"<b>Кабинет водителя.</b> Главный документ — рейсовый отчёт: чеки, аванс, пробег. Водитель сдаёт его менеджеру на проверку."}[u.role]||"";
 }
 function render(){
   const u=me();
-  const tabs=[["client","Клиент"],["track","Трекинг"],["cab",u?u.short+" · "+ROLE[u.role]:"Вход для сотрудников"]];
+  const staff=S.site==="staff";
+  $("#sitebar").innerHTML=`<span>Демо · адрес сайта:</span><span class="addr" role="group" aria-label="Сайт">${[["client",CLIENT_HOST,"для клиентов и партнёров"],["staff",STAFF_HOST,"для сотрудников"]]
+    .map(([k,h,t])=>`<button type="button" data-site="${k}" aria-pressed="${S.site===k}" title="Сайт ${t}">${h}</button>`).join("")}</span>`;
+  $("#brandsub").textContent=staff?"сотрудники":"доставка автомобилей";
+  // на сайте для клиентов нет входа для сотрудников, на сайте сотрудников — клиентских разделов
+  const tabs=staff?[["cab",u?u.short+" · "+ROLE[u.role]:"Вход"]]:[["client","Заявка"],["track","Трекинг"],["lk",lkLabel()]];
+  if(!tabs.some(t=>t[0]===S.view))S.view=tabs[0][0];
   $("#nav").innerHTML=tabs.map(([v,l])=>`<button class="tab" role="tab" data-view="${v}" aria-selected="${S.view===v}">${esc(l)}</button>`).join("");
   $("#note").innerHTML=noteFor();
-  $("#app").innerHTML=`<section class="view">${S.view==="client"?vClient():S.view==="track"?vTrack():vCab()}</section>`;
+  $("#app").innerHTML=`<section class="view">${S.view==="client"?vClient():S.view==="track"?vTrack():S.view==="lk"?vLk():vCab()}</section>`;
   $("#dockHost").innerHTML=S.view==="client"&&!S.signed?vDock():"";
 }
 
@@ -619,7 +635,7 @@ function vDock(){
     <button class="btn primary" data-act="next" ${dis?"disabled":""}>${labels[S.step]}</button></div></div>`;
 }
 function vDone(){
-  const o=S.signed, link="brookclean.app/t/"+o.token;
+  const o=S.signed, link=CLIENT_HOST+"/t/"+o.token;
   return `<div class="col">
    <div class="card"><span class="pill ok" style="align-self:flex-start">Подписано</span>
     <h2>Договор №${o.no} подписан</h2>
@@ -630,6 +646,7 @@ function vDone(){
    <div class="card"><h3>Где сейчас ваш автомобиль</h3>
     <div class="copyline"><code>${link}</code><button class="btn sm ghost" data-copy="${link}">Копировать</button></div>
     <button class="btn primary" data-act="opentrack" data-no="${o.no}">Открыть трекинг</button>
+    <button class="linkbtn" data-act="lk-go" style="align-self:flex-start">Все ваши машины — в личном кабинете</button>
    </div>
    <div class="card"><h3>Что произошло за кадром</h3>
     <ul style="margin:0;padding-left:18px;font-size:14px;display:flex;flex-direction:column;gap:4px">
@@ -645,7 +662,7 @@ function vDone(){
 /* --- Партнёр --- */
 function vPartner(){
   const P=S.pp||(S.pp={code:"RM",city:"Краснодар",body:"sedan",cashback:"15000",client:"Тагаева Л. Г."});
-  P.code=(me()&&me().partner)||"RM";
+  const pu=S.users.find(x=>x.id===S.psession)||me();P.code=(pu&&pu.partner)||"RM";
   const t=tariffFor(P.city,P.body), cb=numOnly(P.cashback);
   const link=S.partnerLink;
   const mine=S.orders.filter(o=>o.partner===PARTNERS[P.code].name);
@@ -754,7 +771,7 @@ function vTrack(){
   const t2=legTrip(o,1);
   return `<div class="col">
    <div class="field"><label for="trk">Ссылка клиента (демо: выберите заказ)</label>
-    <select id="trk">${S.orders.map(x=>`<option value="${x.no}" ${x.no===o.no?"selected":""}>brookclean.app/t/${x.token} · ${esc(x.car)} → ${esc(x.city)}${x.transfer?" (через "+x.transfer+")":""}</option>`).join("")}</select></div>
+    <select id="trk">${S.orders.map(x=>`<option value="${x.no}" ${x.no===o.no?"selected":""}>${CLIENT_HOST}/t/${x.token} · ${esc(x.car)} → ${esc(x.city)}${x.transfer?" (через "+x.transfer+")":""}</option>`).join("")}</select></div>
    <div class="card">
     <div class="eyebrow">Договор №${o.no} · ${esc(o.car)}</div>
     <div class="bigstatus">${big}</div>
@@ -914,6 +931,60 @@ function vCab(){
   return wide?`<div class="mgr">${nav}${body}</div>`:`<div class="col">${nav}${body}</div>`;
 }
 
+/* личный кабинет на сайте для клиентов: клиент — по коду из SMS, партнёр — по паролю */
+function lkOf(){return S.lk||(S.lk={mode:"client",phone:"",code:"",sent:null,noOrders:false,err:"",plogin:"",ppass:"",preg:false,pname:"",pcompany:"",pphone:"",ppass1:"",ok:""})}
+function lkLabel(){const p=S.users.find(x=>x.id===S.psession);return p?p.short+" · партнёр":S.lkPhone?"Мои машины":"Личный кабинет"}
+const lkOrders=ph=>S.orders.filter(o=>o.loginPhone===ph);
+function vLk(){
+  const p=S.users.find(x=>x.id===S.psession);
+  if(p)return `<div class="col"><nav class="subnav" aria-label="Кабинет партнёра"><button class="subtab" aria-current="true">Ссылки и клиенты</button><button class="subtab out" data-act="lk-out">Выйти</button></nav>${vPartner()}</div>`;
+  if(S.lkPhone)return vClientCab();
+  const L=lkOf();
+  const seg=`<div class="seg two" role="group" aria-label="Кто входит"><button type="button" data-act="lk-mode" data-mode="client" aria-pressed="${L.mode==="client"}">Я клиент</button><button type="button" data-act="lk-mode" data-mode="partner" aria-pressed="${L.mode==="partner"}">Я партнёр</button></div>`;
+  if(L.mode==="client")return `<div class="col"><div class="card"><div class="eyebrow">${CLIENT_HOST} · личный кабинет</div><h2>Ваши машины</h2>${seg}
+    <p class="muted" style="margin:0;font-size:14px">Войдите по номеру телефона, который указали в заявке. Пароль не нужен — пришлём код в SMS.</p>
+    <div class="field"><label for="lk-phone">Телефон</label><input id="lk-phone" data-lk="phone" inputmode="tel" autocomplete="tel" placeholder="+7 900 000-00-00" value="${esc(L.phone)}"></div>
+    ${L.sent||L.noOrders?`<div class="callout info">Если на этот номер есть заявки, придёт SMS с кодом.</div>`:""}
+    ${L.sent?`<div class="sms-in"><small>SMS · Brookclean</small>Код для входа в личный кабинет: <b class="mono">${L.sent}</b></div>
+      <div class="field"><label for="lk-code">Код из SMS</label><input id="lk-code" data-lk="code" inputmode="numeric" maxlength="4" class="mono" value="${esc(L.code)}"></div>`:""}
+    ${L.noOrders?`<div class="muted" style="font-size:12px">Демо: на этот номер заявок нет, поэтому SMS не пришло. Сайт отвечает одинаково, чтобы по нему нельзя было узнать, кто ваш клиент.</div>`:""}
+    ${L.err?`<div class="callout warn" role="alert">${esc(L.err)}</div>`:""}
+    ${L.sent?`<button class="btn primary" data-act="lk-enter">Войти</button><button class="linkbtn" data-act="lk-code" style="align-self:flex-start">Отправить код ещё раз</button>`:`<button class="btn primary" data-act="lk-code">Получить код</button>`}
+    <button class="linkbtn" data-act="lk-demo" style="align-self:flex-start">Демо: клиент с заявкой №663</button>
+   </div></div>`;
+  if(L.preg)return `<div class="col"><div class="card"><div class="eyebrow">${CLIENT_HOST} · для партнёров</div><h2>Регистрация партнёра</h2>${seg}
+    <div class="field"><label for="lk-pname">Имя</label><input id="lk-pname" data-lk="pname" autocomplete="name" value="${esc(L.pname)}"></div>
+    <div class="field"><label for="lk-pcompany">Компания или площадка</label><input id="lk-pcompany" data-lk="pcompany" value="${esc(L.pcompany)}"></div>
+    <div class="field"><label for="lk-pphone">Телефон — это ваш логин</label><input id="lk-pphone" data-lk="pphone" inputmode="tel" value="${esc(L.pphone)}"></div>
+    <div class="field"><label for="lk-ppass1">Пароль</label><input id="lk-ppass1" data-lk="ppass1" type="password" autocomplete="new-password" value="${esc(L.ppass1)}"><span class="hint">Не короче 8 символов</span></div>
+    ${L.err?`<div class="callout warn" role="alert">${esc(L.err)}</div>`:""}
+    <button class="btn primary" data-act="lk-preg">Отправить заявку</button>
+    <button class="linkbtn" data-act="lk-pregtoggle" style="align-self:flex-start">У меня уже есть доступ — войти</button>
+    <p class="muted" style="margin:0;font-size:13px">Менеджер проверит данные и откроет доступ.</p>
+   </div></div>`;
+  const demo=S.users.find(x=>x.role==="partner"&&x.status==="active");
+  return `<div class="col"><div class="card"><div class="eyebrow">${CLIENT_HOST} · для партнёров</div><h2>Вход партнёра</h2>${seg}
+    ${L.ok?`<div class="callout ok" role="status">${esc(L.ok)}</div>`:""}
+    <div class="field"><label for="lk-plogin">Телефон</label><input id="lk-plogin" data-lk="plogin" inputmode="tel" autocomplete="username" value="${esc(L.plogin)}"></div>
+    <div class="field"><label for="lk-ppass">Пароль</label><input id="lk-ppass" data-lk="ppass" type="password" autocomplete="current-password" value="${esc(L.ppass)}"></div>
+    ${L.err?`<div class="callout warn" role="alert">${esc(L.err)}</div>`:""}
+    <button class="btn primary" data-act="lk-plogin">Войти</button>
+    <button class="linkbtn" data-act="lk-pregtoggle" style="align-self:flex-start">Стать партнёром — регистрация</button>
+   </div>
+   ${demo?`<div class="card"><h3>Демо-доступ</h3><div class="plist"><div class="pi"><span>${esc(demo.name)}<br><small class="muted">Партнёр · ${fmtPhone(demo.login)} · пароль demo1234</small></span><button class="btn sm ghost" data-act="lk-pdemo" data-uid="${demo.id}">Войти</button></div></div></div>`:""}</div>`;
+}
+function vClientCab(){
+  const os=lkOrders(S.lkPhone);
+  return `<div class="col"><nav class="subnav" aria-label="Личный кабинет"><button class="subtab" aria-current="true">Мои машины</button><button class="subtab out" data-act="lk-out">Выйти</button></nav>
+   <div class="card"><div class="eyebrow">Личный кабинет · ${fmtPhone(S.lkPhone)}</div><h2>Ваши машины · ${os.length}</h2>
+    <button class="btn ghost" data-act="lk-new" style="align-self:flex-start">Новая заявка</button></div>
+   ${os.map(o=>{const st=statusOf(o),total=o.tariff+o.cashback+Math.round(o.value*INS_RATE);
+     return `<div class="card"><div class="sheet-head"><h3>№${o.no} · ${esc(o.car)}</h3><span class="pill ${st.cls}">${st.text}</span></div>
+      <dl class="kv"><dt>VIN</dt><dd class="mono">${esc(o.vin)}</dd><dt>Маршрут</dt><dd>Владивосток → ${esc(o.city)}</dd><dt>Договор</dt><dd>${esc(o.signedAt||"не подписан")}</dd>
+       <dt>К оплате</dt><dd>${rub(total)}</dd><dt>Оплата перевозки</dt><dd>${o.payDel?"получена":"ожидается"}</dd><dt>Страховка</dt><dd>${o.payIns?(o.policy?"полис "+esc(o.policy):"оплачена"):"ожидается"}</dd></dl>
+      <button class="btn primary" data-act="opentrack" data-no="${o.no}">Где машина сейчас</button></div>`}).join("")}</div>`;
+}
+
 /* вход и регистрация */
 function vAuth(){
   const A=S.auth;
@@ -930,15 +1001,14 @@ function vAuth(){
     <button class="linkbtn" data-act="forgot" style="align-self:flex-start">Забыли пароль?</button>
    </div>
    <div class="card"><h3>Демо-доступы</h3><p class="muted" style="margin:0;font-size:13px">Пароль у всех: <span class="mono">demo1234</span></p>
-    <div class="plist">${DEMO.map(([id,label])=>{const u=S.users.find(x=>x.id===id);return `<div class="pi"><span>${esc(u.name)}<br><small class="muted">${label} · ${fmtPhone(u.login)}</small></span><button class="btn sm ghost" data-act="demo" data-uid="${id}">Войти</button></div>`}).join("")}</div>
+    <div class="plist">${DEMO.filter(([id])=>S.users.find(x=>x.id===id).role!=="partner").map(([id,label])=>{const u=S.users.find(x=>x.id===id);return `<div class="pi"><span>${esc(u.name)}<br><small class="muted">${label} · ${fmtPhone(u.login)}</small></span><button class="btn sm ghost" data-act="demo" data-uid="${id}">Войти</button></div>`}).join("")}</div>
    </div></div>`;
   const R=A.reg, E=A.regErr||{};
   const g=(k,label,attrs="",hint="")=>`<div class="field${E[k]?" bad":""}"><label for="g-${k}">${label}</label><input id="g-${k}" data-g="${k}" value="${esc(R[k])}" ${attrs}>${E[k]?`<span class="err">${esc(E[k])}</span>`:hint?`<span class="hint">${hint}</span>`:""}</div>`;
   return `<div class="col"><div class="card"><div class="eyebrow">Brookclean · для сотрудников</div><h2>Регистрация</h2>${seg}
    <form id="regForm" class="form" novalidate>
-    <div class="field"><label>Кто вы</label><div class="seg" role="group" aria-label="Роль">
+    <div class="field"><label>Кто вы</label><div class="seg two" role="group" aria-label="Роль">
       <button type="button" data-act="reg-role" data-role="driver" aria-pressed="${R.role==="driver"}">Водитель</button>
-      <button type="button" data-act="reg-role" data-role="partner" aria-pressed="${R.role==="partner"}">Партнёр</button>
       <button type="button" data-act="reg-role" data-role="terminal" aria-pressed="${R.role==="terminal"}">Терминал</button></div></div>
     ${g("name","ФИО полностью",'autocomplete="name"')}
     ${g("phone","Телефон — это ваш логин",'inputmode="tel" autocomplete="tel"',"Сюда придёт SMS, когда доступ откроют")}
@@ -953,7 +1023,7 @@ function vAuth(){
   </div></div>`;
 }
 function login(){
-  const A=S.auth, d=digits(A.login), u=S.users.find(x=>x.login===d);
+  const A=S.auth, d=digits(A.login), u=S.users.find(x=>x.login===d&&x.role!=="partner");
   A.ok="";
   if(!u||u.pass!==A.pass){A.err="Неверный телефон или пароль";return render()}
   if(u.status==="pending"){A.err="Заявка ещё на проверке у менеджера. Пришлём SMS, когда доступ откроют.";return render()}
@@ -2337,9 +2407,10 @@ try{if(window.claude&&claude.use){claude.use("sample").then(s=>{AI.fn=s;if(!s)re
   s.limits().then(l=>{AI.images=!!(l&&l.images);if(S.view==="cab"&&S.rx.status==="idle")render()}).catch(()=>{})}).catch(()=>{})}}catch(e){}
 
 /* ===== События ===== */
-function go(view){S.view=view;try{history.replaceState(null,"","#"+view)}catch(e){}render();window.scrollTo(0,0)}
+function go(view){S.view=view;S.site=CLIENT_VIEWS.includes(view)?"client":"staff";try{history.replaceState(null,"","#"+(S.site==="staff"?"staff":view))}catch(e){}render();window.scrollTo(0,0)}
 document.addEventListener("click",async e=>{
   const tab=e.target.closest(".tab");if(tab)return go(tab.dataset.view);
+  const site=e.target.closest("[data-site]");if(site)return go(site.dataset.site==="staff"?"cab":"client");
   const body=e.target.closest("[data-body]");if(body){S.f.body=body.dataset.body;S.example=false;return render()}
   const cp=e.target.closest("[data-copy]");if(cp)return copy(cp.dataset.copy);
   const dg=e.target.closest(".diagram:not(.ro)");
@@ -2362,7 +2433,7 @@ document.addEventListener("click",async e=>{
   if(act==="pdf")toast("В рабочей версии здесь скачивается PDF");
   if(act==="opentrack"){S.trackId=+a.dataset.no;go("track")}
   if(act==="mklink"){const P=S.pp,code=P.code+"-"+Math.random().toString(36).slice(2,6).toUpperCase();
-    S.partnerLink={url:"brookclean.app/z/"+code,code:P.code,cashback:numOnly(P.cashback),city:P.city,body:P.body};render()}
+    S.partnerLink={url:CLIENT_HOST+"/z/"+code,code:P.code,cashback:numOnly(P.cashback),city:P.city,body:P.body};render()}
   if(act==="openaslink"){const L=S.partnerLink;S.partner=L.code;S.cashback=L.cashback;S.f.city=L.city;S.f.body=L.body;S.step=0;S.signed=null;S.sms=null;go("client");toast("Открыта ссылка партнёра")}
   if(act==="rx-demo"){readReceipt(await demoReceipt(),true)}
   if(act==="rx-manual"){S.rx={status:"review",photo:null,src:"вручную",draft:emptyDraft()};render()}
@@ -2377,6 +2448,30 @@ document.addEventListener("click",async e=>{
   if(act==="setpos"){const t=S.trips.find(x=>x.id===a.dataset.trip),c=$("#pos-"+t.id).value;
     t.km=NET[c][1];if(!notLeft(t))t.status="formed";stampPassing(t);t.events.push({t:nowStamp(),city:c,note:t.km===NET[t.origin||"Владивосток"][1]?"Погрузка":me()&&me().role==="driver"?"Отметка водителя":"Отметка менеджера"});render();toast("Позиция "+t.id+" обновлена: "+c)}
   if(act==="auth-mode"){S.auth.mode=a.dataset.mode;S.auth.err="";S.auth.ok="";render()}
+  if(act==="lk-go"){go("lk")}
+  if(act==="lk-mode"){const L=lkOf();L.mode=a.dataset.mode;L.err="";L.ok="";render()}
+  if(act==="lk-code"){const L=lkOf(),d=digits(L.phone);L.err="";L.code="";
+    if(d.length!==11){L.err="Номер в формате +7 900 000-00-00";return render()}
+    const has=lkOrders(d).length;L.sent=has?String(1000+Math.floor(Math.random()*9000)):null;L.noOrders=!has;render()}
+  if(act==="lk-demo"){const L=lkOf();L.phone="+7 977 000-00-85";L.sent=String(1000+Math.floor(Math.random()*9000));L.code=L.sent;L.noOrders=false;L.err="";render()}
+  if(act==="lk-enter"){const L=lkOf();if(!L.sent||L.code.trim()!==L.sent){L.err="Неверный код";return render()}
+    S.lkPhone=digits(L.phone);S.lk=null;render();toast("Вы вошли в личный кабинет")}
+  if(act==="lk-out"){S.lkPhone=null;S.psession=null;S.lk=null;render();toast("Вы вышли из личного кабинета")}
+  if(act==="lk-new"){S.step=0;S.signed=null;S.sms=null;go("client")}
+  if(act==="lk-pregtoggle"){const L=lkOf();L.preg=!L.preg;L.err="";render()}
+  if(act==="lk-pdemo"){S.psession=a.dataset.uid;S.lk=null;render();toast("Вы вошли как партнёр")}
+  if(act==="lk-plogin"){const L=lkOf(),u=S.users.find(x=>x.login===digits(L.plogin)&&x.role==="partner");
+    if(!u||u.pass!==L.ppass){L.err="Неверный телефон или пароль";return render()}
+    if(u.status!=="active"){L.err=u.status==="pending"?"Заявка ещё на проверке у менеджера":"Доступ закрыт. Свяжитесь с менеджером";return render()}
+    S.psession=u.id;S.lk=null;render();toast("Вы вошли как партнёр")}
+  if(act==="lk-preg"){const L=lkOf(),d=digits(L.pphone);L.err="";
+    if(L.pname.trim().length<2)L.err="Укажите имя";else if(L.pcompany.trim().length<2)L.err="Укажите компанию";
+    else if(d.length!==11)L.err="Номер в формате +7 900 000-00-00";else if(S.users.some(u=>u.login===d))L.err="Этот телефон уже зарегистрирован";
+    else if(L.ppass1.length<8)L.err="Пароль не короче 8 символов";
+    if(L.err)return render();
+    const id="u"+(S.users.length+1),code="P"+id;PARTNERS[code]={name:L.pcompany.trim()};
+    S.users.push({id,role:"partner",name:L.pname.trim()+" ("+L.pcompany.trim()+")",short:L.pname.trim(),login:d,pass:L.ppass1,status:"pending",created:today(),partner:code,company:L.pcompany.trim()});
+    S.lk={...lkOf(),preg:false,plogin:fmtPhone(d),ppass:"",ok:"Заявка отправлена. Менеджер откроет доступ на сайте сотрудников → «Сотрудники».",err:""};render()}
   if(act==="reg-role"){S.auth.reg.role=a.dataset.role;S.auth.regErr={};render()}
   if(act==="demo"){const u=S.users.find(x=>x.id===a.dataset.uid);S.session=u.id;S.sub=null;S.auth.err="";S.auth.ok="";render();window.scrollTo(0,0);toast("Вы вошли как "+u.short)}
   if(act==="forgot")toast("В рабочей версии пароль сбрасывается кодом из SMS");
@@ -2484,6 +2579,7 @@ document.addEventListener("input",e=>{
   if(el.dataset.tf){S.trips.find(x=>x.id===S.delivTrip)[el.dataset.tf]=el.value}
   if(el.dataset.horemtxt){hoOf(S.orders.find(o=>o.no===S.ho.no),S.ho.stage).remarks=el.value}
   if(el.dataset.a){S.auth[el.dataset.a]=el.value}
+  if(el.dataset.lk){lkOf()[el.dataset.lk]=el.value}
   if(el.dataset.g){S.auth.reg[el.dataset.g]=el.type==="checkbox"?el.checked:el.value}
   if(el.dataset.cmt){S.trips.find(x=>x.id===S.report.trip).report.comment=el.value}
   if(el.dataset.p){S.pp[el.dataset.p]=el.value;if(el.tagName==="INPUT"){const pos=el.selectionStart;render();const n=$("#"+el.id);n.focus();try{n.setSelectionRange(pos,pos)}catch(_){}}}
@@ -2555,7 +2651,7 @@ async function sign(){
   const order={no,date:today(),fio:fioFull,car:f.car,vin:f.vin.toUpperCase(),year:+f.year,color:f.color,body:f.body,city:f.city,client:short,
     phone:"+7 "+digits.slice(1,4)+" ***-**-"+digits.slice(-2),tariff:q.tariff,cashback:q.cashback,value:q.value,
     partner:S.partner?PARTNERS[S.partner].name:"—",trip:null,payDel:false,payIns:false,payTo:"",payForm:"",
-    signedAt:"21.10 "+time+" ПЭП",token:tok(no),fresh:true,hash:hash.slice(0,32)+"…",time};
+    signedAt:"21.10 "+time+" ПЭП",token:tok(no),fresh:true,hash:hash.slice(0,32)+"…",time,loginPhone:digits};
   S.orders.forEach(o=>o.fresh=false);S.orders.push(order);S.signed=order;render();window.scrollTo(0,0);
 }
 
@@ -2564,7 +2660,9 @@ document.addEventListener("submit",e=>{e.preventDefault();if(e.target.id==="logi
 seed();
 seedScenario();
 seedNskBatch();
+S.orders.find(o=>o.no===663).loginPhone="79770000085";   // демо: клиент с личным кабинетом
 S.auth.reg=blankReg();
-const h=(location.hash||"").slice(1);if(["client","track","cab"].includes(h))S.view=h;else if(h==="manager"||h==="partner")S.view="cab";
+const h=(location.hash||"").slice(1);if(CLIENT_VIEWS.includes(h))S.view=h;else if(["cab","staff","manager"].includes(h))S.view="cab";else if(h==="partner")S.view="lk";
+S.site=CLIENT_VIEWS.includes(S.view)?"client":"staff";
 render();
 </script>

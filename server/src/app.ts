@@ -12,6 +12,8 @@ import orderRoutes from "./routes/orders.js";
 import tripRoutes from "./routes/trips.js";
 import driverRoutes from "./routes/drivers.js";
 import handoverRoutes from "./routes/handover.js";
+import partnerRoutes from "./routes/partner.js";
+import clientRoutes from "./routes/client.js";
 
 export interface Deps { pool: pg.Pool; storage: Storage; sms: Sms }
 
@@ -43,5 +45,7 @@ export async function buildApp(deps: Deps, opts: { logger?: boolean } = {}): Pro
   await app.register(tripRoutes, { prefix: "/api" });
   await app.register(driverRoutes, { prefix: "/api" });
   await app.register(handoverRoutes, { prefix: "/api" });
+  await app.register(partnerRoutes, { prefix: "/api" });
+  await app.register(clientRoutes, { prefix: "/api" });
   return app;
 }

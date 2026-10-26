@@ -5,10 +5,9 @@ import { z } from "zod";
 import { many, one, tx } from "../db/pool.js";
 import { bad, forbidden, HttpError, notFound } from "../errors.js";
 import { BODY, quote, TARIFF, type Body } from "../domain/tariffs.js";
-import { kmOf, routeFor } from "../domain/route.js";
 import { normPhone, sha256 } from "../services/auth.js";
 import { audit } from "../services/audit.js";
-import { loadOrder } from "../services/context.js";
+import { trackInfo } from "../services/tracking.js";
 
 const VIN17 = /^[A-HJ-NPR-Z0-9]{17}$/, FRAME = /^[A-Z0-9]{2,7}-\d{5,7}$/;
 const cities = TARIFF.map((t) => t[0]);
@@ -16,8 +15,7 @@ const QuoteIn = z.object({
   city: z.string().refine((c) => cities.includes(c), "Город не из тарифной сетки"),
   body: z.enum(["sedan", "cross", "van"]),
   value: z.coerce.number().int().min(100000, "Стоимость от 100 000 ₽"),
-  partnerCode: z.string().max(40).optional(),
-  cashback: z.coerce.number().int().min(0).max(100000).default(0),
+  ref: z.string().max(40).optional(),   // код ссылки партнёра
 });
 const OrderIn = QuoteIn.extend({
   car: z.string().trim().min(2, "Укажите марку и модель"),
@@ -46,28 +44,35 @@ export function contractDoc(o: any) {
 
 export default async function (app: FastifyInstance) {
   const { pool, sms } = app.deps;
+  // активная ссылка партнёра; неизвестный код — заявка без партнёра
+  const linkOf = async (ref?: string) =>
+    ref ? one(pool, "select l.* from partner_links l join users u on u.id = l.partner_id where l.code = $1 and l.active and u.status = 'active'", [ref]) : null;
 
   app.get("/tariffs", async () => ({ bodies: BODY, cities: TARIFF.map(([city, sedan, cross, van]) => ({ city, sedan, cross, van })) }));
 
   app.post("/quote", async (req) => {
     const b = QuoteIn.parse(req.body);
-    return quote(b.city, b.body as Body, b.value, b.cashback)!;
+    const q = quote(b.city, b.body as Body, b.value, (await linkOf(b.ref))?.cashback ?? 0)!;
+    // кэшбэк входит в стоимость перевозки и клиенту отдельно не показывается
+    return { delivery: q.delivery, insurance: q.insurance, total: q.total, needsManager: q.needsManager };
   });
 
   app.post("/orders", async (req, reply) => {
     const b = OrderIn.parse(req.body);
-    const q = quote(b.city, b.body as Body, b.value, b.partnerCode ? b.cashback : 0)!;
+    const link = await linkOf(b.ref);
+    const q = quote(b.city, b.body as Body, b.value, link?.cashback ?? 0)!;
     const o = await tx(pool, async (c) => {
       const o = await one(c, `insert into orders(car, vin, year, color, body, value, city, client_fio, client_phone, passport_series, passport_number,
-          passport_issued, passport_date, address, tariff, cashback, insurance, partner_code, track_token)
-        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) returning *`,
+          passport_issued, passport_date, address, tariff, cashback, insurance, partner_code, track_token, partner_id, partner_link_id)
+        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) returning *`,
         [b.car, b.vin, b.year, b.color, b.body, b.value, b.city, b.fio, b.phone, b.passportSeries, b.passportNumber,
-          b.passportIssued, b.passportDate, b.address, q.tariff, q.cashback, q.insurance, b.partnerCode ?? null, randomBytes(12).toString("base64url")]);
+          b.passportIssued, b.passportDate, b.address, q.tariff, q.cashback, q.insurance, link?.code ?? null, randomBytes(12).toString("base64url"),
+          link?.partner_id ?? null, link?.id ?? null]);
       await c.query("insert into order_legs(order_no, idx, from_city, to_city) values ($1, 0, 'Владивосток', $2)", [o.no, b.city]);
       await audit(c, null, "order_create", "order", o.no, { city: b.city, consentPd: true, ip: req.ip });
       return o;
     });
-    return reply.status(201).send({ no: o.no, trackToken: o.track_token, quote: q });
+    return reply.status(201).send({ no: o.no, trackToken: o.track_token, quote: { delivery: q.delivery, insurance: q.insurance, total: q.total, needsManager: q.needsManager } });
   });
 
   const tokenOf = async (no: number, token: string) => {
@@ -119,21 +124,8 @@ export default async function (app: FastifyInstance) {
     const { token } = z.object({ token: z.string() }).parse(req.params);
     const r = await one(pool, "select no from orders where track_token = $1", [token]);
     if (!r) throw notFound("Ссылка недействительна");
-    const { row, ctx } = await loadOrder(pool, r.no);
-    const done = new Set((await many(pool, "select stage from stages where order_no = $1 and done_at is not null", [r.no])).map((x) => x.stage));
-    const leg = ctx.legs.length > 1 && done.has("term_out") ? ctx.legs[1] : ctx.legs[0];
-    const trip = leg?.trip ?? null;
-    let status = row.delivered_at ? "Выдан" : !row.signed_at ? "Ждёт подписания" : !trip ? "Оплачен, ждёт рейса" : "В пути";
-    if (!row.delivered_at && ctx.legs.length > 1 && done.has("term_in") && !done.has("term_out")) status = `На терминале ${ctx.transferCity}`;
-    const km = row.delivered_at ? kmOf(row.city) : Math.min(kmOf(trip?.currentCity), kmOf(row.city));
-    if (status === "В пути" && km === 0) status = "Погрузка";
-    if (status === "В пути" && km >= kmOf(row.city)) status = "Прибыл";
-    const events = trip ? await many(pool, "select at, city, note from trip_events where trip_id = $1 and public order by at", [trip.id]) : [];
-    return {
-      no: row.no, car: row.car, city: row.city, transferCity: row.transfer_city, status,
-      position: { city: trip?.currentCity ?? null, km },
-      stops: routeFor(row.city).map((c) => ({ city: c, km: kmOf(c), passed: km > 0 && kmOf(c) <= km })),
-      events,
-    };
+    const t = await trackInfo(pool, r.no);
+    const events = t.trip ? await many(pool, "select at, city, note from trip_events where trip_id = $1 and public order by at", [t.trip.id]) : [];
+    return { no: t.row.no, car: t.row.car, city: t.row.city, transferCity: t.row.transfer_city, status: t.status, position: { city: t.trip?.currentCity ?? null, km: t.km }, stops: t.stops, events };
   });
 }

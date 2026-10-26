@@ -1,4 +1,4 @@
-# Сервер Reg.ru: база PostgreSQL, API и Caddy (HTTPS-сертификат выпускается автоматически)
+# Сервер Reg.ru: база PostgreSQL, API и Caddy — два сайта (клиенты и сотрудники), HTTPS выпускается автоматически
 # запуск: docker compose up -d --build
 services:
   db:
@@ -30,12 +30,15 @@ services:
     image: caddy:2-alpine
     restart: unless-stopped
     environment:
-      DOMAIN: ${DOMAIN:?задайте DOMAIN в .env}
+      CLIENT_DOMAIN: ${CLIENT_DOMAIN:?задайте CLIENT_DOMAIN в .env}
+      STAFF_DOMAIN: ${STAFF_DOMAIN:?задайте STAFF_DOMAIN в .env}
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../web/client:/srv/client:ro
+      - ../web/staff:/srv/staff:ro
       - caddy_data:/data
     depends_on:
       - api

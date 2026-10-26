@@ -50,7 +50,7 @@ describe("сотрудники", () => {
 describe("клиент", () => {
   it("расчёт, заявка и подпись по коду из SMS", async () => {
     const q = await api("POST", "/api/quote", { city: "Москва", body: "cross", value: 2300000 });
-    expect(q.body).toMatchObject({ tariff: 185000, insurance: 6900 });
+    expect(q.body).toEqual({ delivery: 185000, insurance: 6900, total: 191900, needsManager: false });
     const r = await api("POST", "/api/orders", {
       city: "Москва", body: "cross", value: 2300000, car: "Mazda CX-5", vin: "KF2P-401234", year: 2019, color: "Красный",
       fio: "Белов Дмитрий Сергеевич", phone: "+7 977 000 00 85", passportSeries: "4510", passportNumber: "123456",

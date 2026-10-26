@@ -1,22 +1,31 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { many, one, tx } from "../db/pool.js";
+import { many, one, tx, type Db } from "../db/pool.js";
 import { bad, conflict, forbidden, notFound, unauthorized } from "../errors.js";
 import { checkPassword, createSession, hashPassword, normPhone, requireUser, sha256, userFromRequest } from "../services/auth.js";
 import { audit } from "../services/audit.js";
 
-const phone = z.string().transform(normPhone).refine((v) => v.length === 11, "Номер в формате +7 900 000 00 00");
+export const phone = z.string().transform(normPhone).refine((v) => v.length === 11, "Номер в формате +7 900 000 00 00");
 const Register = z.object({
-  role: z.enum(["driver", "partner", "terminal"]),
+  role: z.enum(["driver", "terminal"]),   // партнёры регистрируются на сайте для клиентов
   name: z.string().trim().min(5, "ФИО полностью"),
   phone,
   password: z.string().min(8, "Пароль от 8 символов"),
   license: z.string().optional(),
   terminalCity: z.string().optional(),
-  partnerCode: z.string().optional(),
 });
 
-const publicUser = (u: any) => ({ id: u.id, role: u.role, name: u.name, phone: u.phone, status: u.status, terminalCity: u.terminal_city, createdAt: u.created_at });
+// вход по телефону и паролю только для своих ролей: на чужом сайте учётная запись как будто не существует
+export async function passwordLogin(db: Db, body: unknown, roles: string[]) {
+  const b = z.object({ phone, password: z.string() }).parse(body);
+  const u = await one(db, "select * from users where phone = $1", [b.phone]);
+  if (!u || !roles.includes(u.role) || !(await checkPassword(b.password, u.password_hash))) throw unauthorized("Неверный телефон или пароль");
+  if (u.status === "pending") throw forbidden("Заявка ждёт подтверждения менеджером");
+  if (u.status !== "active") throw forbidden("Доступ закрыт. Обратитесь к менеджеру");
+  return { token: await createSession(db, u.id), user: publicUser(u) };
+}
+
+export const publicUser = (u: any) => ({ id: u.id, role: u.role, name: u.name, phone: u.phone, status: u.status, terminalCity: u.terminal_city, createdAt: u.created_at });
 
 export default async function (app: FastifyInstance) {
   const { pool } = app.deps;
@@ -28,19 +37,13 @@ export default async function (app: FastifyInstance) {
     if (b.role === "terminal" && !b.terminalCity) throw bad("Укажите терминал");
     if (await one(pool, "select 1 from users where phone = $1", [b.phone])) throw conflict("Этот телефон уже зарегистрирован");
     const u = await one(pool, `insert into users(role, name, phone, password_hash, terminal_city, partner_code, license)
-      values ($1,$2,$3,$4,$5,$6,$7) returning *`, [b.role, b.name, b.phone, await hashPassword(b.password), b.terminalCity ?? null, b.partnerCode ?? null, b.license ?? null]);
+      values ($1,$2,$3,$4,$5,$6,$7) returning *`, [b.role, b.name, b.phone, await hashPassword(b.password), b.terminalCity ?? null, null, b.license ?? null]);
     await audit(pool, u.id, "register", "user", u.id, { role: b.role });
     return reply.status(201).send({ user: publicUser(u), message: "Заявка отправлена. Менеджер подтвердит доступ." });
   });
 
-  app.post("/auth/login", async (req) => {
-    const b = z.object({ phone, password: z.string() }).parse(req.body);
-    const u = await one(pool, "select * from users where phone = $1", [b.phone]);
-    if (!u || !(await checkPassword(b.password, u.password_hash))) throw unauthorized("Неверный телефон или пароль");
-    if (u.status === "pending") throw forbidden("Заявка ждёт подтверждения менеджером");
-    if (u.status !== "active") throw forbidden("Доступ закрыт. Обратитесь к менеджеру");
-    return { token: await createSession(pool, u.id), user: publicUser(u) };
-  });
+  // вход сотрудников; партнёры входят на сайте для клиентов
+  app.post("/auth/login", async (req) => passwordLogin(pool, req.body, ["manager", "driver", "terminal"]));
 
   app.post("/auth/logout", async (req) => {
     const h = req.headers.authorization ?? "";
