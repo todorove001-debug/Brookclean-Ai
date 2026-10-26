@@ -1146,10 +1146,9 @@ function vDriverReport(){
      <div class="kpi"><b>${rub(s.spent)}</b><span>потрачено · ${s.ex.length} чек.</span></div>
      <div class="kpi ${s.bal<0?"neg":""}"><b>${rub(Math.abs(s.bal))}</b><span>${s.bal<0?"перерасход, вам вернут":"остаток аванса у вас"}</span></div>
      <div class="kpi"><b>${km(s.run)} км</b><span>пробег${s.fix?" · исправлен менеджером":""}${s.per100?" · "+s.per100+" л/100 км":""}</span></div>
-     <div class="kpi pos"><b>${rub(s.salary)}</b><span>зарплата за рейс · ${km(s.run)} км × ${s.rate} ₽</span></div>
    </div>
-   ${s.fix?`<div class="callout warn">Менеджер исправил пробег: по одометру ${km(s.fix.driverKm)} км, для зарплаты — <b>${km(s.fix.km)} км</b>. Причина: ${esc(s.fix.reason)} · ${esc(s.fix.by)}, ${esc(s.fix.at)}.</div>`:""}
-   <div class="card"><h3>Одометр</h3><div class="muted" style="font-size:13px">По пробегу считается зарплата: ${s.rate} ₽ за километр.</div><div class="row2">
+   ${s.fix?`<div class="callout warn">Менеджер исправил пробег: по одометру ${km(s.fix.driverKm)} км, принят — <b>${km(s.fix.km)} км</b>. Причина: ${esc(s.fix.reason)} · ${esc(s.fix.by)}, ${esc(s.fix.at)}.</div>`:""}
+   <div class="card"><h3>Одометр</h3><div class="row2">
      <div class="field"><label for="odo-start">При выезде, км</label><input id="odo-start" data-odo="odoStart" inputmode="numeric" value="${t.report.odoStart||""}" ${edit?"":"disabled"}></div>
      <div class="field"><label for="odo-now">Сейчас, км</label><input id="odo-now" data-odo="odoNow" inputmode="numeric" value="${t.report.odoNow||""}" ${edit?"":"disabled"}></div>
    </div></div>
