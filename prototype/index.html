@@ -900,8 +900,9 @@ function vManager(part){
 /* --- Рейсовый отчёт водителя --- */
 // статьи расходов в рейсовом отчёте водителя
 // что относится к статье — подсказка водителю под выбором статьи
-const CAT_HINT={zip:"Шланги, перчатки, масло, антифриз, тормозная и омывающая жидкость, фитинги, инструменты, болты, дворники, тряпки",
-  repair:"Работы сервиса: ремонт и техобслуживание",parking:"Платная стоянка и душ",pass:"Проездной, разрешение на проезд",daily:"Суточные водителю, без чека"};
+const CAT_HINT={zip:"Покупки в магазине или на АЗС: шланги, перчатки, масло, антифриз, тормозная и омывающая жидкость, фитинги, инструменты, болты, дворники, тряпки",
+  repair:"Чек из автосервиса или заказ-наряд: ремонт, ТО и запчасти по нему",parking:"Платная стоянка и душ",pass:"Проездной, разрешение на проезд",
+  daily:"Еда, кофе, вода, сигареты — из любого чека, в том числе с АЗС"};
 const CATS={fuel:"Топливо",parking:"Стоянка / душ",zip:"Мелкий ЗИП",repair:"Ремонт и техобслуживание",tires:"Шины",tirefit:"Шиномонтаж",wash:"Мойка",pass:"Проездной",daily:"Суточные",toll:"Платные дороги"};
 const AI={fn:null,images:false,ctl:null};
 function emptyDraft(){return {d:today(),time:"",cat:"fuel",seller:"",city:"",desc:"",liters:"",amount:"",fiscal:""}}
@@ -1086,6 +1087,14 @@ function vProfile(){
 }
 
 /* добавление чека */
+const num=v=>parseFloat(String(v).replace(",",".").replace(/[^\d.]/g,""))||0;
+function vRxSplit(d){const sum=d.split.reduce((a,l)=>a+num(l.amount),0),diff=Math.round((num(d.amount)-sum)*100)/100;
+  return `<div class="field"><label>Чек разделён по статьям</label>
+    ${d.split.map((l,i)=>`<div class="row2" style="align-items:end"><div class="field"><select data-rs="${i}:cat" aria-label="Статья, строка ${i+1}">${Object.entries(CATS).map(([k,v])=>`<option value="${k}" ${k===l.cat?"selected":""}>${v}</option>`).join("")}</select></div>
+      <div class="field"><input data-rs="${i}:amount" inputmode="decimal" value="${esc(l.amount)}" aria-label="Сумма, строка ${i+1}"></div></div>
+      <small class="muted">${esc(l.desc)}${l.liters?" · "+esc(l.liters)+" л":""}</small>`).join("")}
+    ${diff?`<div class="callout warn">Сумма строк ${rub(sum)} не совпадает с итогом чека ${rub(num(d.amount))}: разница ${rub(Math.abs(diff))}.</div>`:`<span class="hint">В отчёт попадёт ${d.split.length} расхода с одним фото чека. Еда, кофе и вода из любого чека идут в «Суточные».</span>`}
+    <button class="linkbtn" data-act="rx-unsplit" style="align-self:flex-start;font-size:12px">Не делить — одной статьёй</button></div>`}
 function vRxAdder(ex){
   const rx=S.rx;
   if(rx.status==="reading")return `<div class="drop">${rx.photo?`<img class="rx-photo" src="${rx.photo}" alt="Фото чека">`:""}
@@ -1100,9 +1109,9 @@ function vRxAdder(ex){
       ${rx.msg?`<div class="callout ${rx.msgType||"info"}">${esc(rx.msg)}</div>`:""}
       ${dup?`<div class="callout warn">Похоже, этот чек уже есть в отчёте: ${esc(dup.d)}, ${esc(dup.seller)}, ${rub(dup.amount)}.</div>`:""}
       <div class="row2">${rf("d","Дата")}${rf("amount","Сумма, ₽",'inputmode="decimal"')}</div>
-      <div class="field"><label for="rx-cat">Статья</label><select id="rx-cat" data-r="cat">${Object.entries(CATS).map(([k,v])=>`<option value="${k}" ${k===d.cat?"selected":""}>${v}</option>`).join("")}</select>${CAT_HINT[d.cat]?`<span class="hint">${CAT_HINT[d.cat]}</span>`:""}</div>
+      ${d.split?vRxSplit(d):`<div class="field"><label for="rx-cat">Статья</label><select id="rx-cat" data-r="cat">${Object.entries(CATS).map(([k,v])=>`<option value="${k}" ${k===d.cat?"selected":""}>${v}</option>`).join("")}</select>${CAT_HINT[d.cat]?`<span class="hint">${CAT_HINT[d.cat]}</span>`:""}</div>`}
       <div class="row2">${rf("seller","Продавец / АЗС")}${rf("city","Город")}</div>
-      <div class="row2">${rf("desc","Что куплено")}${rf("liters","Литры (для топлива)",'inputmode="decimal"')}</div>
+      ${d.split?"":`<div class="row2">${rf("desc","Что куплено")}${rf("liters","Литры (для топлива)",'inputmode="decimal"')}</div>`}
       ${d.fiscal?`<div class="muted mono" style="font-size:12px">${esc(d.fiscal)}</div>`:""}
       <div class="actions"><button class="btn ghost" data-act="rx-cancel">Отмена</button><button class="btn primary" data-act="rx-add">Добавить в отчёт</button></div>
     </div>`;
@@ -2496,8 +2505,9 @@ function vStaff(){
 }
 
 const RX_PROMPT=`На фото кассовый чек водителя автовоза (Россия, расходы в рейсе). Прочитай его и верни только JSON-объект:
-{"date":"ДД.ММ.ГГГГ или null","time":"ЧЧ:ММ или null","seller":"название продавца или АЗС с номером","city":"город, если указан, иначе null","category":"одно из: fuel, parking, zip, repair, tires, tirefit, wash, pass, toll","description":"коротко, что куплено, например «ДТ, 160 л × 72,10»","liters":число литров для топлива или null,"amount":итоговая сумма чека числом,"fiscal":"ФН, ФД, ФП, если видны, иначе null","confidence":"high, medium или low","notes":"что не удалось прочитать, иначе пустая строка"}
-Топливо (ДТ, АИ-92/95, газ, AdBlue) — fuel. Стоянка, душ — parking. Мелкий ЗИП — zip: шланги, перчатки, масло, антифриз, тормозная жидкость, омывающая жидкость, фитинги, инструменты, болты, дворники, тряпки. Работы сервиса по ремонту и ТО — repair. Покупка шин — tires. Шиномонтаж, балансировка, ремонт колеса — tirefit. Мойка — wash. Проездной, разрешение на проезд — pass. Платон и платные трассы — toll. Если на фото не кассовый чек, верни {"error":"not_receipt"}.`;
+{"date":"ДД.ММ.ГГГГ или null","time":"ЧЧ:ММ или null","seller":"название продавца, АЗС или сервиса","city":"город, если указан, иначе null","lines":[{"category":"fuel, parking, zip, repair, tires, tirefit, wash, pass, daily или toll","description":"коротко, что куплено, например «ДТ, 160 л × 72,10» или «кофе, вода»","amount":сумма по этой статье числом,"liters":литры для топлива или null}],"amount":итоговая сумма чека числом,"fiscal":"ФН, ФД, ФП, если видны, иначе null","confidence":"high, medium или low","notes":"что не удалось прочитать, иначе пустая строка"}
+Разложи позиции чека по статьям: в lines одна строка на статью, сумма строк равна итогу чека.
+Статьи: топливо (ДТ, АИ-92/95, газ, AdBlue) — fuel. Стоянка, душ — parking. Еда, кофе, чай, вода, напитки, сигареты, снеки — всегда daily, из любого чека, в том числе с АЗС и из магазина запчастей. Покупки в магазине или на АЗС: шланги, перчатки, масло, антифриз, тормозная и омывающая жидкость, фитинги, инструменты, болты, дворники, тряпки, фильтры и другие запчасти — zip. Чек из автосервиса или заказ-наряд — весь ремонт, ТО и запчасти по нему — repair. Покупка шин — tires. Шиномонтаж, балансировка, ремонт колеса — tirefit. Мойка — wash. Проездной, разрешение на проезд — pass. Платон и платные трассы — toll. Если на фото не кассовый чек, верни {"error":"not_receipt"}.`;
 async function readReceipt(file,isDemo){
   if(!/^image\//.test(file.type)){toast("Нужна фотография чека: JPG, PNG или WebP");return}
   const url=URL.createObjectURL(file);
@@ -2508,9 +2518,7 @@ async function readReceipt(file,isDemo){
     try{
       const r=await AI.fn.json(RX_PROMPT,{images:[file],signal:AI.ctl.signal});
       if(!r||r.error){done(emptyDraft(),{msg:"На фото не видно кассового чека. Сфотографируйте чек целиком при хорошем свете или заполните поля вручную.",msgType:"warn"});return}
-      const cat=CATS[r.category]&&r.category!=="daily"?r.category:"zip";
-      done({d:r.date||today(),time:r.time||"",cat,seller:r.seller||"",city:r.city||"",desc:r.description||"",liters:r.liters??"",amount:r.amount??"",fiscal:r.fiscal||""},
-        {conf:r.confidence||"medium",msg:r.notes||"",msgType:"warn"});
+      done(draftFromLines(r),{conf:r.confidence||"medium",msg:r.notes||"",msgType:"warn"});
     }catch(e){
       if(e&&e.code==="cancelled"){if(S.rx.photo===url){S.rx={status:"idle"};render()}return}
       const hide=["not_granted","sampling_disabled","not_declared","capability_disabled","capability_removed","images_unavailable"];
@@ -2520,9 +2528,17 @@ async function readReceipt(file,isDemo){
     }
     return;
   }
-  if(isDemo){setTimeout(()=>done({d:"21.10.2026",time:"19:05",cat:"fuel",seller:"АЗС №12 «ДВ-Ойл»",city:"Хабаровск",desc:"ДТ-Л-К5, 160 л × 72,10",liters:160,amount:11536,fiscal:"ФН 7380440700123456 · ФД 48211 · ФП 3912345678"},
+  if(isDemo){setTimeout(()=>done(draftFromLines({date:"21.10.2026",time:"19:05",seller:"АЗС №12 «ДВ-Ойл»",city:"Хабаровск",amount:11786,fiscal:"ФН 7380440700123456 · ФД 48211 · ФП 3912345678",
+      lines:[{category:"fuel",description:"ДТ-Л-К5, 160 л × 72,10",amount:11536,liters:160},{category:"daily",description:"кофе американо, вода 0,5 л",amount:250}]}),
     {conf:"demo",msg:"Здесь ответ подставлен заранее. Открытая в Claude страница отправит это фото на распознавание по-настоящему.",msgType:"info"}),1200);return}
   done(emptyDraft(),{msg:"Автораспознавание работает, когда страница открыта в Claude. Заполните поля по фото.",msgType:"info"});
+}
+// строки чека по статьям: одна статья — обычный чек, несколько — чек делится на несколько расходов
+function draftFromLines(r){
+  const lines=(Array.isArray(r.lines)?r.lines:[]).filter(l=>l&&+l.amount>0).map(l=>({cat:CATS[l.category]?l.category:"zip",desc:l.description||"",amount:l.amount,liters:l.liters??""}));
+  const base={d:r.date||today(),time:r.time||"",seller:r.seller||"",city:r.city||"",fiscal:r.fiscal||""};
+  if(lines.length<=1){const l=lines[0]||{cat:CATS[r.category]?r.category:"zip",desc:r.description||"",amount:r.amount??"",liters:r.liters??""};return {...base,...l,amount:l.amount||r.amount||""}}
+  return {...base,cat:lines[0].cat,desc:lines[0].desc,liters:lines[0].liters,amount:r.amount||lines.reduce((a,l)=>a+(+l.amount||0),0),split:lines};
 }
 function demoReceipt(){
   const c=document.createElement("canvas");c.width=420;c.height=640;const g=c.getContext("2d");
@@ -2531,12 +2547,13 @@ function demoReceipt(){
   L("ООО «ДВ-Ойл»",40,17,true,"center");L("АЗС №12",64,15,false,"center");L("г. Хабаровск, Матвеевское ш., 21",86,13,false,"center");L("ИНН 2724000000",106,13,false,"center");
   L("КАССОВЫЙ ЧЕК · ПРИХОД",146,15,true,"center");L("21.10.2026            19:05",176,14);
   g.fillRect(25,192,370,1);
-  L("ДТ-Л-К5 (ТРК 4)",222,15,true);L("160,000 л x 72,10",246,15);L("=11 536,00",246,15,false,"right");
-  g.fillRect(25,266,370,1);
-  L("ИТОГ",304,22,true);L("=11 536,00",304,22,true,"right");
-  L("БЕЗНАЛИЧНЫМИ",334,15);L("=11 536,00",334,15,false,"right");
-  L("в т.ч. НДС 20%",358,14);L("=1 922,67",358,14,false,"right");
+  L("ДТ-Л-К5 (ТРК 4)",218,15,true);L("160,000 л x 72,10",240,15);L("=11 536,00",240,15,false,"right");
+  L("Кофе американо",264,15);L("=180,00",264,15,false,"right");L("Вода питьевая 0,5 л",286,15);L("=70,00",286,15,false,"right");
+  g.fillRect(25,300,370,1);
+  L("ИТОГ",334,22,true);L("=11 786,00",334,22,true,"right");
+  L("БЕЗНАЛИЧНЫМИ",360,15);L("=11 786,00",360,15,false,"right");
   g.fillRect(25,380,370,1);
+  L("в т.ч. НДС 20%",372,13);L("=1 964,33",372,13,false,"right");
   L("ФН 7380440700123456",410,13);L("ФД 48211",430,13);L("ФП 3912345678",450,13);L("Кассир: Ли О.В.",478,13);
   L("СПАСИБО ЗА ПОКУПКУ",540,14,true,"center");
   return new Promise(r=>c.toBlob(b=>r(new File([b],"chek-demo.png",{type:"image/png"})),"image/png"));
@@ -2578,11 +2595,15 @@ document.addEventListener("click",async e=>{
   if(act==="rx-stop"){AI.ctl?.abort()}
   if(act==="rx-cancel"){S.rx={status:"idle"};render()}
   if(act==="rx-undo"){const L=S.lastDel,t=S.trips.find(x=>x.id===L.trip);t.expenses.splice(L.idx,0,L.item);S.lastDel=null;render()}
-  if(act==="rx-add"){const d=S.rx.draft,amt=parseFloat(String(d.amount).replace(",",".").replace(/[^\d.]/g,""));
+  if(act==="rx-add"){const d=S.rx.draft,amt=num(d.amount);
     if(!(amt>0)){toast("Укажите сумму чека");return}
     const t=S.trips.find(x=>x.id===repTrip());t.expenses.forEach(x=>x.fresh=false);
-    t.expenses.push({...d,amount:amt,liters:parseFloat(String(d.liters).replace(",","."))||"",src:S.rx.src,photo:S.rx.photo,fresh:true});
-    S.rx={status:"idle"};S.lastDel=null;render();toast("Чек добавлен в отчёт "+t.id)}
+    const base={d:d.d,time:d.time,seller:d.seller,city:d.city,fiscal:d.fiscal,src:S.rx.src,photo:S.rx.photo,fresh:true};
+    if(d.split){const sum=d.split.reduce((a,l)=>a+num(l.amount),0);if(Math.abs(sum-amt)>0.5){toast("Сумма строк не совпадает с итогом чека");return}
+      d.split.forEach(l=>t.expenses.push({...base,cat:l.cat,desc:l.desc,amount:num(l.amount),liters:num(l.liters)||""}))}
+    else t.expenses.push({...base,cat:d.cat,desc:d.desc,amount:amt,liters:num(d.liters)||""});
+    S.rx={status:"idle"};S.lastDel=null;render();toast(d.split?`Чек разделён на ${d.split.length} расхода и добавлен в отчёт ${t.id}`:"Чек добавлен в отчёт "+t.id)}
+  if(act==="rx-unsplit"){const d=S.rx.draft;delete d.split;render()}
   if(act==="setpos"){const t=S.trips.find(x=>x.id===a.dataset.trip),c=$("#pos-"+t.id).value;
     t.km=NET[c][1];if(!notLeft(t))t.status="formed";stampPassing(t);t.events.push({t:nowStamp(),city:c,note:t.km===NET[t.origin||"Владивосток"][1]?"Погрузка":me()&&me().role==="driver"?"Отметка водителя":"Отметка менеджера"});render();toast("Позиция "+t.id+" обновлена: "+c)}
   if(act==="auth-mode"){S.auth.mode=a.dataset.mode;S.auth.err="";S.auth.ok="";render()}
@@ -2719,6 +2740,7 @@ document.addEventListener("input",e=>{
     $("#dockHost").innerHTML=vDock();}
   if(el.id==="code"){S.codeIn=el.value.replace(/\D/g,"");}
   if(el.dataset.r&&S.rx.draft){S.rx.draft[el.dataset.r]=el.value}
+  if(el.dataset.rs&&S.rx.draft&&S.rx.draft.split){const [i,k]=el.dataset.rs.split(":");S.rx.draft.split[+i][k]=el.value}
   if(el.dataset.pol){S.orders.find(o=>o.no===+el.dataset.pol).policy=el.value}
   if(el.dataset.tf){S.trips.find(x=>x.id===S.delivTrip)[el.dataset.tf]=el.value}
   if(el.dataset.horemtxt){hoOf(S.orders.find(o=>o.no===S.ho.no),S.ho.stage).remarks=el.value}
@@ -2731,6 +2753,7 @@ document.addEventListener("input",e=>{
 document.addEventListener("change",e=>{
   const el=e.target;
   if(el.dataset.r==="cat"&&S.rx.draft){S.rx.draft.cat=el.value;render()}   // подсказка к выбранной статье
+  if(el.dataset.rs&&S.rx.draft&&S.rx.draft.split)render();   // пересчёт суммы строк
   if(el.dataset.f&&el.tagName==="SELECT"){S.f[el.dataset.f]=el.value;render()}
   if(el.dataset.agree){S.agree[el.dataset.agree]=el.checked;$("#dockHost").innerHTML=vDock()}
   if(el.dataset.p&&el.tagName==="SELECT"){S.pp[el.dataset.p]=el.value;S.partnerLink=null;render()}
