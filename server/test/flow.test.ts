@@ -166,11 +166,50 @@ describe("отгрузка с терминала", () => {
   });
 });
 
+describe("выдача в Москве", () => {
+  it("получатель через представителя, с замечаниями: итоговый акт в PDF — у клиента и сотрудников цепочки", async () => {
+    expect((await api("POST", `/api/trips/${trip2}/position`, { city: "Москва" }, T.b)).status).toBe(200);
+    await shootAll(T.b, "vygruzka");
+    expect((await sign(T.b, "vygruzka", "give")).status).toBe(200);
+    expect((await sign(T.b, "vygruzka", "take")).status).toBe(409);   // не отмечен итог осмотра
+    const sec = (receipt: object) => api("PATCH", `/api/orders/${no}/stages/vygruzka/section`, { receipt }, T.b);
+    expect((await sec({ receiver: "rep", outcome: "remarks", remarks: "Царапина на заднем бампере, в акте не отмечена" })).status).toBe(200);
+    expect((await stage(T.b, "vygruzka")).section.give).toBeNull();     // изменение сбросило «Сдал»
+    expect((await sign(T.b, "vygruzka", "give")).status).toBe(200);
+    expect((await sign(T.b, "vygruzka", "take")).status).toBe(409);   // нет данных представителя
+    await sec({ repFio: "Белова Анна Сергеевна", repPassport: "45 15 778812", poaNo: "77 АГ 1234567", poaDate: "20.10.2026" });
+    expect((await sign(T.b, "vygruzka", "give")).status).toBe(200);
+    expect((await api("GET", `/api/orders/${no}/act`, undefined, T.b)).status).toBe(404);   // ещё не выдана
+    const smsBefore = ctx.sms.sent.length;
+    expect((await sign(T.b, "vygruzka", "take")).body.closed).toBe(true);
+    expect(ctx.sms.sent.slice(smsBefore).some((m) => m.phone === "79770000085" && /Итоговый акт/.test(m.text))).toBe(true);
+
+    const act = await ctx.app.inject({ method: "GET", url: `/api/orders/${no}/act`, headers: { authorization: `Bearer ${T.b}` } });
+    expect(act.statusCode).toBe(200);
+    expect(act.headers["content-type"]).toBe("application/pdf");
+    expect(act.rawPayload.subarray(0, 5).toString()).toBe("%PDF-");
+    expect((act.rawPayload.toString("latin1").match(/\/Type \/Page\b/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    if (process.env.SAVE_ACT) (await import("node:fs")).writeFileSync(process.env.SAVE_ACT, act.rawPayload);
+    expect((await api("GET", `/api/orders/${no}/act`, undefined, T.other)).status).toBe(403);
+
+    // клиент скачивает акт в личном кабинете
+    await api("POST", "/api/client/login/request", { phone: "+7 977 000 00 85" });
+    const code = ctx.sms.sent.at(-1)!.text.match(/(\d{6})/)![1];
+    const ct = (await api("POST", "/api/client/login/confirm", { phone: "+7 977 000 00 85", code })).body.token;
+    const list = (await api("GET", "/api/client/orders", undefined, ct)).body.orders;
+    expect(list[0]).toMatchObject({ status: "Выдан", actAvailable: true });
+    const mine = await ctx.app.inject({ method: "GET", url: `/api/client/orders/${no}/act`, headers: { authorization: `Bearer ${ct}` } });
+    expect(mine.statusCode).toBe(200);
+    expect(mine.rawPayload.equals(act.rawPayload)).toBe(true);   // тот же сохранённый документ
+    expect((await api("GET", `/api/track/${track}`)).body.status).toBe("Выдан");
+  });
+});
+
 describe("история и доступ", () => {
   it("каждый участник цепочки видит прошлые фото, видео и подписи; посторонний — нет", async () => {
     const h = await api("GET", `/api/orders/${no}/history`, undefined, T.b);
     expect(h.status).toBe(200);
-    expect(h.body.stages.map((s: any) => s.stage)).toEqual(["priemka", "pogruzka", "term_in", "term_out"]);
+    expect(h.body.stages.map((s: any) => s.stage)).toEqual(["priemka", "pogruzka", "term_in", "term_out", "vygruzka"]);
     const pr = h.body.stages[0];
     expect(pr.media.filter((m: any) => m.kind === "photo")).toHaveLength(10);
     expect(pr.take.signedAt).not.toBeNull();
@@ -192,6 +231,6 @@ describe("история и доступ", () => {
   it("журнал действий пишет, кто и что менял", async () => {
     const r = await ctx.pool.query("select action, count(*)::int n from audit_log where entity = 'order' and entity_id = $1 group by action", [String(no)]);
     const a = Object.fromEntries(r.rows.map((x) => [x.action, x.n]));
-    expect(a).toMatchObject({ order_sign: 1, stage_done: 4, mark_add: 3, mark_remove_manager: 1 });
+    expect(a).toMatchObject({ order_sign: 1, stage_done: 5, mark_add: 3, mark_remove_manager: 1 });
   });
 });

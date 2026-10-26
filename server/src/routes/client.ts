@@ -3,11 +3,12 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import { randomBytes, randomInt } from "node:crypto";
 import { z } from "zod";
 import { many, one, tx } from "../db/pool.js";
-import { bad, forbidden, HttpError, unauthorized } from "../errors.js";
+import { bad, forbidden, HttpError, notFound, unauthorized } from "../errors.js";
 import { sha256 } from "../services/auth.js";
 import { config } from "../config.js";
 import { trackInfo } from "../services/tracking.js";
 import { phone } from "./auth.js";
+import { sendAct } from "./handover.js";
 
 export async function clientPhone(db: any, req: FastifyRequest) {
   const h = req.headers.authorization ?? "";
@@ -57,6 +58,15 @@ export default async function (app: FastifyInstance) {
     return { ok: true };
   });
 
+  // итоговый акт по своей машине
+  app.get("/client/orders/:no/act", async (req, reply) => {
+    const ph = await clientPhone(pool, req);
+    const { no } = z.object({ no: z.coerce.number().int() }).parse(req.params);
+    const o = await one(pool, "select * from orders where no = $1 and client_phone = $2", [no, ph]);
+    if (!o) throw notFound("Заказ не найден");
+    return sendAct(reply, o);
+  });
+
   app.get("/client/orders", async (req) => {
     const ph = await clientPhone(pool, req);
     const rows = await many(pool, "select * from orders where client_phone = $1 order by no desc", [ph]);
@@ -68,8 +78,10 @@ export default async function (app: FastifyInstance) {
         price: { delivery: o.tariff + o.cashback, insurance: o.insurance, total: o.tariff + o.cashback + o.insurance },
         signedAt: o.signed_at, paid: { delivery: o.pay_delivery, insurance: o.pay_insurance }, policyNo: o.policy_no,
         status: t.status, position: { city: t.trip?.currentCity ?? null, km: t.km }, trackToken: o.track_token, deliveredAt: o.delivered_at,
+        actAvailable: !!o.delivered_at,
       });
     }
     return { phone: ph, orders: out };
   });
 }
+

@@ -21,6 +21,10 @@ API и база данных для перевозки автомобилей а
   - Дефекты на схеме с историей: кто добавил, уточнил, снял.
   - Подписи на экране. Сначала «Сдал», потом «Принял» — эта подпись закрывает этап. Любое изменение после подписи сбрасывает подписи. Менеджер снимает отметку и после подписей, с комментарием.
   - Отгрузка с терминала. Приёмщик — 2 фото на автовозе и «Сдал». Принимающий водитель — 10 фото, видео, дефекты и «Принял». Это делается в кабинете водителя или на экране приёмщика: записи идут на водителя.
+- **Итоговый акт при выдаче.**
+  - Водитель отмечает, кто получил машину: лично или представитель с паспортом и доверенностью, и итог осмотра: «претензий нет» или замечания.
+  - После подписи «Принял» сервер собирает PDF: реквизиты сторон, автомобиль, схема с отметками, журнал дефектов, все передачи с подписями и расшифровкой, заключение получателя.
+  - Акт сохраняется рядом с фото машины в S3, клиенту уходит SMS со ссылкой на личный кабинет, там акт можно скачать.
 - **История машины.** Фото, видео, подписи и дефекты прошлых передач открыты каждому участнику цепочки, посторонним — нет.
 - **Журнал действий** (`audit_log`): кто, что и когда изменил.
 
@@ -55,17 +59,17 @@ npm test                        # нужна база brookclean_test (TEST_DATA
 | Вход сотрудников | `POST /auth/register` (водитель, приёмщик), `POST /auth/login` (менеджер, водитель, приёмщик), `POST /auth/logout`, `GET /me` |
 | Сотрудники (менеджер) | `GET /users`, `POST /users/:id/status` |
 | Клиент | `GET /tariffs`, `POST /quote`, `POST /orders` (`ref` — код ссылки партнёра), `POST /orders/:no/sign/request`, `POST /orders/:no/sign/confirm`, `GET /track/:token` |
-| Личный кабинет клиента | `POST /client/login/request`, `POST /client/login/confirm` (код из SMS), `GET /client/orders`, `POST /client/logout` |
+| Личный кабинет клиента | `POST /client/login/request`, `POST /client/login/confirm` (код из SMS), `GET /client/orders`, `GET /client/orders/:no/act` (PDF акта), `POST /client/logout` |
 | Кабинет партнёра | `POST /partner/auth/register`, `POST /partner/auth/login`, `GET/POST /partner/links`, `PATCH /partner/links/:id`, `GET /partner/orders` |
 | Заказы (менеджер) | `GET /orders`, `GET /orders/:no`, `PATCH /orders/:no`, `POST /orders/:no/route` |
 | Рейсы | `GET /trips`, `GET /trips/:id`, `POST /trips`, `PATCH /trips/:id`, `POST /trips/:id/status`, `POST /trips/:id/position`, `POST /trips/:id/cars`, `DELETE /trips/:id/cars/:no` |
 | Водители и компании | `GET/POST /drivers`, `PATCH /drivers/:id`, `GET/POST /companies`, `PATCH /companies/:id` |
-| Передача машины | `GET /orders/:no/stages`, `GET /orders/:no/stages/:stage`, `POST …/media` (multipart: `kind`, `slot`, файл), `POST/PATCH/DELETE …/marks`, `PATCH …/section`, `POST …/sign`, `GET /media/:id`, `GET /orders/:no/history`, `DELETE /orders/:no/marks/:id` (менеджер) |
+| Передача машины | `GET /orders/:no/stages`, `GET /orders/:no/stages/:stage`, `POST …/media` (multipart: `kind`, `slot`, файл), `POST/PATCH/DELETE …/marks`, `PATCH …/section`, `POST …/sign`, `GET /media/:id`, `GET /orders/:no/history`, `GET /orders/:no/act` (итоговый акт PDF), `DELETE /orders/:no/marks/:id` (менеджер) |
 
 ## Следующие шаги
 
 1. SMS-провайдер (SMSC или SMS.ru) и ограничение попыток входа.
-2. Акт приёма-передачи и договор в PDF.
+2. Договор в PDF.
 3. Взаиморасчёты с терминалом: депозит, перегрузка по прайсу, оплаты.
 4. Рейсовый отчёт водителя: аванс, расходы, чеки.
 5. Распознавание документов, чеков и повреждений (Yandex Vision / GigaChat).

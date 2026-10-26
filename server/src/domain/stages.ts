@@ -27,6 +27,7 @@ export const loadCityOf = (o: OrderCtx) => o.legs[0]?.trip?.loadCity ?? ORIGIN_C
 const lastLeg = (o: OrderCtx) => (o.legs.length - 1) as 0 | 1;
 // во Владивостоке машину принимает приёмщик площадки, в другом городе погрузки — водитель
 const inspAtLoad = (o: OrderCtx) => loadCityOf(o) === ORIGIN_CITY;
+export const isInspStageCtx = inspAtLoad;
 
 export function checkpointsOf(o: OrderCtx): { id: Stage; leg: 0 | 1 }[] {
   const head: { id: Stage; leg: 0 | 1 }[] = [{ id: "priemka", leg: 0 }];

@@ -14,6 +14,16 @@ export const config = {
     secretAccessKey: process.env.S3_SECRET_KEY ?? "",
     forcePathStyle: (process.env.S3_FORCE_PATH_STYLE ?? "true") === "true",
   },
+  // адрес сайта для клиентов: ссылка на личный кабинет в SMS
+  clientUrl: process.env.CLIENT_URL || (process.env.CLIENT_DOMAIN ? `https://${process.env.CLIENT_DOMAIN}` : "http://localhost:3000"),
+  // перевозчик в документах
+  carrier: {
+    name: process.env.CARRIER_NAME ?? "ИП Тодоров Евгений Константинович",
+    inn: process.env.CARRIER_INN ?? "253717132973",
+    phone: process.env.CARRIER_PHONE ?? "+7 950 281 55 55",
+  },
+  // часовой пояс дат в документах
+  tz: process.env.TZ_DOCS ?? "Europe/Moscow",
   sessionDays: Number(process.env.SESSION_DAYS ?? 30),
   // в разработке код подписи пишется в лог вместо отправки SMS
   smsProvider: process.env.SMS_PROVIDER ?? "console",

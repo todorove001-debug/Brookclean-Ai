@@ -7,6 +7,8 @@ import { bad, conflict, forbidden, notFound } from "../errors.js";
 import { carFolder, extOf, mediaKey, stageFolder } from "../domain/files.js";
 import { checkpointsOf, COND_KEYS, cpGate, DMG_CODES, hoVideos, photoSpec, STAGES, type Stage } from "../domain/stages.js";
 import { requireUser, type AuthUser } from "../services/auth.js";
+import { ensureFinalAct } from "../services/finalAct.js";
+import { config } from "../config.js";
 import { audit } from "../services/audit.js";
 import { loadOrder, stageNum } from "../services/context.js";
 import { actorOf, canView, loadStage, marksOf, missingOf, permsOf, resetSigs, stateOut, type StageState } from "../services/handover.js";
@@ -197,6 +199,11 @@ export default async function (app: FastifyInstance) {
       cond: z.record(z.enum(COND_KEYS), z.boolean()), condOther: z.string().max(200), notes: z.string().max(2000),
       disagree: z.boolean(), disComment: z.string().max(500), absent: z.boolean(), absentReason: z.string().max(500),
       driverMode: z.boolean(),
+      // выдача: кто получает и итог осмотра получателем
+      receipt: z.object({
+        receiver: z.enum(["self", "rep"]), repFio: z.string().max(160), repPassport: z.string().max(40), poaNo: z.string().max(60), poaDate: z.string().max(20),
+        outcome: z.enum(["ok", "remarks"]).nullable(), remarks: z.string().max(2000),
+      }).partial(),
       car: z.object({ plate: z.string().max(20), ptsType: z.string().max(40), ptsNo: z.string().max(40), keys: z.string().max(10), extraDocs: z.string().max(300) }).partial(),
     }).partial().parse(req.body);
     const s = await loadStage(pool, u, p.no, p.stage);
@@ -207,6 +214,7 @@ export default async function (app: FastifyInstance) {
     if ((b.disagree !== undefined || b.disComment !== undefined) && (s.section.give_sig || !perms.signGive)) throw forbidden("Несогласие отмечает сдающая сторона до своей подписи");
     if ((b.absent !== undefined || b.absentReason !== undefined) && (s.section.give_sig || !perms.signTake)) throw forbidden("Отсутствие сдающей стороны отмечает принимающая");
     if (b.car && s.st !== "priemka") throw bad("Данные машины заполняются при приёмке");
+    if (b.receipt && s.st !== "vygruzka") throw bad("Получение отмечается при выдаче");
     const sets: string[] = [], vals: unknown[] = [p.no, s.st];
     const put = (col: string, v: unknown) => { vals.push(v); sets.push(`${col} = $${vals.length}`); };
     if (b.giveName !== undefined) put("give_name", b.giveName);
@@ -220,8 +228,10 @@ export default async function (app: FastifyInstance) {
     if (b.absent !== undefined) put("absent", b.absent);
     if (b.absentReason !== undefined) put("absent_reason", b.absentReason);
     if (b.driverMode !== undefined) put("driver_mode", b.driverMode);
+    const RC = { receiver: "receiver", repFio: "rep_fio", repPassport: "rep_passport", poaNo: "poa_no", poaDate: "poa_date", outcome: "outcome", remarks: "final_remarks" } as const;
+    for (const k of Object.keys(b.receipt ?? {}) as (keyof typeof RC)[]) if (b.receipt![k] !== undefined) put(RC[k], b.receipt![k]);
     // переключение экрана и отметки сдающей стороны не меняют содержание акта
-    const content = ["giveName", "takeName", "cond", "condOther", "notes", "car"].some((k) => (b as any)[k] !== undefined);
+    const content = ["giveName", "takeName", "cond", "condOther", "notes", "car", "receipt"].some((k) => (b as any)[k] !== undefined);
     await tx(pool, async (c) => {
       if (sets.length) await c.query(`update act_sections set ${sets.join(", ")} where order_no = $1 and stage = $2`, vals);
       if (b.car) {
@@ -253,12 +263,17 @@ export default async function (app: FastifyInstance) {
       if (sec.give_sig) throw conflict("«Сдал» уже подписано");
       if (sec.disagree && !sec.dis_comment.trim()) throw bad("Укажите, с чем не согласна сдающая сторона");
     } else if (!sec.give_sig && !(sec.absent && sec.absent_reason.trim())) throw conflict(s.st === "term_out" ? "Ждёт подписи приёмщика «Сдал»" : "Сначала подпись сдающей стороны");
+    else if (s.st === "vygruzka") {
+      if (sec.receiver === "rep" && (!sec.rep_fio.trim() || !sec.rep_passport.trim() || !sec.poa_no.trim())) throw conflict("Укажите ФИО и паспорт представителя и номер доверенности");
+      if (!sec.outcome) throw conflict("Отметьте итог осмотра получателем");
+      if (sec.outcome === "remarks" && sec.final_remarks.trim().length < 3) throw conflict("Опишите замечания получателя");
+    }
 
     const png = Buffer.from(b.image.split(",")[1], "base64");
     const base = `${carFolder(s.row, new Date(s.row.created_at).getFullYear())}/${stageFolder(stageNum(s.ctx, s.st), s.st, new Date(s.stage.started_at), s.stage.place)}`;
     const key = mediaKey(base, "signature", b.side === "give" ? 0 : 1, b.side === "give" ? "Сдал" : "Принял", "png", randomBytes(3).toString("hex"));
     await storage.put(key, png, "image/png");
-    return tx(pool, async (c) => {
+    const res = await tx(pool, async (c) => {
       const m = await one(c, `insert into media(order_no, stage, kind, slot, storage_key, mime, size, uploaded_by, uploaded_as) values ($1,$2,'signature',$3,$4,'image/png',$5,$6,$7) returning id`,
         [p.no, s.st, b.side === "give" ? 0 : 1, key, png.length, u.id, b.side === "give" ? sec.give_name : sec.take_name]);
       const sig = { mediaId: m.id, at: new Date().toISOString(), deviceUser: u.id, deviceName: u.name };
@@ -267,6 +282,23 @@ export default async function (app: FastifyInstance) {
       if (b.side === "take") await closeStage(c, s, u);
       return { closed: b.side === "take" };
     });
+    // выдача получателю: итоговый акт в PDF — в хранилище и в личный кабинет клиента, клиенту SMS
+    if (b.side === "take" && s.st === "vygruzka") {
+      try {
+        await ensureFinalAct(pool, storage, p.no);
+        await app.deps.sms.send(s.row.client_phone, `Автомобиль ${s.row.car} выдан. Итоговый акт приёма-передачи — в личном кабинете: ${config.clientUrl}`);
+      } catch (e) { req.log.error(e, "итоговый акт не собран — соберётся при первом запросе"); }
+    }
+    return res;
+  });
+
+  // итоговый акт для сотрудников цепочки и менеджера
+  app.get("/orders/:no/act", async (req, reply) => {
+    const u = await who(req);
+    const { no } = z.object({ no: z.coerce.number().int() }).parse(req.params);
+    const { row, ctx } = await loadOrder(pool, no);
+    if (!canView(u, ctx)) throw forbidden("Машина не из вашей цепочки");
+    return sendAct(reply, row);
   });
 
   // раздел закрыт: этап завершён, за машину отвечает принявшая сторона
@@ -310,4 +342,13 @@ export default async function (app: FastifyInstance) {
       marks,
     };
   });
+}
+
+// PDF итогового акта: есть только у выданной машины
+export async function sendAct(reply: any, row: any) {
+  if (!row.delivered_at) throw notFound("Итоговый акт будет готов после выдачи автомобиля");
+  const key = await ensureFinalAct(reply.server.deps.pool, reply.server.deps.storage, row.no);
+  reply.header("content-type", "application/pdf");
+  reply.header("content-disposition", `attachment; filename="act_${row.no}.pdf"; filename*=UTF-8''${encodeURIComponent(`Акт_${row.no}.pdf`)}`);
+  return reply.send(await reply.server.deps.storage.get(key));
 }

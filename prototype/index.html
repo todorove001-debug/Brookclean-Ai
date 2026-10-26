@@ -510,6 +510,12 @@ function noteFor(){
 }
 // экран перерисовывается целиком: прокрутку таблиц и лент вкладок сохраняем, пока остаёмся на том же экране
 function render(){
+  // перерисовка из обработчика blur/change во время другой перерисовки — откладываем, а не ломаем DOM
+  if(render.busy){render.again=true;return}
+  render.busy=true;try{renderKeep()}finally{render.busy=false}
+  if(render.again){render.again=false;render()}
+}
+function renderKeep(){
   const screen=()=>[S.site,S.view,S.sub,S.delivTrip,S.ho&&S.ho.no,S.ho&&S.ho.stage,S.mgrHo&&S.mgrHo.no].join("|");
   const keep=screen()===render.key?[...document.querySelectorAll(".tablewrap,.subnav,.tabs")].map(el=>[el.scrollLeft,el.scrollTop]):null;
   renderView();render.key=screen();
@@ -989,7 +995,9 @@ function vClientCab(){
      return `<div class="card"><div class="sheet-head"><h3>№${o.no} · ${esc(o.car)}</h3><span class="pill ${st.cls}">${st.text}</span></div>
       <dl class="kv"><dt>VIN</dt><dd class="mono">${esc(o.vin)}</dd><dt>Маршрут</dt><dd>Владивосток → ${esc(o.city)}</dd><dt>Договор</dt><dd>${esc(o.signedAt||"не подписан")}</dd>
        <dt>К оплате</dt><dd>${rub(total)}</dd><dt>Оплата перевозки</dt><dd>${o.payDel?"получена":"ожидается"}</dd><dt>Страховка</dt><dd>${o.payIns?(o.policy?"полис "+esc(o.policy):"оплачена"):"ожидается"}</dd></dl>
-      <button class="btn primary" data-act="opentrack" data-no="${o.no}">Где машина сейчас</button></div>`}).join("")}</div>`;
+      ${o.finalAct?`<div class="callout ok">Автомобиль выдан ${esc(o.finalAct.at)}. Итоговый акт приёма-передачи подписан обеими сторонами.</div>
+        <button class="btn dark" data-act="act-pdf" data-no="${o.no}">Итоговый акт (PDF)</button>`
+        :`<button class="btn primary" data-act="opentrack" data-no="${o.no}">Где машина сейчас</button>`}</div>`}).join("")}</div>`;
 }
 
 /* вход и регистрация */
@@ -2039,7 +2047,7 @@ function vSigBlock(o,st,k,enabled,why){
 }
 function vActSection(o,st,ro){
   const c=chainOf(o),s=secOf(o,st),cps=checkpointsOf(o),num=secNum(o,st),hs=hoStat(o,st),gate=cpGate(o,st),edit=!ro&&!s.closedAt&&!hs.done,medit=edit&&marksEditor(o,st),termUser=me()&&me().role==="terminal",gSide=termSide(o,st,"terminal"),tSide=termSide(o,st,"driver");
-  const mediaOk=photoIdx(st).every(i=>hoOf(o,st).photos[i])&&hs.vreq===hs.vreqN, ai=aiPending(hoOf(o,st));
+  const mediaOk=photoIdx(st).every(i=>hoOf(o,st).photos[i])&&hs.vreq===hs.vreqN, ai=aiPending(hoOf(o,st)), finWhy=st==="vygruzka"?receiptWhy(s):"";
   const why=!gate.ok?gate.why:!mediaOk?"Сначала фото и видео этапа":ai?`Проверьте находки ИИ: ${ai}`:"";
   const inp=(k,l,v,attrs="")=>`<div class="field"><label for="ac-${k}">${l}</label><input id="ac-${k}" data-car="${k}" value="${esc(v||"")}" ${attrs}></div>`;
   return `<div class="card actdoc">
@@ -2069,12 +2077,13 @@ function vActSection(o,st,ro){
       ${s.cond.other?`<input class="cellin" data-sf="condOther" value="${esc(s.condOther)}" placeholder="Иное — что именно" ${edit?"":"disabled"}>`:""}</div>
     ${COND.some(([k])=>s.cond[k])?`<div class="callout warn">При наличии отметки в условиях осмотра тщательный осмотр ЛКП невозможен.</div>`:""}
     <div class="field"><label for="sf-notes">Дополнительные сведения</label><textarea id="sf-notes" data-sf="notes" rows="2" ${edit?"":"disabled"}>${esc(s.notes)}</textarea></div>
+    ${st==="vygruzka"?vReceipt(o,s,edit):""}
     <h3>Подписи</h3>
     ${edit&&!s.give&&!s.absent&&gSide?`<label class="check"><input type="checkbox" data-sx="disagree" ${s.disagree?"checked":""}> Сдающая сторона не согласна с отметками</label>
       ${s.disagree?`<input class="cellin" data-sf="disComment" value="${esc(s.disComment)}" placeholder="С чем не согласен">`:""}
       <label class="check"><input type="checkbox" data-sx="absent" ${s.absent?"checked":""}> Сдающая сторона отсутствует или отказалась подписать</label>`:""}
     ${edit&&s.absent&&!s.give?`<input class="cellin" data-sf="absentReason" value="${esc(s.absentReason)}" placeholder="Причина: не явился, отказ от подписи — снято на видео">`:""}
-    <div class="row2">${vSigBlock(o,st,"give",edit&&!why&&gSide,why||(gSide?"":"Подписывает приёмщик терминала на своём устройстве"))}${vSigBlock(o,st,"take",edit&&!why&&tSide&&(s.give||(s.absent&&s.absentReason.trim())),why||(!(s.give||(s.absent&&s.absentReason.trim()))?(st==="term_out"?"Ждёт подписи приёмщика «Сдал»":"Сначала подпись сдающей стороны"):tSide?"":"Подписывает принимающий водитель"))}</div>
+    <div class="row2">${vSigBlock(o,st,"give",edit&&!why&&gSide,why||(gSide?"":"Подписывает приёмщик терминала на своём устройстве"))}${vSigBlock(o,st,"take",edit&&!why&&!finWhy&&tSide&&(s.give||(s.absent&&s.absentReason.trim())),why||finWhy||(!(s.give||(s.absent&&s.absentReason.trim()))?(st==="term_out"?"Ждёт подписи приёмщика «Сдал»":"Сначала подпись сдающей стороны"):tSide?"":"Подписывает принимающий водитель"))}</div>
     ${s.closedAt?`<div class="callout ok">Раздел закрыт ${esc(s.closedAt)}. С этого момента за машину отвечает: <b>${esc(s.takeName)}</b> (${esc(s.takeRole)}).</div>`
       :edit?`<div class="muted" style="font-size:12px">Порядок: принимающий осматривает и отмечает дефекты → сдающий подписывает «Сдал» → принимающий подписывает «Принял», раздел закрывается. Изменение после подписи сбрасывает подписи.</div>`:""}
     ${hoOf(o,st).act.find(a=>a.digital)?`<div class="shot done" style="max-width:340px"><b>Акт на момент закрытия раздела</b><img src="${hoOf(o,st).act.find(a=>a.digital).url}" alt="Акт" style="aspect-ratio:auto;object-fit:contain"></div>`:""}
@@ -2087,6 +2096,8 @@ function vChainSummary(o){const cps=checkpointsOf(o);
       return `<tr><td><span class="stagedot" style="background:${stageColor(o,cp.id)}"></span>${secNum(o,cp.id)}</td><td>${esc(STAGES[cp.id].name)}<br><small class="muted">${esc(hoOf(o,cp.id).place)}</small></td><td>${cell("give",s.giveName,s.giveRole)}</td><td>${cell("take",s.takeName,s.takeRole)}</td>
         <td>${s.closedAt?`<span class="pill ok">закрыт ${esc(s.closedAt)}</span>`:`<span class="pill gray">открыт</span>`}</td></tr>`}).join("")}</tbody></table></div>
     <h3>Журнал дефектов</h3>${vDiagram(o,null,false)}${vDefects(o,null,"manager")}
+    ${o.finalAct?`<div class="callout ok inline" style="justify-content:space-between"><span>Итоговый акт выдан клиенту ${esc(o.finalAct.at)}</span><button class="btn sm dark" data-act="act-pdf" data-no="${o.no}">PDF</button></div>
+      <div class="inline" style="align-items:flex-start">${o.finalAct.pages.map((u,i)=>`<img src="${u}" alt="Итоговый акт, стр. ${i+1}" style="width:min(320px,100%);border:1px solid var(--line);border-radius:6px">`).join("")}</div>`:""}
     ${o.chainDoc?`<div class="shot done" style="max-width:420px"><b>Документ сформирован ${esc(o.chainDoc.at)}</b><img src="${o.chainDoc.url}" alt="Сквозной акт" style="aspect-ratio:auto;object-fit:contain"></div>`:""}
   </div>`}
 let SIG=null;
@@ -2100,7 +2111,106 @@ function demoSig(name){const c=document.createElement("canvas");c.width=600;c.he
   g.beginPath();g.moveTo(60,160);g.lineTo(Math.min(560,x),150);g.stroke();return c.toDataURL("image/png")}
 async function closeSection(o,st){const s=secOf(o,st);s.closedAt=nowStamp();
   const url=await renderChain(o,st);const h=hoOf(o,st);h.act=[{url,name:"act.jpg",type:"image/jpeg",digital:true,at:s.closedAt}];
-  completeStage(o,st)}
+  // выдача получателю: итоговый акт в PDF уходит клиенту в личный кабинет
+  if(st==="vygruzka"){const pages=await renderFinalAct(o);o.finalAct={pages,blob:makePdf(pages),at:s.closedAt}}
+  completeStage(o,st);
+  if(st==="vygruzka")toast(`Итоговый акт №${o.no} готов: PDF в личном кабинете клиента, ссылка ушла в SMS на ${clientData(o).phone}`)}
+/* получение автомобиля: лично или представитель по доверенности, итог осмотра получателем */
+function receiptWhy(s){
+  if(s.rep==="rep"&&(!String(s.repFio||"").trim()||!String(s.repPass||"").trim()||!String(s.poaNo||"").trim()))return "Укажите ФИО и паспорт представителя и номер доверенности";
+  if(!s.outcome)return "Отметьте итог осмотра получателем";
+  if(s.outcome==="remarks"&&String(s.finalRemarks||"").trim().length<3)return "Опишите замечания получателя";
+  return "";
+}
+function vReceipt(o,s,edit){const c=clientData(o),dis=edit?"":"disabled",rep=s.rep==="rep";
+  const r=(name,val,label,cur)=>`<label class="check"><input type="radio" name="${name}" data-sv="${name}" value="${val}" ${cur===val?"checked":""} ${dis}> ${label}</label>`;
+  return `<h3>Получение автомобиля</h3>
+   <div class="field"><label>Кто получает</label><div class="inline">${r("rep","self","Получатель лично",s.rep||"self")}${r("rep","rep","Представитель по доверенности",s.rep||"self")}</div></div>
+   ${rep?`<div class="row2"><div class="field"><label for="rp-fio">ФИО представителя</label><input id="rp-fio" data-sf="repFio" value="${esc(s.repFio||"")}" ${dis}></div>
+     <div class="field"><label for="rp-pass">Паспорт представителя</label><input id="rp-pass" data-sf="repPass" class="mono" placeholder="45 12 654321" value="${esc(s.repPass||"")}" ${dis}></div></div>
+     <div class="row2"><div class="field"><label for="rp-poa">Доверенность №</label><input id="rp-poa" data-sf="poaNo" value="${esc(s.poaNo||"")}" ${dis}></div>
+     <div class="field"><label for="rp-poad">от</label><input id="rp-poad" data-sf="poaDate" placeholder="ДД.ММ.ГГГГ" value="${esc(s.poaDate||"")}" ${dis}></div></div>`
+    :`<div class="muted" style="font-size:13px">Паспорт получателя: <b>${esc(c.fio)}</b>, <span class="mono">${esc(c.ser)} ${esc(c.num)}</span> — сверьте с документом.</div>`}
+   <div class="field"><label>Итог осмотра получателем</label><div class="inline">${r("outcome","ok","Претензий нет",s.outcome)}${r("outcome","remarks","Есть замечания",s.outcome)}</div></div>
+   ${s.outcome==="remarks"?`<div class="field"><label for="rp-rem">Замечания получателя</label><textarea id="rp-rem" data-sf="finalRemarks" rows="2" ${dis}>${esc(s.finalRemarks||"")}</textarea></div>`:""}
+   <div class="muted" style="font-size:12px">Это попадёт в итоговый акт. После подписи «Принял» клиент получает акт в PDF в личном кабинете и ссылку в SMS.</div>`}
+
+/* итоговый акт клиенту при выдаче: реквизиты, все передачи, дефекты, заключение получателя */
+async function renderFinalAct(o){
+  const cps=checkpointsOf(o),c=chainOf(o),cl=clientData(o),fin=secOf(o,"vygruzka"),W=1000,H=1414;
+  const [logo,diag]=await Promise.all([loadImg(LOGO_IMG),loadImg(DIAG_IMG)]);
+  const sigs=await Promise.all(cps.map(cp=>{const s=secOf(o,cp.id);return Promise.all([s.give?loadImg(s.give.img):null,s.take?loadImg(s.take.img):null])}));
+  const page=()=>{const cv=document.createElement("canvas");cv.width=W;cv.height=H;const g=cv.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,W,H);return [cv,g]};
+  const mk=g=>(t,x,y,sz=15,b=false,col="#111")=>{g.fillStyle=col;g.font=(b?"bold ":"")+sz+"px Georgia, 'Times New Roman', serif";g.fillText(t,x,y)};
+  // переносит длинный текст по ширине, возвращает новую высоту
+  const wrap=(g,T,t,x,y,w,sz=14,lh=19)=>{g.font=sz+"px Georgia, serif";let line="";for(const word of String(t).split(" ")){const test=line?line+" "+word:word;if(g.measureText(test).width>w&&line){T(line,x,y,sz);y+=lh;line=word}else line=test}if(line){T(line,x,y,sz);y+=lh}return y};
+  const sigLine=(g,T,img,x,y,name)=>{if(img)g.drawImage(img,x,y,150,50);g.strokeStyle="#999";g.lineWidth=1;g.beginPath();g.moveTo(x,y+54);g.lineTo(x+300,y+54);g.stroke();T("подпись / "+name,x,y+72,12,false,"#555")};
+  const short=n=>{const p=String(n||"").trim().split(/\s+/);return p.length>=3&&p[1].length>1?`${p[0]} ${p[1][0]}. ${p[2][0]}.`:String(n||"")};
+  const pages=[];
+  // стр. 1: стороны, автомобиль, схема и журнал дефектов
+  {const [cv,g]=page(),T=mk(g);if(logo)g.drawImage(logo,W-140,26,100,103);
+    T("АКТ ПРИЁМА – ПЕРЕДАЧИ АВТОМОБИЛЯ",50,62,25,true);T("итоговый, при выдаче получателю",50,88,16,false,"#444");
+    T(`к договору перевозки № ${o.no} от ${o.date} · ${hoOf(o,"vygruzka").place}, ${hoOf(o,"vygruzka").date}`,50,114,15);
+    let y=150;T("Стороны",50,y,17,true);y+=24;
+    y=wrap(g,T,`Перевозчик: ${CARRIER.name}, ИНН ${CARRIER.inn}, тел. ${CARRIER.phone}.`,50,y,900);
+    y=wrap(g,T,`Заказчик: ${cl.fio}, паспорт ${cl.ser} ${cl.num}, выдан ${cl.issued} ${cl.date}, тел. ${cl.phone}.`,50,y,900);
+    y+=10;T("Автомобиль",50,y,17,true);y+=24;
+    y=wrap(g,T,`${o.car} · VIN / кузов ${o.vin} · ${o.year} г. · цвет ${o.color} · гос. номер ${c.car.plate} · ключей ${c.car.keys} · ПТС ${c.car.ptsType} ${c.car.ptsNo||""}${c.car.docs?" · "+c.car.docs:""}`,50,y,900);
+    y=wrap(g,T,`Маршрут: Владивосток → ${o.transfer?o.transfer+" (перегрузка на терминале) → ":""}${o.city}.`,50,y,900);
+    y+=8;
+    if(diag){const dw=520,dh=dw*diag.height/diag.width;g.drawImage(diag,50,y,dw,dh);
+      c.marks.filter(m=>!m.removed).forEach(m=>{const mx=50+m.x*dw,my=y+m.y*dh;g.fillStyle=stageColor(o,m.first);g.beginPath();g.arc(mx,my,14,0,7);g.fill();g.fillStyle="#fff";g.font="bold 12px sans-serif";g.textAlign="center";g.fillText(m.code,mx,my+4);g.textAlign="left"});
+      cps.forEach((cp,i)=>{g.fillStyle=stageColor(o,cp.id);g.beginPath();g.arc(605,y+16+i*24,7,0,7);g.fill();T(`${i+1} · ${STAGES[cp.id].name}`,619,y+21+i*24,14)});
+      y+=dh+24}
+    T("Журнал дефектов",50,y,17,true);y+=22;
+    if(!c.marks.length){T("Дефектов при передачах не отмечено.",50,y,14);y+=20}
+    c.marks.slice(0,14).forEach(m=>{const f=m.history[0],more=m.history.slice(1).map(h=>h.act==="refine"?`эт.${secNum(o,h.st)} ${short(h.who)}: ${h.from}→${h.to}`:h.act==="remove"?`эт.${secNum(o,h.st)} ${short(h.who)}: снята («${h.reason}»)`:"").filter(Boolean).join("; ");
+      y=wrap(g,T,`${m.code} (${DMG_NAME[m.code]}) — ${m.part||"отмечено на схеме"}. Этап ${secNum(o,m.first)} «${STAGES[m.first].name}», ${short(f.who)}, ${f.at}${f.src==="ai"?", по находке ИИ":""}${more?". "+more:""}${m.removed?". СНЯТА":""}`,50,y,900,13,18)});
+    T("стр. 1 из 2",W-130,H-20,11,false,"#666");pages.push(cv.toDataURL("image/jpeg",.88))}
+  // стр. 2: передачи с подписями и получение автомобиля
+  {const [cv,g]=page(),T=mk(g);let y=56;T(`Акт № ${o.no} · передачи и подписи`,50,y,19,true);y+=20;
+    cps.forEach((cp,i)=>{const s=secOf(o,cp.id),[sg,stk]=sigs[i],dl=drvActLine(o,cp.id);
+      g.fillStyle=stageColor(o,cp.id);g.fillRect(50,y+8,5,dl?136:118);
+      T(`${i+1}. ${STAGES[cp.id].name} · ${hoOf(o,cp.id).place} · ${s.closedAt||"не закрыт"}`,64,y+24,14,true);
+      if(dl)T(dl.slice(3,110),64,y+42,12,false,"#444");
+      const yy=y+(dl?50:32);T("Сдал: "+s.giveRole,64,yy+12,12,false,"#555");T("Принял: "+(cp.id==="vygruzka"&&fin.rep==="rep"?"представитель грузополучателя по доверенности":s.takeRole),540,yy+12,12,false,"#555");
+      sigLine(g,T,sg,64,yy+18,short(s.giveName)+(s.give?" · "+s.give.at:s.absent?" · не подписал: "+s.absentReason:""));
+      sigLine(g,T,stk,540,yy+18,short(cp.id==="vygruzka"&&fin.rep==="rep"?fin.repFio:s.takeName)+(s.take?" · "+s.take.at:""));
+      if(s.disagree)T("Сдающая сторона не согласна: "+s.disComment,64,yy+108,12,false,"#9a5b00");
+      y+=(dl?150:132)});
+    y+=10;g.strokeStyle="#111";g.lineWidth=1.5;g.beginPath();g.moveTo(50,y);g.lineTo(W-50,y);g.stroke();y+=30;
+    T("Получение автомобиля",50,y,18,true);y+=26;
+    y=fin.rep==="rep"?wrap(g,T,`Автомобиль получил представитель заказчика ${fin.repFio}, паспорт ${fin.repPass}, по доверенности № ${fin.poaNo}${fin.poaDate?" от "+fin.poaDate:""}.`,50,y,900,15,21)
+      :wrap(g,T,`Автомобиль получил заказчик ${cl.fio}, паспорт ${cl.ser} ${cl.num}, выдан ${cl.issued} ${cl.date}.`,50,y,900,15,21);
+    y+=6;
+    y=fin.outcome==="remarks"?wrap(g,T,`Автомобиль получен с замечаниями: ${String(fin.finalRemarks).trim().replace(/([^.!?])$/,"$1.")}`,50,y,900,15,21)
+      :wrap(g,T,"Автомобиль получен. Состояние соответствует отметкам в акте, комплектность проверена. Претензий к перевозчику нет.",50,y,900,15,21);
+    if(fin.notes)y=wrap(g,T,"Дополнительно: "+fin.notes,50,y+4,900,14,20);
+    y+=24;const [vg,vt]=sigs[cps.length-1];
+    T("Выдал (перевозчик)",50,y,13,false,"#555");T("Получил",540,y,13,false,"#555");
+    sigLine(g,T,vg,50,y+8,short(fin.giveName));sigLine(g,T,vt,540,y+8,short(fin.rep==="rep"?fin.repFio:fin.takeName));
+    T(`Сформировано в системе Brookclean · ${nowStamp()} · фото и видео всех передач хранятся в папке автомобиля`,50,H-40,11,false,"#666");
+    T("стр. 2 из 2",W-130,H-20,11,false,"#666");pages.push(cv.toDataURL("image/jpeg",.88))}
+  return pages;
+}
+// PDF из страниц-картинок: по странице A4 на каждую
+function makePdf(pages){
+  const enc=new TextEncoder(),parts=[],offs=[];let len=0;
+  const push=b=>{const u=typeof b==="string"?enc.encode(b):b;parts.push(u);len+=u.length};
+  const obj=(n,body)=>{offs[n]=len;push(`${n} 0 obj\n`);(Array.isArray(body)?body:[body]).forEach(push);push("\nendobj\n")};
+  push("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
+  const n=pages.length,kids=pages.map((_,i)=>`${3+i*3} 0 R`).join(" ");
+  obj(1,"<< /Type /Catalog /Pages 2 0 R >>");obj(2,`<< /Type /Pages /Kids [${kids}] /Count ${n} >>`);
+  pages.forEach((url,i)=>{const bin=atob(url.split(",")[1]),img=new Uint8Array(bin.length);for(let k=0;k<bin.length;k++)img[k]=bin.charCodeAt(k);
+    const p=3+i*3,draw="q 595.28 0 0 841.89 0 0 cm /Im0 Do Q";
+    obj(p,`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /XObject << /Im0 ${p+1} 0 R >> >> /Contents ${p+2} 0 R >>`);
+    obj(p+1,[`<< /Type /XObject /Subtype /Image /Width 1000 /Height 1414 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${img.length} >>\nstream\n`,img,"\nendstream"]);
+    obj(p+2,`<< /Length ${draw.length} >>\nstream\n${draw}\nendstream`)});
+  const xref=len,total=3+n*3;push(`xref\n0 ${total}\n0000000000 65535 f \n`);
+  for(let k=1;k<total;k++)push(String(offs[k]).padStart(10,"0")+" 00000 n \n");
+  push(`trailer\n<< /Size ${total} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`);
+  return new Blob(parts,{type:"application/pdf"});
+}
 const loadImg=src=>new Promise(ok=>{const i=new Image();i.onload=()=>ok(i);i.onerror=()=>ok(null);i.src=src});
 async function renderChain(o,upto){
   const cps=checkpointsOf(o),last=upto?secNum(o,upto):cps.length,c=chainOf(o),W=1000,H=1414,cv=document.createElement("canvas");cv.width=W;cv.height=H;const g=cv.getContext("2d");
@@ -2474,6 +2584,11 @@ document.addEventListener("click",async e=>{
     t.km=NET[c][1];if(!notLeft(t))t.status="formed";stampPassing(t);t.events.push({t:nowStamp(),city:c,note:t.km===NET[t.origin||"Владивосток"][1]?"Погрузка":me()&&me().role==="driver"?"Отметка водителя":"Отметка менеджера"});render();toast("Позиция "+t.id+" обновлена: "+c)}
   if(act==="auth-mode"){S.auth.mode=a.dataset.mode;S.auth.err="";S.auth.ok="";render()}
   if(act==="lk-go"){go("lk")}
+  if(act==="act-pdf"){const o=S.orders.find(x=>x.no===+a.dataset.no),name=`Акт_${o.no}.pdf`;
+    // в просмотрщике Claude файл отдаётся через подтверждение сохранения, в обычном браузере — ссылкой
+    const dl=window.claude?await window.claude.use("downloads").catch(()=>null):null;
+    if(dl){try{await dl.save({filename:name,data:o.finalAct.blob});toast("Акт сохранён")}catch(e){if(e&&e.code!=="declined")toast("Не удалось сохранить файл")}return}
+    const url=URL.createObjectURL(o.finalAct.blob),ln=document.createElement("a");ln.href=url;ln.download=name;document.body.appendChild(ln);ln.click();ln.remove();setTimeout(()=>URL.revokeObjectURL(url),5000)}
   if(act==="lk-mode"){const L=lkOf();L.mode=a.dataset.mode;L.err="";L.ok="";render()}
   if(act==="lk-code"){const L=lkOf(),d=digits(L.phone);L.err="";L.code="";
     if(d.length!==11){L.err="Номер в формате +7 900 000-00-00";return render()}
@@ -2537,6 +2652,7 @@ document.addEventListener("click",async e=>{
     if(!termSide(o,st,k==="give"?"terminal":"driver")){toast(k==="give"?"«Сдал» подписывает приёмщик терминала":"«Принял» подписывает водитель");return}
     if(act==="sig-ok"&&!(c&&c.dataset.drawn)){toast("Распишитесь в поле");return}
     if(k==="give"&&s.disagree&&!s.disComment.trim()){toast("Укажите, с чем не согласен");return}
+    if(k==="take"&&st==="vygruzka"&&receiptWhy(s)){toast(receiptWhy(s));return}
     s[k]={img:act==="sig-demo"?demoSig(k==="give"?s.giveName:s.takeName):c.toDataURL("image/png"),at:nowStamp(),device:actor().who};
     if(k==="take"){await closeSection(o,st);return}
     render();toast("Подпись «Сдал» сохранена. Теперь подписывает принимающая сторона")}
@@ -2625,12 +2741,13 @@ document.addEventListener("change",e=>{
       (kind==="v"?h.videos:h.photos)[i]={url:URL.createObjectURL(f),name:f.name,type:f.type,file:kind==="p"?f:undefined};
       const o=S.orders.find(x=>x.no===S.ho.no);if(kind==="p"&&angleOf(S.ho.stage,+i)!=null){render();aiCheckPhoto(o,S.ho.stage,+i,f);return}}
     render()}
-  if(S.ho&&(el.dataset.refine||el.dataset.sn||el.dataset.car||el.dataset.sc||el.dataset.sf||el.dataset.sx)){const o=S.orders.find(x=>x.no===S.ho.no),st=S.ho.stage,s=secOf(o,st);
+  if(S.ho&&(el.dataset.refine||el.dataset.sn||el.dataset.car||el.dataset.sc||el.dataset.sf||el.dataset.sx||el.dataset.sv)){const o=S.orders.find(x=>x.no===S.ho.no),st=S.ho.stage,s=secOf(o,st);
     if(el.dataset.refine&&marksEditor(o,st))chainRefine(o,st,+el.dataset.refine,el.value);
     if(el.dataset.sn){s[el.dataset.sn]=el.value.trim();s.named=true;secChanged(o,st)}
     if(el.dataset.car){chainOf(o).car[el.dataset.car]=el.value.trim();secChanged(o,st)}
     if(el.dataset.sc){s.cond[el.dataset.sc]=el.checked;secChanged(o,st)}
-    if(el.dataset.sf){s[el.dataset.sf]=el.value;if(["notes","condOther"].includes(el.dataset.sf))secChanged(o,st)}
+    if(el.dataset.sf){s[el.dataset.sf]=el.value;if(["notes","condOther","repFio","repPass","poaNo","poaDate","finalRemarks"].includes(el.dataset.sf))secChanged(o,st)}
+    if(el.dataset.sv){s[el.dataset.sv]=el.value;secChanged(o,st)}
     if(el.dataset.sx){s[el.dataset.sx]=el.checked}
     render()}
   if(el.id==="rep-trip"){S.report.trip=el.value;S.rx={status:"idle"};S.lastDel=null;render()}
