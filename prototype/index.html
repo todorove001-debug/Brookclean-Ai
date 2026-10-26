@@ -508,7 +508,14 @@ function noteFor(){
     terminal:"<b>Кабинет приёмщика терминала:</b> машины, которые едут на перегрузку, приём с осмотром и площадка до отправки дальше.",
     driver:"<b>Кабинет водителя.</b> Главный документ — рейсовый отчёт: чеки, аванс, пробег. Водитель сдаёт его менеджеру на проверку."}[u.role]||"";
 }
+// экран перерисовывается целиком: прокрутку таблиц и лент вкладок сохраняем, пока остаёмся на том же экране
 function render(){
+  const screen=()=>[S.site,S.view,S.sub,S.delivTrip,S.ho&&S.ho.no,S.ho&&S.ho.stage,S.mgrHo&&S.mgrHo.no].join("|");
+  const keep=screen()===render.key?[...document.querySelectorAll(".tablewrap,.subnav,.tabs")].map(el=>[el.scrollLeft,el.scrollTop]):null;
+  renderView();render.key=screen();
+  if(keep)document.querySelectorAll(".tablewrap,.subnav,.tabs").forEach((el,i)=>{if(keep[i]){el.scrollLeft=keep[i][0];el.scrollTop=keep[i][1]}});
+}
+function renderView(){
   const u=me();
   const staff=S.site==="staff";
   $("#sitebar").innerHTML=`<span>Демо · адрес сайта:</span><span class="addr" role="group" aria-label="Сайт">${[["client",CLIENT_HOST,"для клиентов и партнёров"],["staff",STAFF_HOST,"для сотрудников"]]
