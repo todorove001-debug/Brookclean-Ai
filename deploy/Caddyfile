@@ -1,0 +1,8 @@
+{$DOMAIN} {
+	encode gzip
+	# видео с телефона бывают большими
+	request_body {
+		max_size 600MB
+	}
+	reverse_proxy api:3000
+}

@@ -5,7 +5,8 @@ import path from "node:path";
 import { buildApp } from "../src/app.js";
 import { createPool } from "../src/db/pool.js";
 import { migrate } from "../src/db/migrate.js";
-import { LocalStorage } from "../src/storage/index.js";
+import S3rver from "s3rver";
+import { LocalStorage, S3Storage, type Storage } from "../src/storage/index.js";
 import { ConsoleSms } from "../src/services/sms.js";
 import { hashPassword } from "../src/services/auth.js";
 
@@ -18,7 +19,15 @@ export async function setup() {
   await migrate(pool, () => {});
   const sms = new ConsoleSms();
   sms.send = async (phone, text) => { sms.sent.push({ phone, text }); };
-  const app = await buildApp({ pool, storage: new LocalStorage(await mkdtemp(path.join(tmpdir(), "bc-"))), sms });
+  // TEST_STORAGE=s3 — весь путь машины через S3 (локальный s3rver), как на сервере Reg.ru
+  let storage: Storage = new LocalStorage(await mkdtemp(path.join(tmpdir(), "bc-"))), s3srv: any = null;
+  if (process.env.TEST_STORAGE === "s3") {
+    s3srv = new S3rver({ port: 0, address: "127.0.0.1", silent: true, directory: await mkdtemp(path.join(tmpdir(), "bc-s3-")), configureBuckets: [{ name: "brookclean", configs: [] }] });
+    const { port } = await s3srv.run();
+    storage = new S3Storage({ endpoint: `http://127.0.0.1:${port}`, region: "ru-1", bucket: "brookclean", accessKeyId: "S3RVER", secretAccessKey: "S3RVER", forcePathStyle: true });
+  }
+  const app = await buildApp({ pool, storage, sms });
+  app.addHook("onClose", async () => { await s3srv?.close(); });
   return { pool, app, sms };
 }
 

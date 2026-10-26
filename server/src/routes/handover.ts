@@ -73,7 +73,7 @@ export default async function (app: FastifyInstance) {
     const base = `${carFolder(s.row, new Date(s.row.created_at).getFullYear())}/${stageFolder(stageNum(s.ctx, s.st), s.st, started, s.stage.place)}`;
     const title = shot ? shot.title : vid!.title;
     const key = mediaKey(base, f.kind, f.slot, title, extOf(file.mimetype, file.filename, f.kind === "photo" ? "jpg" : "mp4"), randomBytes(3).toString("hex"));
-    const { size } = await storage.put(key, file.file);
+    const { size } = await storage.put(key, file.file, file.mimetype);
     if (file.file.truncated) { await storage.remove(key); throw bad("Файл больше допустимого размера"); }
     const a = actorOf(u, s);
     const m = await tx(pool, async (c) => {
@@ -257,7 +257,7 @@ export default async function (app: FastifyInstance) {
     const png = Buffer.from(b.image.split(",")[1], "base64");
     const base = `${carFolder(s.row, new Date(s.row.created_at).getFullYear())}/${stageFolder(stageNum(s.ctx, s.st), s.st, new Date(s.stage.started_at), s.stage.place)}`;
     const key = mediaKey(base, "signature", b.side === "give" ? 0 : 1, b.side === "give" ? "Сдал" : "Принял", "png", randomBytes(3).toString("hex"));
-    await storage.put(key, png);
+    await storage.put(key, png, "image/png");
     return tx(pool, async (c) => {
       const m = await one(c, `insert into media(order_no, stage, kind, slot, storage_key, mime, size, uploaded_by, uploaded_as) values ($1,$2,'signature',$3,$4,'image/png',$5,$6,$7) returning id`,
         [p.no, s.st, b.side === "give" ? 0 : 1, key, png.length, u.id, b.side === "give" ? sec.give_name : sec.take_name]);
