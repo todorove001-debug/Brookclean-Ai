@@ -369,6 +369,14 @@ table.exp{border-collapse:collapse;font-size:13px;width:100%;min-width:720px}
 .pm-file{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--line);padding-top:8px}
 .pm-file .subtab[aria-pressed="true"]{background:var(--route-soft);color:var(--route);border-color:var(--route)}
 .pm-wide{display:flex;flex-direction:column;gap:14px;max-width:1200px;width:100%;margin:0 auto}
+.cp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+.cp-card{border:1px solid var(--line);border-radius:8px;background:var(--paper);display:flex;flex-direction:column}
+.cp-card.cur{border-color:var(--route);box-shadow:0 0 0 2px var(--route-soft)}
+.cp-main{display:flex;flex-direction:column;gap:4px;text-align:left;background:none;border:0;padding:10px 12px;cursor:pointer;font:inherit;color:inherit}
+.cp-top{display:flex;justify-content:space-between;gap:6px;align-items:flex-start;flex-wrap:wrap}
+.cp-veh{font-size:13px}.cp-veh .mono{font-family:var(--f-mono);font-weight:600}
+.cp-meta{font-size:12px}
+.cp-acts{padding:0 12px 10px;gap:6px}
 .pm details summary{cursor:pointer;min-height:32px;display:flex;align-items:center}
 </style>
 
@@ -416,7 +424,7 @@ const KM_PER_DAY = 600;
 
 /* ===== Состояние ===== */
 const S = {
-  view:"client", step:0, nextNo:687, termIn:[], companies:[], drvTab:"drivers", compOpen:null, drivers:[], drvOpen:null, termPays:[], lastTp:null, trPrice:{date:"15.09.2026",rows:{"Сочи":[90000,95000,100000,105000],"Краснодар":[60000,65000,70000,75000],"Ростов-на-Дону":[60000,65000,70000,75000],"Волгоград":[60000,65000,70000,75000],"Воронеж":[60000,65000,70000,75000],"Саратов":[60000,65000,70000,75000],"Архангельск":[150000,155000,160000,165000],"Петрозаводск":[100000,100000,105000,110000],"Санкт-Петербург":[60000,65000,70000,75000],"Москва":[45000,50000,55000,60000],"Владимир":[45000,50000,55000,60000],"Рязань":[50000,55000,60000,65000],"Нижний Новгород":[45000,50000,55000,60000],"Пенза":[50000,55000,60000,65000],"Чебоксары":[45000,50000,55000,60000],"Казань":[45000,50000,55000,60000],"Ульяновск":[45000,50000,55000,60000],"Киров":[45000,50000,55000,60000],"Набережные Челны":[45000,50000,55000,60000],"Ижевск":[45000,50000,55000,60000],"Пермь":[45000,50000,55000,60000],"Новый Уренгой":[85000,85000,90000,95000],"Нижневартовск":[75000,75000,80000,85000],"Ханты-Мансийск":[75000,75000,80000,85000],"Сургут":[55000,58000,60000,65000],"Екатеринбург":[30000,30000,35000,35000],"Тюмень":[30000,30000,35000,35000],"Оренбург":[55000,55000,60000,65000],"Тольятти":[30000,30000,35000,40000],"Самара":[30000,30000,35000,40000],"Уфа":[30000,30000,35000,40000],"Челябинск":[30000,30000,35000,40000],"Курган":[30000,30000,35000,40000],"Омск":[15000,15000,18000,22000],"Барнаул":[27000,27000,27000,27000]}}, settings:{termOutRule:"byStay",directWaitDays:5,permitLead:7,kmDay:500}, permits:[], pm:null, partner:null, cashback:0, partnerLink:null,
+  view:"client", step:0, nextNo:687, termIn:[], companies:[], drvTab:"drivers", compOpen:null, drivers:[], drvOpen:null, termPays:[], lastTp:null, trPrice:{date:"15.09.2026",rows:{"Сочи":[90000,95000,100000,105000],"Краснодар":[60000,65000,70000,75000],"Ростов-на-Дону":[60000,65000,70000,75000],"Волгоград":[60000,65000,70000,75000],"Воронеж":[60000,65000,70000,75000],"Саратов":[60000,65000,70000,75000],"Архангельск":[150000,155000,160000,165000],"Петрозаводск":[100000,100000,105000,110000],"Санкт-Петербург":[60000,65000,70000,75000],"Москва":[45000,50000,55000,60000],"Владимир":[45000,50000,55000,60000],"Рязань":[50000,55000,60000,65000],"Нижний Новгород":[45000,50000,55000,60000],"Пенза":[50000,55000,60000,65000],"Чебоксары":[45000,50000,55000,60000],"Казань":[45000,50000,55000,60000],"Ульяновск":[45000,50000,55000,60000],"Киров":[45000,50000,55000,60000],"Набережные Челны":[45000,50000,55000,60000],"Ижевск":[45000,50000,55000,60000],"Пермь":[45000,50000,55000,60000],"Новый Уренгой":[85000,85000,90000,95000],"Нижневартовск":[75000,75000,80000,85000],"Ханты-Мансийск":[75000,75000,80000,85000],"Сургут":[55000,58000,60000,65000],"Екатеринбург":[30000,30000,35000,35000],"Тюмень":[30000,30000,35000,35000],"Оренбург":[55000,55000,60000,65000],"Тольятти":[30000,30000,35000,40000],"Самара":[30000,30000,35000,40000],"Уфа":[30000,30000,35000,40000],"Челябинск":[30000,30000,35000,40000],"Курган":[30000,30000,35000,40000],"Омск":[15000,15000,18000,22000],"Барнаул":[27000,27000,27000,27000]}}, settings:{termOutRule:"byStay",directWaitDays:5,permitLead:7,kmDay:500}, permits:[], pm:null, fleet:null, partner:null, cashback:0, partnerLink:null,
   f:{car:"Toyota Prius",vin:"ZVW51-6123456",year:"2021",color:"Белый",body:"sedan",value:"1600000",city:"Новосибирск",
      fio:"Иванов Пётр Сергеевич",phone:"+7 913 555 12 34",pser:"5012",pnum:"345678",pissued:"ГУ МВД России по Новосибирской обл.",pdate:"2019-06-14",addr:"г. Новосибирск, ул. Кирова, д. 10, кв. 5"},
   example:true, errs:{}, agree:{contract:false,pep:false,pd:false},
@@ -1045,7 +1053,7 @@ const permPlateOf=p=>{const m=/([А-ЯA-Z]\s?\d{3}\s?[А-ЯA-Z]{2}\s?\d{2,3})\s*
 // маршруты: разрешения одного тягача и одного направления по коридору, по порядку; между ними — разрывы
 function permRoutes(list){
   const by=new Map();
-  for(const p of list){if(!p.start||!p.end)continue;const a=corrIdx(p.start),b=corrIdx(p.end),dir=b.i>=a.i?1:-1,key=permPlateOf(p)+"|"+dir;
+  for(const p of list){if(!p.start||!p.end)continue;const a=corrIdx(p.start),b=corrIdx(p.end),dir=b.i>=a.i?1:-1,key=permPlateOf(p)+"|"+permTrailerOf(p)+"|"+dir;
     if(!by.has(key))by.set(key,{key,dir,plate:permPlateOf(p),items:[]});by.get(key).items.push({p,si:a.i,ei:b.i})}
   const out=[];
   for(const r of by.values()){r.items.sort((x,y)=>r.dir*(x.si-y.si)||pmDate(x.p.from)-pmDate(y.p.from));
@@ -1159,7 +1167,7 @@ async function permUpload(files){
     try{const r=await permRead(f),fresh=r.items.filter(p=>p.no&&!have.has(p.no));
       if(!r.items.length){toast(f.name+": не похоже на выписку из реестра спецразрешений");continue}
       if(!fresh.length){toast(f.name+": эти разрешения уже загружены");continue}
-      fresh.forEach(p=>have.add(p.no));
+      fresh.forEach(p=>{have.add(p.no);const rp=permTrailerOf(p);if(rp&&p.trailer&&!S.fleet.trailers.some(r=>pmPlate(r.plate)===rp)){const m=/^(.*)\s+(\S+)$/.exec(p.trailer.model);S.fleet.trailers.push({id:"r"+Date.now()+S.fleet.trailers.length,model:m?m[1]:p.trailer.model,plate:m?m[2]:""})}});
       S.permits.push({id:"u"+Date.now()+added,name:f.name,pages:r.n,items:fresh,at:nowStamp(),by:u?u.short||u.name:"",blob:f,main:true,renew:null});added+=fresh.length}
     catch(e){toast(f.name+": не удалось прочитать ("+(e&&e.message||"ошибка")+")")}
   }
@@ -1232,7 +1240,7 @@ function permFiles(){const del=S.pm.del;
   return `<section class="card"><div class="inline" style="justify-content:space-between"><h2>Файлы разрешений</h2>
       <label class="btn sm primary filelabel" for="pm-file">${S.pm.busy?"Читаю PDF…":"Загрузить PDF"}</label><input type="file" id="pm-file" class="sr" accept="application/pdf,.pdf" multiple></div>
     <p class="muted" style="margin:0">Каждое разрешение — отдельный файл; в одном файле может быть несколько выписок по одному маршруту. Номер, срок, тягач, маршрут и особые условия считываются из PDF.</p>
-    <div class="pm-files">${S.permits.map(f=>`<div class="pm-file"><div><b>${esc(f.name)}</b><div class="muted">${f.items.map(p=>"№ "+esc(pmShort(p.no))+" · "+esc(p.from)+"—"+esc(p.to)).join("; ")} · загружен ${esc(f.at)}${f.by?" · "+esc(f.by):""}</div></div>
+    <div class="pm-files">${S.permits.map(f=>`<div class="pm-file"><div><b>${esc(f.name)}</b><div class="muted">${f.items.map(p=>{const c=S.fleet.couplings.find(c=>{const t=fTr(c.tractor),r=fRt(c.trailer);return t&&r&&pmPlate(t.plate)===permPlateOf(p)&&pmPlate(r.plate)===permTrailerOf(p)});return "№ "+esc(pmShort(p.no))+" · "+esc(p.from)+"—"+esc(p.to)+" · "+(c?cpName(c):"нет такой сцепки: "+esc((p.tractor?p.tractor.model:"")+" + "+(p.trailer?p.trailer.model:"")))}).join("; ")} · загружен ${esc(f.at)}${f.by?" · "+esc(f.by):""}</div></div>
       <div class="inline">
         <button class="subtab" data-act="pm-main" data-id="${esc(f.id)}" aria-pressed="${!!f.main}">${f.main?"★ Основной маршрут":"☆ Основной"}</button>
         <button class="subtab" data-act="pm-renew" data-id="${esc(f.id)}" aria-pressed="${!!f.renew}">${f.renew?"Подали на новое "+esc(f.renew):"Отметить: подали на новое"}</button>
@@ -1242,18 +1250,102 @@ function permFiles(){const del=S.pm.del;
 function permTripCheck(t,route){if(!t||!route||!route.to)return "";const m=/^(\d{1,2})\.(\d{1,2})$/.exec(t.loadDate||"");if(!m)return "";
   const y=pmToday().getFullYear(),dep=new Date(y,+m[2]-1,+m[1]),dist=Math.max(0,(NET[t.dest]||[0,0])[1]-(NET[t.origin||"Владивосток"]||[0,0])[1]),days=Math.ceil(dist/(S.settings.kmDay||500)),eta=pmAdd(dep,days);
   const ok=eta<=route.to;return `<div class="callout ${ok?"ok":"err"}">Рейс ${esc(t.id)}: выезд ${pmFmt(dep)}, ${esc(t.origin||"Владивосток")} → ${esc(t.dest)} ≈ ${km(dist)} км, прибытие ≈ ${pmFmt(eta)}. ${ok?`Разрешения действуют до ${pmFmt(route.to)} — успеваете с запасом ${pmDays(eta,route.to)} ${dn(pmDays(eta,route.to))}.`:`Разрешения заканчиваются ${pmFmt(route.to)} — раньше прибытия. Сообщите менеджеру.`}</div>`}
+/* --- Сцепки: тягач + прицеп. Разрешение выдаётся на сцепку: сменили прицеп — нужно новое разрешение --- */
+// парк собран по рейсовым таблицам (май — октябрь 2026)
+const FLEET_DEMO={
+  tractors:[{id:"t1",model:"SITRAK C7H MAX",plate:"Р668ХК125"},{id:"t2",model:"SITRAK C7H MAX",plate:"Е226ТН125"},{id:"t3",model:"SITRAK C7H MAX",plate:"Р309СХ125"},
+    {id:"t4",model:"SITRAK C7H MAX",plate:"К649СХ125"},{id:"t5",model:"Mercedes-Benz Axor 1840 LS",plate:"К987СУ125"}],
+  trailers:[{id:"r1",model:"WARWICK XIANGYUN CYX9252TCC",plate:"03АNW05"},{id:"r2",model:"LUXUDA LZC9407BG",plate:"ОО534425"},{id:"r3",model:"LUXUDA LZC9407BG",plate:"ОО543325"},
+    {id:"r4",model:"LUXUDA LZC9405BG",plate:"АО132325"},{id:"r5",model:"LUXUDA LZC9405BG",plate:"АО214825"},{id:"r6",model:"LUXUDA LZC9407BG",plate:"ОО564225"}],
+  couplings:[{id:1,tractor:"t1",trailer:"r1",driver:"u2"},{id:2,tractor:"t2",trailer:"r2",driver:"u3"},{id:3,tractor:"t3",trailer:"r3",driver:"h2"},
+    {id:4,tractor:"t4",trailer:"r4",driver:null},{id:5,tractor:"t5",trailer:"r5",driver:null}]
+};
+const fTr=id=>S.fleet.tractors.find(x=>x.id===id),fRt=id=>S.fleet.trailers.find(x=>x.id===id);
+const permTrailerOf=p=>{const m=/(\S+)\s*$/.exec(p.trailer&&p.trailer.model||"");return m?pmPlate(m[1]):""};
+const cpName=c=>"Сцепка "+c.id;
+const cpLine=c=>{const t=fTr(c.tractor),r=fRt(c.trailer);return `${t?t.model+" "+t.plate:"—"} + ${r?r.model+" "+r.plate:"без прицепа"}`};
+// разрешения на тягач сцепки: действующие (на текущий прицеп) и выданные на другой прицеп
+function cpPermits(c){const t=fTr(c.tractor),r=fRt(c.trailer),tp=t?pmPlate(t.plate):"",rp=r?pmPlate(r.plate):"";
+  const all=permAll().filter(p=>permPlateOf(p)===tp);return {ok:all.filter(p=>permTrailerOf(p)===rp),other:all.filter(p=>permTrailerOf(p)!==rp)}}
+function cpState(c){const {ok,other}=cpPermits(c),last=c.history&&c.history[c.history.length-1];
+  if(!ok.length){if(c.renew)return {k:"warn",l:"Новое разрешение оформляется с "+c.renew};
+    if(other.length||last)return {k:"err",l:last?`Прицеп заменён ${last.at.slice(0,5)} — нужно новое разрешение`:"Нет разрешения на этот прицеп"};
+    return {k:"gray",l:"Разрешений нет"}}
+  const w=ok.map(permState).sort((a,b)=>a.left-b.left)[0];return {...w,to:w.to}}
+function fleetSeed(){
+  S.fleet=JSON.parse(JSON.stringify(FLEET_DEMO));S.fleet.couplings.forEach(c=>{c.history=[];c.renew=null});
+  S.fleet.couplings.forEach(cpSyncDriver);
+}
+// карточка водителя и его рейсы, которые ещё не выехали, получают сцепку
+function cpSyncDriver(c){const d=c.driver&&S.drivers.find(x=>x.id===c.driver);if(!d)return;const t=fTr(c.tractor),r=fRt(c.trailer);
+  d.tractor={model:t?t.model:"",plate:t?t.plate:""};d.trailer={model:r?r.model:"",plate:r?r.plate:""};syncTrips(d)}
+function cpOfDriver(uid){const d=S.drivers.find(x=>x.userId===uid);return d&&S.fleet.couplings.find(c=>c.driver===d.id)}
+// что изменится при смене прицепа: какие разрешения перестанут действовать у этой и соседней сцепки
+function cpChangeImpact(c,rid){const from=S.fleet.couplings.find(x=>x.trailer===rid&&x.id!==c.id),res=[];
+  const lose=cpPermits(c).ok;if(lose.length)res.push({c,lose});
+  if(from){const l2=cpPermits(from).ok;if(l2.length)res.push({c:from,lose:l2})}
+  const tp=pmPlate(fTr(c.tractor).plate),rp=pmPlate(fRt(rid).plate),gain=permAll().filter(p=>permPlateOf(p)===tp&&permTrailerOf(p)===rp);
+  return {from,res,gain}}
+function cpChange(c,rid,by){const from=S.fleet.couplings.find(x=>x.trailer===rid&&x.id!==c.id),old=c.trailer,at=nowStamp()+"."+pmToday().getFullYear();
+  if(from){from.trailer=old;from.history.push({at,from:rid,to:old,by});from.renew=null;cpSyncDriver(from)}
+  c.trailer=rid;c.history.push({at,from:old,to:rid,by});c.renew=null;cpSyncDriver(c)}
+function vCouplings(mgr,selId){
+  const drivers=S.drivers.filter(d=>d.own);
+  const card=c=>{const st=cpState(c),t=fTr(c.tractor),r=fRt(c.trailer),d=c.driver&&S.drivers.find(x=>x.id===c.driver),{ok,other}=cpPermits(c),cur=selId===c.id;
+    return `<div class="cp-card${cur?" cur":""}">
+      <button class="cp-main" data-act="cp-sel" data-id="${c.id}" aria-pressed="${cur}">
+        <span class="cp-top"><b>${cpName(c)}</b><span class="pill ${st.k}">${esc(st.l)}</span></span>
+        <span class="cp-veh"><span class="mono">${esc(t?t.plate:"—")}</span> ${esc(t?t.model:"")}</span>
+        <span class="cp-veh"><span class="mono">${esc(r?r.plate:"—")}</span> ${esc(r?r.model:"без прицепа")}</span>
+        <span class="muted cp-meta">${d?esc(drvShort(d)):"водитель не назначен"} · ${ok.length?`${ok.length} ${ok.length===1?"разрешение":ok.length<5?"разрешения":"разрешений"} до ${pmFmt(st.to)}`:"нет действующих разрешений"}${other.length?` · ${other.length} на другой прицеп`:""}</span>
+      </button>
+      ${mgr?`<div class="inline cp-acts"><button class="btn sm ghost" data-act="cp-chg" data-id="${c.id}">Сменить прицеп</button>
+        ${!ok.length&&(other.length||c.history.length)?`<button class="subtab" data-act="cp-renew" data-id="${c.id}" aria-pressed="${!!c.renew}">${c.renew?"Подали на новое "+esc(c.renew):"Отметить: подали на новое"}</button>`:""}</div>`:""}
+    </div>`};
+  const chg=mgr&&S.pm.chg&&S.fleet.couplings.find(c=>c.id===S.pm.chg);
+  let panel="";
+  if(chg){const rid=S.pm.chgTo&&S.pm.chgTo!==chg.trailer?S.pm.chgTo:null,imp=rid&&cpChangeImpact(chg,rid),nr=S.pm.newTr||{model:"",plate:""};
+    const where=r=>{const on=S.fleet.couplings.find(x=>x.trailer===r.id);return on?(on.id===chg.id?"сейчас на этой сцепке":"на сцепке "+on.id+" — поменяются местами"):"свободен"};
+    panel=`<section class="card cp-panel" aria-label="Смена прицепа">
+      <div class="inline" style="justify-content:space-between"><h2>${cpName(chg)}: смена прицепа</h2><button class="btn sm ghost" data-act="cp-chg-no">Отмена</button></div>
+      <div class="muted">Сейчас: ${esc(cpLine(chg))}</div>
+      <div class="field"><label for="cp-to">Новый прицеп</label><select id="cp-to" data-cpto="1"><option value="">— выберите —</option>${S.fleet.trailers.map(r=>`<option value="${r.id}" ${r.id===S.pm.chgTo?"selected":""} ${r.id===chg.trailer?"disabled":""}>${esc(r.plate)} · ${esc(r.model)} · ${esc(where(r))}</option>`).join("")}</select></div>
+      <details ${S.pm.addOpen?"open":""}><summary data-act="cp-add-toggle">+ Прицепа нет в списке</summary><div class="row2" style="margin-top:8px">
+        <div class="field"><label for="cp-nm">Марка, модель</label><input id="cp-nm" data-cpnew="model" value="${esc(nr.model)}" placeholder="LUXUDA LZC9407BG"></div>
+        <div class="field"><label for="cp-np">Госномер</label><input id="cp-np" data-cpnew="plate" value="${esc(nr.plate)}" placeholder="ОО 0000 25"></div></div>
+        <button class="btn sm dark" data-act="cp-add-tr">Добавить прицеп</button></details>
+      ${imp?`<div class="callout ${imp.res.length?"err":"warn"}">${imp.res.map(x=>`<p style="margin:0 0 6px"><b>${cpName(x.c)}</b>: перестанут действовать ${x.lose.length} ${x.lose.length===1?"разрешение":x.lose.length<5?"разрешения":"разрешений"} (№ ${x.lose.map(p=>esc(pmShort(p.no))).join(", ")}) — они выданы на прицеп ${esc(fRt(x.c.trailer).plate)}.</p>`).join("")}
+        ${imp.gain.length?`<p style="margin:0">На новую сцепку уже есть ${imp.gain.length} разрешений — они снова начнут действовать.</p>`:`<p style="margin:0"><b>На новую сцепку разрешения нет.</b> Подайте на новое: оформление 5–7 дней, до его получения ехать по маршруту с этим прицепом нельзя.</p>`}</div>
+        <button class="btn primary" data-act="cp-chg-yes">Сменить прицеп</button>`:""}
+    </section>`}
+  const sel=selId&&S.fleet.couplings.find(c=>c.id===selId);
+  const hist=sel&&sel.history.length?`<details><summary><b>История прицепов сцепки ${sel.id}</b> · ${sel.history.length}</summary><ul class="pm-conds">${sel.history.slice().reverse().map(h=>`<li><span>${esc(h.at)}: ${esc(fRt(h.from)?fRt(h.from).plate:"—")} → <b>${esc(fRt(h.to)?fRt(h.to).plate:"—")}</b></span><small class="muted">${esc(h.by||"")}</small></li>`).join("")}</ul></details>`:"";
+  const drvSel=mgr&&sel?`<div class="field" style="max-width:360px"><label for="cp-drv">Водитель сцепки ${sel.id}</label><select id="cp-drv" data-cpdrv="${sel.id}"><option value="">— не назначен —</option>${drivers.map(d=>{const on=S.fleet.couplings.find(x=>x.driver===d.id);return `<option value="${d.id}" ${d.id===sel.driver?"selected":""}>${esc(d.name)}${on&&on.id!==sel.id?" · сейчас на сцепке "+on.id:""}</option>`}).join("")}</select></div>`:"";
+  return `<section class="card"><div class="inline" style="justify-content:space-between"><h2>Сцепки</h2><span class="muted">разрешение выдаётся на тягач и прицеп вместе</span></div>
+    <div class="cp-grid">${S.fleet.couplings.map(card).join("")}</div>${drvSel}${hist}</section>${panel}`;
+}
+
 function vPermits(){
   const u=me(),mgr=u.role==="manager";S.pm=S.pm||{route:null,sel:null,del:null,busy:false};
-  let list=permAll(),truck=null,trip=null;
-  if(!mgr){trip=S.trips.find(x=>x.driverId===u.id);const d=S.drivers.find(x=>x.userId===u.id);truck=pmPlate((d&&d.tractor.plate)||(trip&&trip.truck.split("·").pop())||"");list=list.filter(p=>permPlateOf(p)===truck)}
+  let trip=null,cp=null;
+  if(mgr)cp=S.fleet.couplings.find(c=>c.id===S.pm.cp)||S.fleet.couplings[0];
+  else{trip=S.trips.find(x=>x.driverId===u.id);cp=cpOfDriver(u.id)}
+  if(mgr&&cp)S.pm.cp=cp.id;
+  const wrap=mgr?"pm pm-wide":"col pm",cps=mgr?vCouplings(true,cp&&cp.id):"";
+  if(!cp)return `<div class="${wrap}">${cps}<section class="card"><h2>Разрешения</h2><p class="muted">Вы не закреплены за сцепкой. Менеджер назначит вас в разделе «Разрешения».</p></section></div>`;
+  const cpp=cpPermits(cp),cst=cpState(cp),list=cpp.ok;
+  const cpHead=!mgr?`<section class="card"><div class="inline" style="justify-content:space-between;align-items:flex-start"><div><h2>${cpName(cp)}</h2><div class="muted">${esc(cpLine(cp))}</div></div><span class="pill ${cst.k}">${esc(cst.l)}</span></div>
+    ${!list.length&&(cpp.other.length||cp.history.length)?`<div class="callout err">На текущий прицеп ${esc(fRt(cp.trailer)?fRt(cp.trailer).plate:"")} разрешения нет. Разрешения выдаются на сцепку целиком: после смены прицепа нужно новое. Уточните у менеджера, когда оно будет.</div>`:""}</section>`:"";
+  const otherBlk=cpp.other.length?`<section class="card"><h2>Выданы на другой прицеп</h2><p class="muted" style="margin:0">Для сцепки ${cp.id} с прицепом ${esc(fRt(cp.trailer)?fRt(cp.trailer).plate:"—")} не действуют. Снова начнут действовать, если вернуть прицеп.</p>
+    <ul class="pm-conds">${cpp.other.map(p=>`<li><span>№ ${esc(pmShort(p.no))} · ${esc(permPlace(p.start))} → ${esc(permPlace(p.end))} · ${esc(p.from)}—${esc(p.to)}</span><small class="muted">прицеп ${esc(p.trailer?p.trailer.model:"—")}</small></li>`).join("")}</ul></section>`:"";
   const routes=permRoutes(list);
-  if(!routes.length)return `<div class="col">${mgr?permFiles():""}<section class="card"><h2>Разрешения</h2><p class="muted">${mgr?"Загрузите PDF выписок из реестра спецразрешений.":"Для вашего тягача разрешений пока нет. Менеджер добавит их сюда."}</p></section></div>`;
+  if(!routes.length)return `<div class="${wrap}">${cps}${cpHead}<section class="card"><h2>Разрешения сцепки ${cp.id}</h2><p class="muted" style="margin:0">${esc(cpLine(cp))}</p><div class="callout ${cst.k==="gray"?"info":cst.k}">${esc(cst.l)}. ${mgr?"Загрузите PDF выписок, выданных на эту сцепку.":"Менеджер добавит разрешения сюда."}</div></section>${otherBlk}${mgr?permFiles():""}</div>`;
   let r=routes.find(x=>x.id===S.pm.route)||(trip&&routes.find(x=>x.name.startsWith(trip.origin||"Владивосток")))||routes[0];S.pm.route=r.id;
   const items=r.legs.filter(l=>!l.gap).map(l=>l.p),sel=items.some(p=>p.no===S.pm.sel)?S.pm.sel:null,selP=items.find(p=>p.no===sel);
   const worst=items.map(permState).sort((a,b)=>a.left-b.left)[0],lead=S.settings.permitLead||7,kd=S.settings.kmDay||500;
   const drive=Math.ceil((r.km+r.gaps.reduce((s,g)=>s+g.km,0))/kd),lastDep=pmAdd(r.to,-drive);
   const head=`<section class="card pm-head">
-    <div class="inline" style="justify-content:space-between;align-items:flex-start"><div><h2>${esc(r.name)}${r.main?` <span class="pill info">основной маршрут</span>`:""}</h2>
+    <div class="inline" style="justify-content:space-between;align-items:flex-start"><div><small class="muted">${cpName(cp)}</small><h2>${esc(r.name)}${r.main?` <span class="pill info">основной маршрут</span>`:""}</h2>
       <div class="muted">${items.length} ${items.length===1?"разрешение":items.length<5?"разрешения":"разрешений"} · ${km(r.km)} км по разрешениям · тягач ${esc(items[0].tractor?items[0].tractor.model:"—")}</div></div>
       <span class="pill ${worst.k}">${esc(worst.l)}</span></div>
     <div class="pm-validity"><div><small class="muted">Маршрут открыт, пока действуют все разрешения</small><div class="pm-big">${pmFmt(r.from)} <span class="muted">—</span> ${pmFmt(r.to)}</div></div>
@@ -1271,15 +1363,15 @@ function vPermits(){
   const memo=!mgr?(()=>{const seen=new Map();items.forEach(p=>p.conds.filter(c=>PM_KEY.test(c.t)).forEach(c=>{if(!seen.has(c.t))seen.set(c.t,new Set());c.roads.forEach(x=>seen.get(c.t).add(x))}));
     const lim=items.map(p=>`<li><span>${esc(permPlace(p.start))} → ${esc(permPlace(p.end))}: масса с грузом не более <b>${p.mass?String(p.mass[1]).replace(".",","):"—"} т</b>, габариты ${p.dims?esc(p.dims.join(" × ")):"—"} м, скорость до ${esc(String(p.speed).replace(/\.0$/,""))} км/ч</span></li>`).join("");
     return `<section class="card"><h2>Памятка в пути</h2><ul class="pm-conds key">${lim}${[...seen].map(([t,rs])=>`<li><span>${esc(t)}</span><small class="muted">${esc([...rs].join(", "))}</small></li>`).join("")}</ul></section>`})():"";
-  return `<div class="${mgr?"pm pm-wide":"col pm"}">${tabs}${head}
+  return `<div class="${wrap}">${cps}${cpHead}${tabs}${head}
     <section class="card pm-mapcard"><div class="inline" style="justify-content:space-between"><h2>Маршрут на карте</h2>${sel?`<button class="btn sm ghost" data-act="pm-sel" data-no="">Весь маршрут</button>`:""}</div>
       ${permMap(r,sel,mgr?1150:430)}
       <div class="pm-legend muted"><span><i class="lg on"></i>${sel?"выбранное разрешение":"по разрешениям"}</span>${sel?`<span><i class="lg off"></i>другие разрешения маршрута</span>`:""}${r.gaps.length?`<span><i class="lg gap"></i>не покрыто разрешением</span>`:""}<span><i class="lg dot s"></i>начало</span><span><i class="lg dot e"></i>конец</span></div>
       <div class="pm-legs">${legs}</div></section>
     ${selP?permDetail(selP,mgr):`<p class="muted" style="margin:0">Нажмите на разрешение, чтобы увидеть его на карте, дороги и особые условия.</p>`}
-    ${memo}${mgr?permFiles():""}</div>`;
+    ${memo}${otherBlk}${mgr?permFiles():""}</div>`;
 }
-function permBadge(){return permAll().filter(p=>{const k=permState(p).k;return k==="warn"||k==="err"}).length}
+function permBadge(){const u=me();if(!S.fleet)return 0;const cs=u&&u.role==="driver"?[cpOfDriver(u.id)].filter(Boolean):S.fleet.couplings;return cs.filter(c=>{const k=cpState(c).k;return k==="warn"||k==="err"}).length}
 
 function vCab(){
   const u=me();if(!u)return vAuth();
@@ -3017,6 +3109,17 @@ document.addEventListener("click",async e=>{
     const dl=window.claude?await window.claude.use("downloads").catch(()=>null):null;
     if(dl){try{await dl.save({filename:name,data:o.finalAct.blob});toast("Акт сохранён")}catch(e){if(e&&e.code!=="declined")toast("Не удалось сохранить файл")}return}
     const url=URL.createObjectURL(o.finalAct.blob),ln=document.createElement("a");ln.href=url;ln.download=name;document.body.appendChild(ln);ln.click();ln.remove();setTimeout(()=>URL.revokeObjectURL(url),5000)}
+  if(act==="cp-sel"){S.pm.cp=+a.dataset.id;S.pm.route=null;S.pm.sel=null;render()}
+  if(act==="cp-chg"){S.pm.chg=+a.dataset.id;S.pm.chgTo=null;S.pm.cp=+a.dataset.id;S.pm.route=null;S.pm.sel=null;render();const el=$(".cp-panel");if(el)el.scrollIntoView({block:"nearest",behavior:"smooth"})}
+  if(act==="cp-chg-no"){S.pm.chg=null;S.pm.chgTo=null;render()}
+  if(act==="cp-chg-yes"){const c=S.fleet.couplings.find(x=>x.id===S.pm.chg),rid=S.pm.chgTo;if(!c||!rid)return;const imp=cpChangeImpact(c,rid),u=me();
+    cpChange(c,rid,u?u.short||u.name:"");S.pm.chg=null;S.pm.chgTo=null;S.pm.route=null;S.pm.sel=null;render();
+    toast(imp.gain.length?"Прицеп заменён, разрешения на новую сцепку есть":"Прицеп заменён. Нужно новое разрешение: оформление 5–7 дней")}
+  if(act==="cp-renew"){const c=S.fleet.couplings.find(x=>x.id===+a.dataset.id);c.renew=c.renew?null:today();render()}
+  if(act==="cp-add-toggle"){e.preventDefault();S.pm.addOpen=!S.pm.addOpen;render()}
+  if(act==="cp-add-tr"){const n=S.pm.newTr||{},pl=String(n.plate||"").toUpperCase().replace(/\s/g,"");if(!n.model||pl.length<5){toast("Укажите модель и госномер прицепа");return}
+    if(S.fleet.trailers.some(r=>pmPlate(r.plate)===pmPlate(pl))){toast("Такой прицеп уже есть");return}
+    const id="r"+Date.now();S.fleet.trailers.push({id,model:n.model.trim(),plate:pl});S.pm.chgTo=id;S.pm.newTr=null;S.pm.addOpen=false;render();toast("Прицеп добавлен в парк")}
   if(act==="pm-route"){S.pm.route=a.dataset.id;S.pm.sel=null;render()}
   if(act==="pm-sel"){S.pm.sel=a.dataset.no||null;render()}
   if(act==="pm-main"){const f=S.permits.find(x=>x.id===a.dataset.id);f.main=!f.main;render()}
@@ -3153,6 +3256,7 @@ document.addEventListener("click",async e=>{
   if(act==="deliver"){const o=S.orders.find(x=>x.no===+a.dataset.no),t=tripOf(o);o.delivered=true;t.events.push({t:nowStamp(),city:o.city,note:"Выдан №"+o.no+" "+o.car});render();toast("№"+o.no+" отмечен выданным")}
 });
 document.addEventListener("input",e=>{
+  if(e.target.dataset&&e.target.dataset.cpnew){S.pm.newTr=S.pm.newTr||{};S.pm.newTr[e.target.dataset.cpnew]=e.target.value;return}
   const el=e.target;
   if(el.dataset.f){S.f[el.dataset.f]=el.value;S.example=false;if(S.errs[el.dataset.f]){delete S.errs[el.dataset.f]}
     // обновляем только расчёт и итог, чтобы не сбивать фокус
@@ -3182,6 +3286,8 @@ document.addEventListener("change",e=>{
   if(el.id==="trk"){S.trackId=+el.value;render()}
   if(el.id==="rx-file"&&el.files&&el.files[0])readReceipt(el.files[0],false);
   if(el.id==="pm-file"&&el.files&&el.files.length){permUpload([...el.files]);el.value=""}
+  if(el.dataset.cpto){S.pm.chgTo=el.value||null;render()}
+  if(el.dataset.cpdrv){const c=S.fleet.couplings.find(x=>x.id===+el.dataset.cpdrv),v=el.value||null;S.fleet.couplings.forEach(x=>{if(x.driver===v&&x!==c)x.driver=null});c.driver=v;cpSyncDriver(c);render();toast(v?"Водитель закреплён за "+cpName(c):"Водитель снят со сцепки")}
   if(el.dataset.horem){hoOf(S.orders.find(o=>o.no===S.ho.no),S.ho.stage).noRemarks=el.checked;render()}
   if(el.dataset.ho&&el.files&&el.files.length){const h=hoOf(S.orders.find(o=>o.no===S.ho.no),S.ho.stage),k=el.dataset.ho;
     if(k==="act"){for(const f of el.files){if(!/^image\/|pdf$/.test(f.type)){toast("Акт: фото или PDF");continue}h.act.push({url:URL.createObjectURL(f),name:f.name,type:f.type})}}
@@ -3253,6 +3359,7 @@ document.addEventListener("submit",e=>{e.preventDefault();if(e.target.id==="logi
 seed();
 seedScenario();
 seedNskBatch();
+fleetSeed();
 S.settings.kmRate=S.settings.kmRate??12;   // ставка зарплаты водителя, ₽ за км
 S.orders.find(o=>o.no===663).loginPhone="79770000085";   // демо: клиент с личным кабинетом
 S.auth.reg=blankReg();
