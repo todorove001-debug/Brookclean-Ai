@@ -8,32 +8,32 @@
    Цвета логотипа Brookclean Trucks: тёмно-синий #0b0e1d — текст и главная кнопка, белый, стальной голубой — только на данных
    (маршрут, позиция автовоза, трасса на карте). Тёмная тема — на фирменном тёмно-синем фоне логотипа. */
 :root{
-  --bg:#f2f4f7; --surface:#ffffff; --paper:#f8f9fb; --active:#e5e8ed; --ink:#0b0e1d; --muted:#565d6d; --line:#e1e4ea; --rule:#edf0f3; --control:#cdd2da;
-  --accent:#0b0e1d; --accent-ink:#ffffff;
-  --hue:#5b87a8; --hue-ink:#3b6584; --hue-soft:#e4edf4;
-  --route:#3a4152; --route-soft:#eceff3;
+  --bg:#f5f8fc; --surface:#ffffff; --paper:#f9fbfe; --active:#e2eef8; --ink:#16202e; --muted:#566172; --line:#e1e7ef; --rule:#edf2f7; --control:#c9d3df;
+  --accent:#2c6fa3; --accent-ink:#ffffff;
+  --hue:#4b8fc4; --hue-ink:#235f8f; --hue-soft:#e2eef8;
+  --route:#235f8f; --route-soft:#e7f0f8;
   --ok:#247b50; --ok-soft:#dcfae5; --warn:#92400e; --warn-soft:#fff5dd; --err:#c4242a; --err-soft:#ffedea;
   --f-display:"Golos Text",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --f-body:"Golos Text",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --f-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   --r:8px; --rc:6px;
-  --mv-sea:#dde3e9; --mv-land:#fbfbfc; --mv-river:#b3c0cb; --mv-reg:#c9ccd3; --mv-border:#8a8f9a; --mv-road:#dad7cf; --mv-oth:#eff0f2;
+  --mv-sea:#d9e7f2; --mv-land:#fcfdfe; --mv-river:#a9c4da; --mv-reg:#cdd3dc; --mv-border:#8d95a3; --mv-road:#ddd9cf; --mv-oth:#f0f2f5;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#0b0e1d; --surface:#121729; --paper:#171d31; --active:#20283f; --ink:#ebecf0; --muted:#a2a8b8; --line:#222a40; --rule:#1a2135; --control:#38415a;
-  --accent:#ebecf0; --accent-ink:#0b0e1d;
-  --hue:#7aa8c2; --hue-ink:#8fb7cf; --hue-soft:#16263a;
-  --route:#c3c8d4; --route-soft:#1a2135;
-  --ok:#3fc07a; --ok-soft:#14291f; --warn:#e9a845; --warn-soft:#2b2312; --err:#e5566f; --err-soft:#2c1a24;
-  --mv-sea:#0a1220; --mv-land:#131a2c; --mv-river:#2c4258; --mv-reg:#2e364c; --mv-border:#6c7387; --mv-road:#363a40; --mv-oth:#0e1424;
+  --bg:#121b2f; --surface:#19243b; --paper:#1e2a44; --active:#24406a; --ink:#eef2f7; --muted:#aab4c6; --line:#2b3954; --rule:#223049; --control:#41506e;
+  --accent:#5ea2d8; --accent-ink:#0b0e1d;
+  --hue:#7db8e4; --hue-ink:#9ccaee; --hue-soft:#1d3554;
+  --route:#c9d4e4; --route-soft:#1f3150;
+  --ok:#47c787; --ok-soft:#16302a; --warn:#eaae52; --warn-soft:#30291a; --err:#ee6a7f; --err-soft:#35202b;
+  --mv-sea:#122339; --mv-land:#1a2640; --mv-river:#35587a; --mv-reg:#34425e; --mv-border:#7d879b; --mv-road:#3d4350; --mv-oth:#152034;
   color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#0b0e1d; --surface:#121729; --paper:#171d31; --active:#20283f; --ink:#ebecf0; --muted:#a2a8b8; --line:#222a40; --rule:#1a2135; --control:#38415a;
-  --accent:#ebecf0; --accent-ink:#0b0e1d;
-  --hue:#7aa8c2; --hue-ink:#8fb7cf; --hue-soft:#16263a;
-  --route:#c3c8d4; --route-soft:#1a2135;
-  --ok:#3fc07a; --ok-soft:#14291f; --warn:#e9a845; --warn-soft:#2b2312; --err:#e5566f; --err-soft:#2c1a24;
-  --mv-sea:#0a1220; --mv-land:#131a2c; --mv-river:#2c4258; --mv-reg:#2e364c; --mv-border:#6c7387; --mv-road:#363a40; --mv-oth:#0e1424;
+  --bg:#121b2f; --surface:#19243b; --paper:#1e2a44; --active:#24406a; --ink:#eef2f7; --muted:#aab4c6; --line:#2b3954; --rule:#223049; --control:#41506e;
+  --accent:#5ea2d8; --accent-ink:#0b0e1d;
+  --hue:#7db8e4; --hue-ink:#9ccaee; --hue-soft:#1d3554;
+  --route:#c9d4e4; --route-soft:#1f3150;
+  --ok:#47c787; --ok-soft:#16302a; --warn:#eaae52; --warn-soft:#30291a; --err:#ee6a7f; --err-soft:#35202b;
+  --mv-sea:#122339; --mv-land:#1a2640; --mv-river:#35587a; --mv-reg:#34425e; --mv-border:#7d879b; --mv-road:#3d4350; --mv-oth:#152034;
   color-scheme:dark}
 
 *{box-sizing:border-box}
@@ -42,7 +42,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:1
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
 h1,h2,h3{text-wrap:balance;margin:0}
 button,input,select{font:inherit;color:inherit}
-:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .mono{font-family:var(--f-mono);font-size:.92em}
 .num{font-variant-numeric:tabular-nums}
 .muted{color:var(--muted)}
@@ -57,12 +57,12 @@ button,input,select{font:inherit;color:inherit}
 .brand small{font-weight:400;color:var(--muted);font-size:13px;letter-spacing:0;margin-left:2px}
 .tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;align-self:stretch}
 .tab{background:none;border:0;color:var(--muted);padding:0 10px;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;font-weight:500;font-size:14px;min-height:56px}
-.tab[aria-selected="true"]{color:var(--ink);border-color:var(--ink)}
+.tab[aria-selected="true"]{color:var(--hue-ink);border-color:var(--accent)}
 .tab:hover{color:var(--ink)}
 .sitebar{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-left:auto}
 .sitebar .addr{display:flex;gap:2px;background:var(--active);border-radius:var(--rc);padding:2px}
 .sitebar button{border:0;background:none;color:var(--muted);border-radius:4px;padding:4px 10px;cursor:pointer;font-size:12px;min-height:28px}
-.sitebar button[aria-pressed="true"]{background:var(--surface);color:var(--ink);font-weight:600}
+.sitebar button[aria-pressed="true"]{background:var(--surface);color:var(--hue-ink);font-weight:600}
 @media (max-width:760px){.top-in{min-height:0;padding-top:8px;gap:4px 12px}.sitebar{order:-1;width:100%;margin-left:0}.tab{min-height:44px}.brand small{display:none}}
 .sms-in{background:var(--bg);border:1px solid var(--line);border-radius:14px 14px 14px 4px;padding:10px 12px;font-size:13px;max-width:300px}
 .sms-in small{display:block;color:var(--muted);font-size:11px;margin-bottom:2px}
@@ -85,13 +85,13 @@ button,input,select{font:inherit;color:inherit}
 .step{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--muted)}
 .step i{display:block;height:4px;border-radius:2px;background:var(--line)}
 .step.on{color:var(--ink);font-weight:600}
-.step.on i,.step.done i{background:var(--ink)}
+.step.on i,.step.done i{background:var(--accent)}
 
 /* form */
 .field{display:flex;flex-direction:column;gap:4px;min-width:0}
 .field label{font-size:13px;font-weight:500}
 .field input,.field select{width:100%;border:1px solid var(--control);background:var(--surface);border-radius:var(--rc);padding:9px 11px;min-height:42px;font-size:15px}
-.field input:focus,.field select:focus{border-color:var(--ink);outline:2px solid color-mix(in srgb,var(--ink) 18%,transparent);outline-offset:0}
+.field input:focus,.field select:focus{border-color:var(--accent);outline:3px solid color-mix(in srgb,var(--accent) 22%,transparent);outline-offset:0}
 .field .hint{font-size:12px;color:var(--muted)}
 .field .err{font-size:12px;color:var(--err)}
 .field.bad input{border-color:var(--err)}
@@ -99,9 +99,9 @@ button,input,select{font:inherit;color:inherit}
 .seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .seg button{border:0;background:var(--surface);padding:9px 4px;cursor:pointer;font-size:13px;line-height:1.25;min-height:44px}
 .seg button+button{border-left:1px solid var(--line)}
-.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg);font-weight:600}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);font-weight:600}
 .examplebar{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:var(--muted);background:var(--route-soft);border-radius:8px;padding:6px 10px}
-.linkbtn{background:none;border:0;color:var(--ink);cursor:pointer;padding:4px 0;font-weight:600;font-size:13px;text-decoration:underline;text-underline-offset:2px}
+.linkbtn{background:none;border:0;color:var(--hue-ink);cursor:pointer;padding:4px 0;font-weight:600;font-size:13px;text-decoration:underline;text-underline-offset:2px}
 
 /* quote */
 .quote{display:flex;flex-direction:column;gap:6px}
@@ -127,7 +127,8 @@ button,input,select{font:inherit;color:inherit}
 .btn.primary:disabled{opacity:.45;cursor:not-allowed}
 .btn.ghost{background:var(--surface);border:1px solid var(--control)}
 .btn.ghost:hover{background:var(--paper)}
-.btn.dark{background:var(--ink);color:var(--bg)}
+.btn.dark{background:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover:not(:disabled),.btn.dark:hover{filter:brightness(1.08)}
 .btn.sm{padding:6px 12px;min-height:34px;font-size:13px}
 .actions{display:flex;gap:10px}
 .actions .btn{flex:1}
@@ -232,7 +233,7 @@ table.sheet{border-collapse:collapse;font-size:13px;min-width:1500px;width:100%}
 /* cabinets */
 .subnav{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
 .subtab{border:1px solid var(--line);background:var(--surface);border-radius:var(--rc);padding:7px 14px;cursor:pointer;white-space:nowrap;font-weight:500;font-size:14px;min-height:38px;display:inline-flex;align-items:center;gap:6px}
-.subtab[aria-current="true"]{background:var(--active);color:var(--ink);border-color:transparent;font-weight:600}
+.subtab[aria-current="true"]{background:var(--active);color:var(--hue-ink);border-color:transparent;font-weight:600}
 .subtab:not([aria-current="true"]):hover{border-color:var(--control)}
 .subtab.out{margin-left:auto;color:var(--muted)}
 .badge{display:inline-grid;place-items:center;min-width:18px;height:18px;border-radius:9px;background:var(--err);color:#fff;font-size:11px;font-weight:700;padding:0 5px}
@@ -499,7 +500,7 @@ html.mv-lock,html.mv-lock body{overflow:hidden}
 
 <header class="top">
   <div class="top-in">
-    <div class="brand"><svg viewBox="0 0 24 28" aria-hidden="true"><defs><clipPath id="bk-b"><path d="M0 0H13.2A6.4 6.4 0 0 1 13.2 12.8H15A7.6 7.6 0 0 1 15 28H0Z"/></clipPath></defs><g clip-path="url(#bk-b)"><rect width="24" height="28" fill="var(--bg)"/><path d="M-6 9L9 -6M-1 14L14 -1M4 19L19 4M9 24L24 9" stroke="currentColor" stroke-width="3.4"/><path d="M0 13.6H24V28H0Z" fill="currentColor"/><path d="M3 16.4H14.6A4.4 4.4 0 0 1 14.6 25.2H3Z" fill="var(--bg)"/></g></svg><span class="wm">Brookclean <span>Trucks</span></span><small id="brandsub">прототип</small></div>
+    <div class="brand"><svg viewBox="0 0 24 28" aria-hidden="true"><defs><clipPath id="bk-b"><path d="M0 0H13.2A6.4 6.4 0 0 1 13.2 12.8H15A7.6 7.6 0 0 1 15 28H0Z"/></clipPath></defs><g clip-path="url(#bk-b)"><rect width="24" height="28" fill="var(--bg)"/><path d="M-6 9L9 -6M-1 14L14 -1M4 19L19 4M9 24L24 9" stroke="var(--hue)" stroke-width="3.4"/><path d="M0 13.6H24V28H0Z" fill="currentColor"/><path d="M3 16.4H14.6A4.4 4.4 0 0 1 14.6 25.2H3Z" fill="var(--bg)"/></g></svg><span class="wm">Brookclean <span>Trucks</span></span><small id="brandsub">прототип</small></div>
     <nav class="tabs" role="tablist" aria-label="Раздел" id="nav"></nav>
     <div class="sitebar" id="sitebar"></div>
   </div>
