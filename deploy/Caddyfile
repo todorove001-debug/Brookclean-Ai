@@ -1,0 +1,55 @@
+# Сайт для клиентов и партнёров: заявка, подпись, трекинг, личный кабинет клиента, кабинет партнёра.
+# Служебные адреса сотрудников с этого домена недоступны.
+{$CLIENT_DOMAIN} {
+	encode gzip
+
+	@clientApi path /api/health /api/tariffs /api/quote /api/track/* /api/client/* /api/partner/*
+	@newOrder {
+		method POST
+		path /api/orders
+	}
+	@sign path_regexp ^/api/orders/[0-9]+/sign/(request|confirm)$
+
+	handle @clientApi {
+		reverse_proxy api:3000
+	}
+	handle @newOrder {
+		reverse_proxy api:3000
+	}
+	handle @sign {
+		reverse_proxy api:3000
+	}
+	handle /api/* {
+		respond 404
+	}
+	handle {
+		root * /srv/client
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+# Сайт для сотрудников: менеджер, водители, приёмщики. Поисковики его не индексируют.
+{$STAFF_DOMAIN} {
+	encode gzip
+	header X-Robots-Tag "noindex, nofollow"
+	# видео с телефона бывают большими
+	request_body {
+		max_size 600MB
+	}
+
+	handle /api/client/* {
+		respond 404
+	}
+	handle /api/partner/* {
+		respond 404
+	}
+	handle /api/* {
+		reverse_proxy api:3000
+	}
+	handle {
+		root * /srv/staff
+		try_files {path} /index.html
+		file_server
+	}
+}

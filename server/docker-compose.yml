@@ -1,0 +1,29 @@
+# локальный запуск: docker compose up --build
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: brook
+      POSTGRES_PASSWORD: brook
+      POSTGRES_DB: brookclean
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "brook"]
+      interval: 5s
+      retries: 10
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgres://brook:brook@db:5432/brookclean
+      STORAGE_DIR: /data/storage
+    ports:
+      - "3000:3000"
+    volumes:
+      - storage:/data/storage
+    depends_on:
+      db:
+        condition: service_healthy
+volumes:
+  db:
+  storage:

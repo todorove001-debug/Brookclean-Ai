@@ -1,0 +1,4238 @@
+[
+ {
+  "key": "AUDI A3",
+  "make": "Audi",
+  "model": "A3 Sportback",
+  "gen": "8Y",
+  "length": 4343,
+  "width": 1816,
+  "height": 1449,
+  "class": "Седан",
+  "aliases": [
+   "AUDI A3 SPORTBACK",
+   "AUDI A3"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "AUDI A3L",
+  "make": "Audi",
+  "model": "A3L",
+  "gen": "8Y, длинный седан (Китай)",
+  "length": 4556,
+  "width": 1814,
+  "height": 1429,
+  "class": "Седан",
+  "aliases": [
+   "AUDI A3L"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "AUDI A4",
+  "make": "Audi",
+  "model": "A4",
+  "gen": "B9",
+  "length": 4762,
+  "width": 1847,
+  "height": 1431,
+  "class": "Седан",
+  "aliases": [
+   "AUDI A4 40 TFSI",
+   "AUDI A4"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "AUDI A5",
+  "make": "Audi",
+  "model": "A5 Sportback",
+  "gen": "F5",
+  "length": 4757,
+  "width": 1843,
+  "height": 1386,
+  "class": "Седан",
+  "aliases": [
+   "AUDI A5 SPORTBACK",
+   "AUDI A5"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "AUDI A6",
+  "make": "Audi",
+  "model": "A6 / S6",
+  "gen": "C8",
+  "length": 4939,
+  "width": 1886,
+  "height": 1457,
+  "class": "Седан",
+  "aliases": [
+   "AUDI S6",
+   "AUDI A6"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "AUDI A7",
+  "make": "Audi",
+  "model": "A7 Sportback",
+  "gen": "4K",
+  "length": 4969,
+  "width": 1908,
+  "height": 1422,
+  "class": "Седан",
+  "aliases": [
+   "AUDI A7 SPORTBACK",
+   "AUDI A7"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "AUDI Q2",
+  "make": "Audi",
+  "model": "Q2",
+  "gen": "GA",
+  "length": 4191,
+  "width": 1794,
+  "height": 1508,
+  "class": "Кросс",
+  "aliases": [
+   "AUDI Q2"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "AUDI Q2L",
+  "make": "Audi",
+  "model": "Q2L",
+  "gen": "GA, длинный (Китай)",
+  "length": 4268,
+  "width": 1785,
+  "height": 1548,
+  "class": "Кросс",
+  "aliases": [
+   "AUDI Q2L"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "AUDI Q3",
+  "make": "Audi",
+  "model": "Q3",
+  "gen": "F3",
+  "length": 4484,
+  "width": 1849,
+  "height": 1616,
+  "class": "Кросс",
+  "aliases": [
+   "AUDI Q3"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "AUDI Q5",
+  "make": "Audi",
+  "model": "Q5",
+  "gen": "FY",
+  "length": 4682,
+  "width": 1893,
+  "height": 1662,
+  "class": "Кросс",
+  "aliases": [
+   "AUDI Q5"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "BMW 1",
+  "make": "BMW",
+  "model": "1 серия",
+  "gen": "F40",
+  "length": 4319,
+  "width": 1799,
+  "height": 1434,
+  "class": "Седан",
+  "aliases": [
+   "BMW 1 SERIES",
+   "BMW 1-SERIES",
+   "BMW 1 CEPИЯ",
+   "BMW 118I",
+   "BMW 120",
+   "BMW 1"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "BMW 2AT",
+  "make": "BMW",
+  "model": "2 серия Active Tourer",
+  "gen": "F45",
+  "length": 4342,
+  "width": 1800,
+  "height": 1555,
+  "class": "Седан",
+  "aliases": [
+   "BMW 2 CEPИЯ ACTIVE TOURER",
+   "BMW 218I"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "BMW 2",
+  "make": "BMW",
+  "model": "2 серия купе",
+  "gen": "F22",
+  "length": 4454,
+  "width": 1774,
+  "height": 1408,
+  "class": "Седан",
+  "aliases": [
+   "BMW 2 CEPИЯ"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "BMW 3",
+  "make": "BMW",
+  "model": "3 серия",
+  "gen": "G20",
+  "length": 4709,
+  "width": 1827,
+  "height": 1435,
+  "class": "Седан",
+  "aliases": [
+   "BMW 3 CEPИЯ",
+   "BMW 318I"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "BMW 3L",
+  "make": "BMW",
+  "model": "3 серия Li",
+  "gen": "G28, длинный (Китай)",
+  "length": 4829,
+  "width": 1827,
+  "height": 1463,
+  "class": "Седан",
+  "aliases": [
+   "BMW 3 CEPИЯ LI",
+   "BMW 320LI"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "BMW 5",
+  "make": "BMW",
+  "model": "5 серия",
+  "gen": "G30",
+  "length": 4936,
+  "width": 1868,
+  "height": 1479,
+  "class": "Седан",
+  "aliases": [
+   "BMW 5 CEPИЯ"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "BMW 6GT",
+  "make": "BMW",
+  "model": "6 серия GT",
+  "gen": "G32",
+  "length": 5091,
+  "width": 1902,
+  "height": 1538,
+  "class": "Седан",
+  "aliases": [
+   "BMW 6 CEPИЯ GT"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "BMW 7",
+  "make": "BMW",
+  "model": "7 серия",
+  "gen": "G11",
+  "length": 5098,
+  "width": 1902,
+  "height": 1467,
+  "class": "Седан",
+  "aliases": [
+   "BMW 7 CEPИЯ"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "BMW X1",
+  "make": "BMW",
+  "model": "X1",
+  "gen": "F48",
+  "length": 4447,
+  "width": 1821,
+  "height": 1598,
+  "class": "Кросс",
+  "aliases": [
+   "BMW X1"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "BMW X1L",
+  "make": "BMW",
+  "model": "X1 Li",
+  "gen": "F49, длинный (Китай)",
+  "length": 4565,
+  "width": 1821,
+  "height": 1620,
+  "class": "Кросс",
+  "aliases": [
+   "BMW X1 SDRIVE20LI",
+   "BMW X1 LI"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "BMW X2",
+  "make": "BMW",
+  "model": "X2",
+  "gen": "F39",
+  "length": 4360,
+  "width": 1824,
+  "height": 1526,
+  "class": "Кросс",
+  "aliases": [
+   "BMW X2"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "BMW X3",
+  "make": "BMW",
+  "model": "X3",
+  "gen": "G01",
+  "length": 4708,
+  "width": 1891,
+  "height": 1676,
+  "class": "Кросс",
+  "aliases": [
+   "BMW X3"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "BMW X4",
+  "make": "BMW",
+  "model": "X4",
+  "gen": "G02",
+  "length": 4752,
+  "width": 1918,
+  "height": 1621,
+  "class": "Кросс",
+  "aliases": [
+   "BMW X4"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "BMW X5",
+  "make": "BMW",
+  "model": "X5",
+  "gen": "G05",
+  "length": 4922,
+  "width": 2004,
+  "height": 1745,
+  "class": "Джип",
+  "aliases": [
+   "BMW X5"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "BMW X6",
+  "make": "BMW",
+  "model": "X6",
+  "gen": "G06",
+  "length": 4935,
+  "width": 2004,
+  "height": 1696,
+  "class": "Джип",
+  "aliases": [
+   "BMW X6"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "BMW X7",
+  "make": "BMW",
+  "model": "X7",
+  "gen": "G07",
+  "length": 5151,
+  "width": 2000,
+  "height": 1805,
+  "class": "Джип",
+  "aliases": [
+   "BMW X7"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "BMW Z4",
+  "make": "BMW",
+  "model": "Z4",
+  "gen": "G29",
+  "length": 4324,
+  "width": 1864,
+  "height": 1304,
+  "class": "Седан",
+  "aliases": [
+   "BMW Z4"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "BYD DOLPHIN",
+  "make": "BYD",
+  "model": "Dolphin",
+  "gen": "",
+  "length": 4290,
+  "width": 1770,
+  "height": 1570,
+  "class": "Седан",
+  "aliases": [
+   "BYD DOLPHIN"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "BYD HAN L",
+  "make": "BYD",
+  "model": "Han L",
+  "gen": "",
+  "length": 5050,
+  "width": 1960,
+  "height": 1505,
+  "class": "Кросс",
+  "aliases": [
+   "BYD HAN L"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "BYD QIN PLUS",
+  "make": "BYD",
+  "model": "Qin Plus EV",
+  "gen": "",
+  "length": 4765,
+  "width": 1837,
+  "height": 1515,
+  "class": "Седан",
+  "aliases": [
+   "BYD QUIN PLUS EV",
+   "BYD QIN PLUS EV"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "BYD SONG PLUS",
+  "make": "BYD",
+  "model": "Song Plus",
+  "gen": "",
+  "length": 4775,
+  "width": 1890,
+  "height": 1670,
+  "class": "Кросс",
+  "aliases": [
+   "BYD SONG PLUS"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "CADILLAC XT6",
+  "make": "Cadillac",
+  "model": "XT6",
+  "gen": "",
+  "length": 5050,
+  "width": 1964,
+  "height": 1784,
+  "class": "Джип",
+  "aliases": [
+   "CADILLAC XT6"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "CHANGAN CS35 PLUS",
+  "make": "Changan",
+  "model": "CS35 Plus",
+  "gen": "",
+  "length": 4335,
+  "width": 1825,
+  "height": 1660,
+  "class": "Кросс",
+  "aliases": [
+   "CHANGAN CS35 PLUS"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "CHANGAN CS75",
+  "make": "Changan",
+  "model": "CS75 Plus",
+  "gen": "",
+  "length": 4700,
+  "width": 1865,
+  "height": 1710,
+  "class": "Кросс",
+  "aliases": [
+   "CHANGAN CS75 PLUS",
+   "CHANGAN CS75"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "CHANGAN UNI-K",
+  "make": "Changan",
+  "model": "UNI-K",
+  "gen": "",
+  "length": 4865,
+  "width": 1948,
+  "height": 1690,
+  "class": "Кросс",
+  "aliases": [
+   "CHANGAN UNI-K"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "CHERY FULWIN T10",
+  "make": "Chery",
+  "model": "Fulwin T10",
+  "gen": "",
+  "length": 4790,
+  "width": 1930,
+  "height": 1730,
+  "class": "Джип",
+  "aliases": [
+   "CHERY FULWIN T10"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "CHEVROLET EQUINOX",
+  "make": "Chevrolet",
+  "model": "Equinox",
+  "gen": "3-е поколение",
+  "length": 4652,
+  "width": 1843,
+  "height": 1685,
+  "class": "Кросс",
+  "aliases": [
+   "CHEVROLET EQUINOX"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "CHEVROLET MALIBU",
+  "make": "Chevrolet",
+  "model": "Malibu XL",
+  "gen": "",
+  "length": 4933,
+  "width": 1854,
+  "height": 1463,
+  "class": "Седан",
+  "aliases": [
+   "CHEVROLET MALIBU XL",
+   "CHEVROLET MALIBU"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "CHEVROLET MONZA",
+  "make": "Chevrolet",
+  "model": "Monza",
+  "gen": "",
+  "length": 4656,
+  "width": 1798,
+  "height": 1460,
+  "class": "Седан",
+  "aliases": [
+   "CHEVROLET MONZA"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "CHEVROLET TRAILBLAZER",
+  "make": "Chevrolet",
+  "model": "Trailblazer",
+  "gen": "2020",
+  "length": 4425,
+  "width": 1810,
+  "height": 1660,
+  "class": "Кросс",
+  "aliases": [
+   "CHEVROLET TRAILBLAZER"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "CHEVROLET TRAX",
+  "make": "Chevrolet",
+  "model": "Trax",
+  "gen": "1-е поколение",
+  "length": 4270,
+  "width": 1776,
+  "height": 1673,
+  "class": "Кросс",
+  "aliases": [
+   "CHEVROLET TRAX"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "DAIHATSU MIRA",
+  "make": "Daihatsu",
+  "model": "Mira",
+  "gen": "",
+  "length": 3395,
+  "width": 1475,
+  "height": 1500,
+  "class": "Малыш",
+  "aliases": [
+   "DAIHATSU MIRA"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "DAIHATSU MOVE",
+  "make": "Daihatsu",
+  "model": "Move",
+  "gen": "LA150S",
+  "length": 3395,
+  "width": 1475,
+  "height": 1630,
+  "class": "Малыш",
+  "aliases": [
+   "DAIHATSU MOVE"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "DAIHATSU ROCKY",
+  "make": "Daihatsu",
+  "model": "Rocky",
+  "gen": "A200S",
+  "length": 3995,
+  "width": 1695,
+  "height": 1620,
+  "class": "Кросс",
+  "aliases": [
+   "DAIHATSU ROCKY"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "DAIHATSU TAFT",
+  "make": "Daihatsu",
+  "model": "Taft",
+  "gen": "LA900S",
+  "length": 3395,
+  "width": 1475,
+  "height": 1630,
+  "class": "Малыш",
+  "aliases": [
+   "DAIHATSU TAFT"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "DAIHATSU THOR",
+  "make": "Daihatsu",
+  "model": "Thor",
+  "gen": "M900S",
+  "length": 3700,
+  "width": 1670,
+  "height": 1735,
+  "class": "Седан",
+  "aliases": [
+   "DAIHATSU THOR"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "FORD EQUATOR",
+  "make": "Ford",
+  "model": "Equator",
+  "gen": "",
+  "length": 4905,
+  "width": 1936,
+  "height": 1765,
+  "class": "Джип",
+  "aliases": [
+   "FORD EQUATOR"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "FORD EXPLORER",
+  "make": "Ford",
+  "model": "Explorer",
+  "gen": "6-е поколение",
+  "length": 5050,
+  "width": 2004,
+  "height": 1778,
+  "class": "Джип",
+  "aliases": [
+   "FORD EXPLORER"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "GAC GS8",
+  "make": "GAC",
+  "model": "GS8",
+  "gen": "2-е поколение",
+  "length": 4980,
+  "width": 1950,
+  "height": 1780,
+  "class": "Джип",
+  "aliases": [
+   "GAC GS8"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "GAC M6",
+  "make": "GAC",
+  "model": "Trumpchi M6",
+  "gen": "",
+  "length": 4835,
+  "width": 1840,
+  "height": 1745,
+  "class": "Джип",
+  "aliases": [
+   "GAC TRUMPCHI M6",
+   "TRUMPCHI M6",
+   "GAC M6"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "GEELY COOLRAY",
+  "make": "Geely",
+  "model": "Coolray / Binyue",
+  "gen": "",
+  "length": 4330,
+  "width": 1800,
+  "height": 1609,
+  "class": "Кросс",
+  "aliases": [
+   "GEELY COOLRAY",
+   "GEELY BINYUE"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "GEELY GALAXY L7",
+  "make": "Geely",
+  "model": "Galaxy L7",
+  "gen": "",
+  "length": 4700,
+  "width": 1905,
+  "height": 1685,
+  "class": "Кросс",
+  "aliases": [
+   "GEELY GALAXY L7"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "GEELY GALAXY STARSHIP 7",
+  "make": "Geely",
+  "model": "Galaxy Starship 7",
+  "gen": "",
+  "length": 4740,
+  "width": 1905,
+  "height": 1685,
+  "class": "Кросс",
+  "aliases": [
+   "GEELY GALAXY STARSHIP 7"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "GEELY MONJARO",
+  "make": "Geely",
+  "model": "Monjaro",
+  "gen": "",
+  "length": 4770,
+  "width": 1895,
+  "height": 1689,
+  "class": "Кросс",
+  "aliases": [
+   "GEELY MONJARO"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "GEELY OKAVANGO",
+  "make": "Geely",
+  "model": "Okavango / Haoyue",
+  "gen": "",
+  "length": 4835,
+  "width": 1900,
+  "height": 1780,
+  "class": "Кросс",
+  "aliases": [
+   "GEELY HAOYUE OKAVANGA",
+   "GEELY OKAVANGO",
+   "GEELY HAOYUE"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "GEELY XINGYUAN",
+  "make": "Geely",
+  "model": "Xingyuan / Star Wish",
+  "gen": "",
+  "length": 4135,
+  "width": 1805,
+  "height": 1570,
+  "class": "Кросс",
+  "aliases": [
+   "GEELY GEOME XINGYUAN",
+   "GEELY STAR WISH",
+   "GEELY XINGYUAN"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "GENESIS G80",
+  "make": "Genesis",
+  "model": "G80",
+  "gen": "RG3",
+  "length": 4995,
+  "width": 1925,
+  "height": 1465,
+  "class": "Седан",
+  "aliases": [
+   "GENESIS G80"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "GENESIS GV70",
+  "make": "Genesis",
+  "model": "GV70",
+  "gen": "",
+  "length": 4715,
+  "width": 1910,
+  "height": 1630,
+  "class": "Кросс",
+  "aliases": [
+   "GENESIS GV70"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "GENESIS GV80",
+  "make": "Genesis",
+  "model": "GV80",
+  "gen": "",
+  "length": 4945,
+  "width": 1975,
+  "height": 1715,
+  "class": "Джип",
+  "aliases": [
+   "GENESIS GV80"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HAVAL CHITU",
+  "make": "Haval",
+  "model": "Chitu",
+  "gen": "",
+  "length": 4470,
+  "width": 1898,
+  "height": 1660,
+  "class": "Кросс",
+  "aliases": [
+   "HAVAL CHITU"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HAVAL F7",
+  "make": "Haval",
+  "model": "F7",
+  "gen": "",
+  "length": 4620,
+  "width": 1846,
+  "height": 1690,
+  "class": "Кросс",
+  "aliases": [
+   "HAVAL F7"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HAVAL H6",
+  "make": "Haval",
+  "model": "H6",
+  "gen": "3-е поколение",
+  "length": 4653,
+  "width": 1886,
+  "height": 1730,
+  "class": "Кросс",
+  "aliases": [
+   "HAVAL H6"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HAVAL M6 PLUS",
+  "make": "Haval",
+  "model": "M6 Plus",
+  "gen": "",
+  "length": 4649,
+  "width": 1830,
+  "height": 1705,
+  "class": "Кросс",
+  "aliases": [
+   "HAVAL M6 PLUS"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HONDA ACCORD",
+  "make": "Honda",
+  "model": "Accord",
+  "gen": "10-е поколение",
+  "length": 4900,
+  "width": 1860,
+  "height": 1450,
+  "class": "Седан",
+  "aliases": [
+   "HONDA ACCORD"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HONDA BREEZE",
+  "make": "Honda",
+  "model": "Breeze",
+  "gen": "",
+  "length": 4703,
+  "width": 1866,
+  "height": 1680,
+  "class": "Кросс",
+  "aliases": [
+   "HONDA BREEZE"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HONDA CR-V",
+  "make": "Honda",
+  "model": "CR-V",
+  "gen": "5-е поколение",
+  "length": 4605,
+  "width": 1855,
+  "height": 1680,
+  "class": "Кросс",
+  "aliases": [
+   "HONDA CR-V"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HONDA CIVIC",
+  "make": "Honda",
+  "model": "Civic",
+  "gen": "11-е поколение, хэтчбек",
+  "length": 4550,
+  "width": 1800,
+  "height": 1415,
+  "class": "Седан",
+  "aliases": [
+   "HONDA CIVIC"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HONDA FIT",
+  "make": "Honda",
+  "model": "Fit",
+  "gen": "GR/GS (4-е пок.); GK — 3955 мм",
+  "length": 3995,
+  "width": 1695,
+  "height": 1540,
+  "class": "Седан",
+  "aliases": [
+   "HONDA FIT"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HONDA SHUTTLE",
+  "make": "Honda",
+  "model": "Fit Shuttle / Shuttle",
+  "gen": "GP2, GK8, GP7",
+  "length": 4400,
+  "width": 1695,
+  "height": 1545,
+  "class": "Седан",
+  "aliases": [
+   "HONDA FIT SHUTTLE",
+   "HONDA SHUTTLE"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HONDA FREED OLD",
+  "make": "Honda",
+  "model": "Freed / Freed Spike",
+  "gen": "GB3, GB4, GP3",
+  "length": 4215,
+  "width": 1695,
+  "height": 1715,
+  "class": "Седан",
+  "aliases": [
+   "HONDA FREED HYBRID",
+   "HONDA FREED SPIKE",
+   "HONDA FREED"
+  ],
+  "frames": [
+   "GB3",
+   "GB4",
+   "GP3",
+   "GP4"
+  ],
+  "oldUntil": 2016
+ },
+ {
+  "key": "HONDA FREED",
+  "make": "Honda",
+  "model": "Freed / Freed+",
+  "gen": "GB5–GB8",
+  "length": 4265,
+  "width": 1695,
+  "height": 1710,
+  "class": "Седан",
+  "aliases": [
+   "HONDA FREED+",
+   "HONDA FREED"
+  ],
+  "frames": [
+   "GB5",
+   "GB6",
+   "GB7",
+   "GB8"
+  ],
+  "oldUntil": 0
+ },
+ {
+  "key": "HONDA INSIGHT",
+  "make": "Honda",
+  "model": "Insight",
+  "gen": "ZE2/ZE3",
+  "length": 4390,
+  "width": 1695,
+  "height": 1425,
+  "class": "Седан",
+  "aliases": [
+   "HONDA INSIGHT"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HONDA JADE",
+  "make": "Honda",
+  "model": "Jade",
+  "gen": "",
+  "length": 4650,
+  "width": 1775,
+  "height": 1530,
+  "class": "Седан",
+  "aliases": [
+   "HONDA JADE"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HONDA N-BOX",
+  "make": "Honda",
+  "model": "N-BOX",
+  "gen": "",
+  "length": 3395,
+  "width": 1475,
+  "height": 1790,
+  "class": "Малыш",
+  "aliases": [
+   "HONDA N-BOX",
+   "HONDA N BOX"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HONDA N-VAN",
+  "make": "Honda",
+  "model": "N-VAN",
+  "gen": "",
+  "length": 3395,
+  "width": 1475,
+  "height": 1945,
+  "class": "Малыш",
+  "aliases": [
+   "HONDA N VAN",
+   "HONDA N-"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HONDA N-WGN",
+  "make": "Honda",
+  "model": "N-WGN",
+  "gen": "JH1",
+  "length": 3395,
+  "width": 1475,
+  "height": 1655,
+  "class": "Малыш",
+  "aliases": [
+   "HONDA N WGN",
+   "HONDA N-WGN"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HONDA STEPWGN",
+  "make": "Honda",
+  "model": "Stepwgn / Spada",
+  "gen": "RP6–RP8 (с 2022)",
+  "length": 4800,
+  "width": 1750,
+  "height": 1840,
+  "class": "Джип",
+  "aliases": [
+   "HONDA STEPWGN SPADA",
+   "HONDA STEPWGN",
+   "HONDA SPADA"
+  ],
+  "frames": [
+   "RP6",
+   "RP7",
+   "RP8"
+  ],
+  "oldUntil": 0
+ },
+ {
+  "key": "HONDA STEPWGN OLD",
+  "make": "Honda",
+  "model": "Stepwgn / Spada",
+  "gen": "RP1–RP5 (2015–2021), Spada 4760 мм",
+  "length": 4690,
+  "width": 1695,
+  "height": 1840,
+  "class": "Джип",
+  "aliases": [
+   "HONDA STEPWGN SPADA",
+   "HONDA STEPWGN",
+   "HONDA SPADA"
+  ],
+  "frames": [
+   "RP1",
+   "RP2",
+   "RP3",
+   "RP4",
+   "RP5"
+  ],
+  "oldUntil": 2022
+ },
+ {
+  "key": "HONDA STREAM",
+  "make": "Honda",
+  "model": "Stream",
+  "gen": "RN6–RN9",
+  "length": 4570,
+  "width": 1695,
+  "height": 1545,
+  "class": "Кросс",
+  "aliases": [
+   "HONDA STREAM"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HONDA VEZEL",
+  "make": "Honda",
+  "model": "Vezel",
+  "gen": "RV (с 2021)",
+  "length": 4330,
+  "width": 1790,
+  "height": 1580,
+  "class": "Кросс",
+  "aliases": [
+   "HONDA VEZEL"
+  ],
+  "frames": [
+   "RV3",
+   "RV4",
+   "RV5",
+   "RV6"
+  ],
+  "oldUntil": 0
+ },
+ {
+  "key": "HONDA VEZEL OLD",
+  "make": "Honda",
+  "model": "Vezel",
+  "gen": "RU (2013–2021)",
+  "length": 4295,
+  "width": 1770,
+  "height": 1605,
+  "class": "Кросс",
+  "aliases": [
+   "HONDA VEZEL"
+  ],
+  "frames": [
+   "RU1",
+   "RU2",
+   "RU3",
+   "RU4"
+  ],
+  "oldUntil": 2021
+ },
+ {
+  "key": "HONDA WR-V",
+  "make": "Honda",
+  "model": "WR-V",
+  "gen": "DG5",
+  "length": 4325,
+  "width": 1790,
+  "height": 1650,
+  "class": "Кросс",
+  "aliases": [
+   "HONDA WR-V"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HONDA XR-V",
+  "make": "Honda",
+  "model": "XR-V",
+  "gen": "2-е поколение",
+  "length": 4385,
+  "width": 1790,
+  "height": 1590,
+  "class": "Кросс",
+  "aliases": [
+   "HONDA XR-V"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HYUNDAI CASPER",
+  "make": "Hyundai",
+  "model": "Casper",
+  "gen": "",
+  "length": 3595,
+  "width": 1595,
+  "height": 1575,
+  "class": "Малыш",
+  "aliases": [
+   "HYUNDAI CASPER SMART",
+   "HYUNDAI CASPER"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HYUNDAI ELANTRA",
+  "make": "Hyundai",
+  "model": "Elantra / Avante",
+  "gen": "CN7",
+  "length": 4675,
+  "width": 1825,
+  "height": 1430,
+  "class": "Седан",
+  "aliases": [
+   "HYUNDAI ELANTRA",
+   "HYUNDAI AVANTE"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HYUNDAI KONA",
+  "make": "Hyundai",
+  "model": "Kona",
+  "gen": "OS (1-е пок.)",
+  "length": 4205,
+  "width": 1800,
+  "height": 1550,
+  "class": "Кросс",
+  "aliases": [
+   "HYUNDAI KONA"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HYUNDAI MUFASA",
+  "make": "Hyundai",
+  "model": "Mufasa",
+  "gen": "",
+  "length": 4475,
+  "width": 1850,
+  "height": 1640,
+  "class": "Кросс",
+  "aliases": [
+   "HYUNDAI MUFASA"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HYUNDAI PALISADE",
+  "make": "Hyundai",
+  "model": "Palisade",
+  "gen": "LX2",
+  "length": 4980,
+  "width": 1975,
+  "height": 1750,
+  "class": "Джип",
+  "aliases": [
+   "HYUNDAI PALISADE"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HYUNDAI SANTA FE",
+  "make": "Hyundai",
+  "model": "Santa Fe",
+  "gen": "TM",
+  "length": 4785,
+  "width": 1900,
+  "height": 1685,
+  "class": "Кросс",
+  "aliases": [
+   "HYUNDAI SANTA FE"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HYUNDAI SONATA",
+  "make": "Hyundai",
+  "model": "Sonata",
+  "gen": "DN8",
+  "length": 4900,
+  "width": 1860,
+  "height": 1445,
+  "class": "Седан",
+  "aliases": [
+   "HYUNDAI SONATA"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HYUNDAI STARIA",
+  "make": "Hyundai",
+  "model": "Staria",
+  "gen": "",
+  "length": 5253,
+  "width": 1997,
+  "height": 1990,
+  "class": "Джип",
+  "aliases": [
+   "HYUNDAI STARIA"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HYUNDAI TUCSON",
+  "make": "Hyundai",
+  "model": "Tucson",
+  "gen": "NX4",
+  "length": 4630,
+  "width": 1865,
+  "height": 1665,
+  "class": "Кросс",
+  "aliases": [
+   "HYUNDAI TUCSON"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "HYUNDAI IX35",
+  "make": "Hyundai",
+  "model": "ix35",
+  "gen": "",
+  "length": 4410,
+  "width": 1820,
+  "height": 1660,
+  "class": "Кросс",
+  "aliases": [
+   "HYUNDAI IX35"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "JEEP COMPASS",
+  "make": "Jeep",
+  "model": "Compass",
+  "gen": "MP",
+  "length": 4405,
+  "width": 1819,
+  "height": 1640,
+  "class": "Кросс",
+  "aliases": [
+   "JEEP COMPASS"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "JEEP GRAND CHEROKEE",
+  "make": "Jeep",
+  "model": "Grand Cherokee",
+  "gen": "WL",
+  "length": 4914,
+  "width": 1979,
+  "height": 1792,
+  "class": "Джип",
+  "aliases": [
+   "JEEP GRAND CHEROKEE"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "JEEP WRANGLER",
+  "make": "Jeep",
+  "model": "Wrangler Unlimited",
+  "gen": "JL, 4 двери",
+  "length": 4785,
+  "width": 1875,
+  "height": 1868,
+  "class": "Джип",
+  "aliases": [
+   "JEEP WRANGLER UNLIMITED",
+   "JEEP WRANGLER"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "JETOUR X70",
+  "make": "Jetour",
+  "model": "X70",
+  "gen": "",
+  "length": 4749,
+  "width": 1900,
+  "height": 1720,
+  "class": "Кросс",
+  "aliases": [
+   "JETOUR X70"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "JETOUR X70 PLUS",
+  "make": "Jetour",
+  "model": "X70 Plus",
+  "gen": "",
+  "length": 4724,
+  "width": 1900,
+  "height": 1695,
+  "class": "Кросс",
+  "aliases": [
+   "JETOUR X70 PLUS"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "JETTA VS5",
+  "make": "Jetta",
+  "model": "VS5",
+  "gen": "",
+  "length": 4419,
+  "width": 1841,
+  "height": 1616,
+  "class": "Кросс",
+  "aliases": [
+   "JETTA VS5"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "JETTA VS7",
+  "make": "Jetta",
+  "model": "VS7",
+  "gen": "",
+  "length": 4644,
+  "width": 1841,
+  "height": 1630,
+  "class": "Кросс",
+  "aliases": [
+   "JETTA VS7"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "JETTA VS8",
+  "make": "Jetta",
+  "model": "VS8",
+  "gen": "",
+  "length": 4810,
+  "width": 1890,
+  "height": 1680,
+  "class": "Кросс",
+  "aliases": [
+   "JETTA VS8"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "KGM TORRES",
+  "make": "KGM / SsangYong",
+  "model": "Torres",
+  "gen": "",
+  "length": 4700,
+  "width": 1890,
+  "height": 1720,
+  "class": "Кросс",
+  "aliases": [
+   "SSANGYONG TORRES",
+   "KGM TORRES"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "KIA CARNIVAL",
+  "make": "Kia",
+  "model": "Carnival",
+  "gen": "KA4",
+  "length": 5155,
+  "width": 1995,
+  "height": 1775,
+  "class": "Джип",
+  "aliases": [
+   "KIA CARNIVAL"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "KIA K3",
+  "make": "Kia",
+  "model": "K3",
+  "gen": "BD",
+  "length": 4640,
+  "width": 1800,
+  "height": 1440,
+  "class": "Седан",
+  "aliases": [
+   "KIA K3"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "KIA K5",
+  "make": "Kia",
+  "model": "K5",
+  "gen": "DL3",
+  "length": 4905,
+  "width": 1860,
+  "height": 1445,
+  "class": "Седан",
+  "aliases": [
+   "KIA K5"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "KIA KX1",
+  "make": "Kia",
+  "model": "KX1",
+  "gen": "",
+  "length": 4225,
+  "width": 1800,
+  "height": 1600,
+  "class": "Кросс",
+  "aliases": [
+   "KIA KX1"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "KIA KX3",
+  "make": "Kia",
+  "model": "KX3",
+  "gen": "",
+  "length": 4345,
+  "width": 1800,
+  "height": 1650,
+  "class": "Кросс",
+  "aliases": [
+   "KIA KX3"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "KIA MOHAVE",
+  "make": "Kia",
+  "model": "Mohave",
+  "gen": "",
+  "length": 4930,
+  "width": 1920,
+  "height": 1790,
+  "class": "Джип",
+  "aliases": [
+   "KIA MOHAVE"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "KIA MORNING",
+  "make": "Kia",
+  "model": "Morning",
+  "gen": "JA",
+  "length": 3595,
+  "width": 1595,
+  "height": 1485,
+  "class": "Малыш",
+  "aliases": [
+   "KIA MORNING"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "KIA RAY",
+  "make": "Kia",
+  "model": "Ray",
+  "gen": "",
+  "length": 3595,
+  "width": 1595,
+  "height": 1700,
+  "class": "Малыш",
+  "aliases": [
+   "KIA RAY"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "KIA SELTOS",
+  "make": "Kia",
+  "model": "Seltos",
+  "gen": "",
+  "length": 4365,
+  "width": 1800,
+  "height": 1645,
+  "class": "Кросс",
+  "aliases": [
+   "KIA SELTOS"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "KIA SORENTO",
+  "make": "Kia",
+  "model": "Sorento",
+  "gen": "MQ4",
+  "length": 4810,
+  "width": 1900,
+  "height": 1700,
+  "class": "Кросс",
+  "aliases": [
+   "KIA SORENTO"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "KIA SPORTAGE",
+  "make": "Kia",
+  "model": "Sportage",
+  "gen": "NQ5",
+  "length": 4660,
+  "width": 1865,
+  "height": 1660,
+  "class": "Кросс",
+  "aliases": [
+   "KIA SPORTAGE"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "KIA STONIC",
+  "make": "Kia",
+  "model": "Stonic",
+  "gen": "",
+  "length": 4140,
+  "width": 1760,
+  "height": 1520,
+  "class": "Кросс",
+  "aliases": [
+   "KIA STONIC"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "LAND ROVER DISCOVERY SPORT",
+  "make": "Land Rover",
+  "model": "Discovery Sport",
+  "gen": "",
+  "length": 4597,
+  "width": 1904,
+  "height": 1727,
+  "class": "Кросс",
+  "aliases": [
+   "LAND ROVER DISCOVERY SPORT",
+   "DISCOVERY SPORT"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "RANGE ROVER EVOQUE",
+  "make": "Land Rover",
+  "model": "Range Rover Evoque",
+  "gen": "L551",
+  "length": 4371,
+  "width": 1904,
+  "height": 1649,
+  "class": "Кросс",
+  "aliases": [
+   "LAND ROVER RANGE ROVER EVOQUE",
+   "RANGE ROVER EVOQUE"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "RANGE ROVER SPORT",
+  "make": "Land Rover",
+  "model": "Range Rover Sport",
+  "gen": "L494",
+  "length": 4879,
+  "width": 1983,
+  "height": 1803,
+  "class": "Джип",
+  "aliases": [
+   "LAND ROVER RANGE ROVER SPORT",
+   "RANGE ROVER SPORT"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "RANGE ROVER VELAR",
+  "make": "Land Rover",
+  "model": "Range Rover Velar",
+  "gen": "",
+  "length": 4797,
+  "width": 1930,
+  "height": 1683,
+  "class": "Кросс",
+  "aliases": [
+   "LAND ROVER RANGE ROVER VELAR",
+   "RANGE ROVER VELAR"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "LEXUS ES",
+  "make": "Lexus",
+  "model": "ES 300h",
+  "gen": "XZ10",
+  "length": 4975,
+  "width": 1865,
+  "height": 1445,
+  "class": "Седан",
+  "aliases": [
+   "LEXUS ES 300H",
+   "LEXUS ES300H"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "LEXUS LX",
+  "make": "Lexus",
+  "model": "LX 570",
+  "gen": "J200",
+  "length": 5065,
+  "width": 1970,
+  "height": 1920,
+  "class": "Джип",
+  "aliases": [
+   "LEXUS LX 570",
+   "LEXUS LX"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "LEXUS NX",
+  "make": "Lexus",
+  "model": "NX 200",
+  "gen": "AZ10",
+  "length": 4630,
+  "width": 1845,
+  "height": 1645,
+  "class": "Кросс",
+  "aliases": [
+   "LEXUS NX 200",
+   "LEXUS NX200",
+   "LEXUS NX"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "LIXIANG L6",
+  "make": "Li Auto",
+  "model": "L6",
+  "gen": "",
+  "length": 4925,
+  "width": 1960,
+  "height": 1735,
+  "class": "Джип",
+  "aliases": [
+   "LIXIANG L6",
+   "LI AUTO L6",
+   "LI L6"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "LIXIANG L7",
+  "make": "Li Auto",
+  "model": "L7",
+  "gen": "",
+  "length": 5050,
+  "width": 1995,
+  "height": 1750,
+  "class": "Джип",
+  "aliases": [
+   "LI AUTO L7",
+   "LIXIANG L7",
+   "LI L7"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "LIXIANG L9",
+  "make": "Li Auto",
+  "model": "L9",
+  "gen": "",
+  "length": 5218,
+  "width": 1998,
+  "height": 1800,
+  "class": "Джип",
+  "aliases": [
+   "LI AUTO L9",
+   "LIXIANG L9",
+   "LI L9"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "LINCOLN AVIATOR",
+  "make": "Lincoln",
+  "model": "Aviator",
+  "gen": "",
+  "length": 5063,
+  "width": 2022,
+  "height": 1763,
+  "class": "Джип",
+  "aliases": [
+   "LINCOLN AVIATOR"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "LYNK&CO 05",
+  "make": "Lynk & Co",
+  "model": "05",
+  "gen": "",
+  "length": 4592,
+  "width": 1879,
+  "height": 1628,
+  "class": "Кросс",
+  "aliases": [
+   "LYNK & CO 05",
+   "LYNK CO 05",
+   "LYNK&CO 05"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "LYNK&CO 06",
+  "make": "Lynk & Co",
+  "model": "06",
+  "gen": "",
+  "length": 4340,
+  "width": 1820,
+  "height": 1625,
+  "class": "Кросс",
+  "aliases": [
+   "LYNK & CO 06",
+   "LYNK CO 06",
+   "LYNK&CO 06"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MINI CLUBMAN",
+  "make": "MINI",
+  "model": "Clubman",
+  "gen": "F54",
+  "length": 4253,
+  "width": 1800,
+  "height": 1441,
+  "class": "Седан",
+  "aliases": [
+   "MINI COOPER S CLUBMAN",
+   "MINI CLUBMAN"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MINI COOPER",
+  "make": "MINI",
+  "model": "Cooper / One / S",
+  "gen": "F56; кабриолет 3850 мм",
+  "length": 3821,
+  "width": 1727,
+  "height": 1414,
+  "class": "Седан",
+  "aliases": [
+   "MINI COOPER HATCH CABRIO",
+   "MINI COOPER ONE",
+   "MINI COOPER S",
+   "MINI COOPER",
+   "MINI ONE",
+   "BMW MINI",
+   "MINI S"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MINI COUNTRYMAN",
+  "make": "MINI",
+  "model": "Countryman",
+  "gen": "F60",
+  "length": 4299,
+  "width": 1822,
+  "height": 1557,
+  "class": "Седан",
+  "aliases": [
+   "MINI COOPER COUNTRYMAN",
+   "MINI COUNTRYMAN"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MAZDA AXELA",
+  "make": "Mazda",
+  "model": "Axela",
+  "gen": "BM, хэтчбек BM5FP",
+  "length": 4470,
+  "width": 1795,
+  "height": 1470,
+  "class": "Седан",
+  "aliases": [
+   "MAZDA AXELA 15S",
+   "MAZDA AXELA"
+  ],
+  "frames": [
+   "BM5FP",
+   "BMLFP",
+   "BMEFP",
+   "BM2FS"
+  ],
+  "oldUntil": 0
+ },
+ {
+  "key": "MAZDA AXELA SED",
+  "make": "Mazda",
+  "model": "Axela седан",
+  "gen": "BM5FS",
+  "length": 4580,
+  "width": 1795,
+  "height": 1455,
+  "class": "Седан",
+  "aliases": [
+   "MAZDA AXELA"
+  ],
+  "frames": [
+   "BM5FS",
+   "BMLFS",
+   "BMEFS",
+   "BYEFS"
+  ],
+  "oldUntil": 0
+ },
+ {
+  "key": "MAZDA CX-3",
+  "make": "Mazda",
+  "model": "CX-3",
+  "gen": "DK",
+  "length": 4275,
+  "width": 1765,
+  "height": 1550,
+  "class": "Кросс",
+  "aliases": [
+   "MAZDA CX-3"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MAZDA CX-30",
+  "make": "Mazda",
+  "model": "CX-30",
+  "gen": "DM",
+  "length": 4395,
+  "width": 1795,
+  "height": 1540,
+  "class": "Кросс",
+  "aliases": [
+   "MAZDA CX-30"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MAZDA CX-4",
+  "make": "Mazda",
+  "model": "CX-4",
+  "gen": "",
+  "length": 4633,
+  "width": 1840,
+  "height": 1530,
+  "class": "Кросс",
+  "aliases": [
+   "MAZDA CX-4",
+   "MAZDA CX4"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MAZDA CX-5",
+  "make": "Mazda",
+  "model": "CX-5",
+  "gen": "KF",
+  "length": 4575,
+  "width": 1845,
+  "height": 1690,
+  "class": "Кросс",
+  "aliases": [
+   "MAZDA CX-5"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MAZDA CX-50",
+  "make": "Mazda",
+  "model": "CX-50",
+  "gen": "",
+  "length": 4720,
+  "width": 1920,
+  "height": 1613,
+  "class": "Кросс",
+  "aliases": [
+   "MAZDA CX-50"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MAZDA CX-9",
+  "make": "Mazda",
+  "model": "CX-9",
+  "gen": "TC",
+  "length": 5075,
+  "width": 1969,
+  "height": 1747,
+  "class": "Джип",
+  "aliases": [
+   "MAZDA CX-9"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MAZDA FAMILIA",
+  "make": "Mazda",
+  "model": "Familia Van",
+  "gen": "",
+  "length": 4395,
+  "width": 1695,
+  "height": 1500,
+  "class": "Седан",
+  "aliases": [
+   "MAZDA FAMILIA"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MAZDA 2",
+  "make": "Mazda",
+  "model": "Mazda2 / Demio",
+  "gen": "DJ",
+  "length": 4065,
+  "width": 1695,
+  "height": 1525,
+  "class": "Седан",
+  "aliases": [
+   "MAZDA MAZDA2",
+   "MAZDA DEMIO",
+   "MAZDA 2"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MAZDA 3",
+  "make": "Mazda",
+  "model": "Mazda3",
+  "gen": "BP, хэтчбек; седан 4660 мм",
+  "length": 4460,
+  "width": 1795,
+  "height": 1440,
+  "class": "Седан",
+  "aliases": [
+   "MAZDA MAZDA3",
+   "MAZDA 3"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MAZDA ROADSTER",
+  "make": "Mazda",
+  "model": "Roadster / MX-5",
+  "gen": "ND",
+  "length": 3915,
+  "width": 1735,
+  "height": 1235,
+  "class": "Седан",
+  "aliases": [
+   "MAZDA ROADSTER",
+   "MAZDA MX-5"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MB A",
+  "make": "Mercedes-Benz",
+  "model": "A-класс (A220, A35)",
+  "gen": "W177, хэтчбек; седан 4549 мм",
+  "length": 4419,
+  "width": 1796,
+  "height": 1440,
+  "class": "Седан",
+  "aliases": [
+   "MERCEDES-BENZ A-CLASS",
+   "MERCEDES-BENZ A-KЛACC",
+   "MERCEDES-BENZ A220",
+   "MERCEDES-BENZ A35",
+   "MERCEDES A-KЛACC",
+   "MB A-KЛACC"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MB C",
+  "make": "Mercedes-Benz",
+  "model": "C-класс",
+  "gen": "W205",
+  "length": 4686,
+  "width": 1810,
+  "height": 1442,
+  "class": "Седан",
+  "aliases": [
+   "MERCEDES-BENZ C-KЛACC",
+   "MERCEDES-BENZ C180",
+   "MERCEDES C-KЛACC",
+   "MERCEDES-BENZ C",
+   "MB C-KЛACC"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MB CL",
+  "make": "Mercedes-Benz",
+  "model": "C-класс L",
+  "gen": "W205 L, длинный (Китай)",
+  "length": 4784,
+  "width": 1810,
+  "height": 1457,
+  "class": "Седан",
+  "aliases": [
+   "MERCEDES-BENZ C-CLASS C",
+   "MERCEDES-BENZ C-KЛACC L",
+   "MERCEDES-BENZ C180L",
+   "MERCEDES C-KЛACC L",
+   "MB C-KЛACC L"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MB CLA",
+  "make": "Mercedes-Benz",
+  "model": "CLA",
+  "gen": "C117",
+  "length": 4630,
+  "width": 1777,
+  "height": 1432,
+  "class": "Кросс",
+  "aliases": [
+   "MERCEDES-BENZ CLA250",
+   "MERCEDES-BENZ CLA180",
+   "MERCEDES-BENZ CLA",
+   "MERCEDES CLA",
+   "MB CLA"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MB CLE",
+  "make": "Mercedes-Benz",
+  "model": "CLE купе",
+  "gen": "C236",
+  "length": 4850,
+  "width": 1860,
+  "height": 1428,
+  "class": "Седан",
+  "aliases": [
+   "MERCEDES-BENZ CLE200",
+   "MERCEDES-BENZ CLE",
+   "MERCEDES CLE",
+   "MB CLE"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MB CLS",
+  "make": "Mercedes-Benz",
+  "model": "CLS",
+  "gen": "C257",
+  "length": 4988,
+  "width": 1890,
+  "height": 1435,
+  "class": "Седан",
+  "aliases": [
+   "MERCEDES-BENZ CLS300D",
+   "MERCEDES-BENZ CLS53D",
+   "MERCEDES-BENZ CLS",
+   "MERCEDES CLS",
+   "MB CLS"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MB E",
+  "make": "Mercedes-Benz",
+  "model": "E-класс",
+  "gen": "W213",
+  "length": 4923,
+  "width": 1852,
+  "height": 1468,
+  "class": "Седан",
+  "aliases": [
+   "MERCEDES-BENZ E-KЛACC",
+   "MERCEDES-BENZ E250",
+   "MERCEDES E-KЛACC",
+   "MB E-KЛACC"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MB GLA",
+  "make": "Mercedes-Benz",
+  "model": "GLA",
+  "gen": "H247",
+  "length": 4410,
+  "width": 1834,
+  "height": 1611,
+  "class": "Кросс",
+  "aliases": [
+   "MERCEDES-BENZ GLA180",
+   "MERCEDES-BENZ GLA",
+   "MERCEDES GLA",
+   "MB GLA"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MB GLC",
+  "make": "Mercedes-Benz",
+  "model": "GLC",
+  "gen": "X253",
+  "length": 4656,
+  "width": 1890,
+  "height": 1639,
+  "class": "Кросс",
+  "aliases": [
+   "MERCEDES-BENZ GLC300E",
+   "MERCEDES-BENZ GLC220D",
+   "MERCEDES-BENZ GLC43",
+   "MERCEDES-BENZ GLC",
+   "MERCEDES GLC",
+   "MB GLC"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MB GLE",
+  "make": "Mercedes-Benz",
+  "model": "GLE",
+  "gen": "W167",
+  "length": 4924,
+  "width": 1947,
+  "height": 1772,
+  "class": "Кросс",
+  "aliases": [
+   "MERCEDES-BENZ GLE300D",
+   "MERCEDES-BENZ GLE400D",
+   "MERCEDES-BENZ GLE450",
+   "MERCEDES-BENZ GLE",
+   "MERCEDES GLE",
+   "MB GLE",
+   "GLE"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MB S",
+  "make": "Mercedes-Benz",
+  "model": "S-класс",
+  "gen": "W222",
+  "length": 5125,
+  "width": 1899,
+  "height": 1496,
+  "class": "Седан",
+  "aliases": [
+   "MERCEDES-BENZ S-KЛACC",
+   "MERCEDES-BENZ S350D",
+   "MERCEDES S-KЛACC",
+   "MB S-KЛACC"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MB SLK",
+  "make": "Mercedes-Benz",
+  "model": "SLK",
+  "gen": "R172",
+  "length": 4134,
+  "width": 1817,
+  "height": 1301,
+  "class": "Седан",
+  "aliases": [
+   "MERCEDES-BENZ SLK200",
+   "MERCEDES-BENZ SLK",
+   "MERCEDES SLK",
+   "MB SLK"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MITSUBISHI DELICA D2",
+  "make": "Mitsubishi",
+  "model": "Delica D:2",
+  "gen": "MB37S",
+  "length": 3790,
+  "width": 1645,
+  "height": 1745,
+  "class": "Седан",
+  "aliases": [
+   "MITSUBISHI DELICA D:2 HYBRID",
+   "MITSUBISHI DELICA D:2",
+   "MITSUBISHI DELICA D2"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MITSUBISHI DELICA D5",
+  "make": "Mitsubishi",
+  "model": "Delica D:5",
+  "gen": "CV1W",
+  "length": 4800,
+  "width": 1795,
+  "height": 1875,
+  "class": "Джип",
+  "aliases": [
+   "MITSUBISHI DELICA D:5"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MITSUBISHI ECLIPSE CROSS",
+  "make": "Mitsubishi",
+  "model": "Eclipse Cross",
+  "gen": "GK1W",
+  "length": 4545,
+  "width": 1805,
+  "height": 1685,
+  "class": "Кросс",
+  "aliases": [
+   "MITSUBISHI ECLIPSE CROSS"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MITSUBISHI OUTLANDER",
+  "make": "Mitsubishi",
+  "model": "Outlander",
+  "gen": "GN",
+  "length": 4710,
+  "width": 1860,
+  "height": 1745,
+  "class": "Кросс",
+  "aliases": [
+   "MITSUBISHI OUTLANDER"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MITSUBISHI PAJERO",
+  "make": "Mitsubishi",
+  "model": "Pajero",
+  "gen": "V90, 5 дверей",
+  "length": 4900,
+  "width": 1875,
+  "height": 1900,
+  "class": "Кросс",
+  "aliases": [
+   "MITSUBISHI PAJERO"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "MITSUBISHI RVR",
+  "make": "Mitsubishi",
+  "model": "RVR",
+  "gen": "GA",
+  "length": 4365,
+  "width": 1770,
+  "height": 1630,
+  "class": "Кросс",
+  "aliases": [
+   "MITSUBISHI RVR"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "NISSAN ARMADA",
+  "make": "Nissan",
+  "model": "Armada",
+  "gen": "",
+  "length": 5305,
+  "width": 2030,
+  "height": 1925,
+  "class": "Джип",
+  "aliases": [
+   "NISSAN ARMADA"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "NISSAN DAYZ",
+  "make": "Nissan",
+  "model": "Dayz",
+  "gen": "B44W",
+  "length": 3395,
+  "width": 1475,
+  "height": 1640,
+  "class": "Малыш",
+  "aliases": [
+   "NISSAN DAYZ HYBRID",
+   "NISSAN DAYZ"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "NISSAN DUALIS",
+  "make": "Nissan",
+  "model": "Dualis",
+  "gen": "KNJ10",
+  "length": 4315,
+  "width": 1780,
+  "height": 1615,
+  "class": "Кросс",
+  "aliases": [
+   "NISSAN DUALIS"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "NISSAN JUKE",
+  "make": "Nissan",
+  "model": "Juke",
+  "gen": "F15",
+  "length": 4135,
+  "width": 1765,
+  "height": 1565,
+  "class": "Кросс",
+  "aliases": [
+   "NISSAN JUKE"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "NISSAN KICKS",
+  "make": "Nissan",
+  "model": "Kicks",
+  "gen": "P15",
+  "length": 4290,
+  "width": 1760,
+  "height": 1610,
+  "class": "Кросс",
+  "aliases": [
+   "NISSAN KICKS"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "NISSAN NV200",
+  "make": "Nissan",
+  "model": "NV200 Vanette",
+  "gen": "",
+  "length": 4400,
+  "width": 1695,
+  "height": 1855,
+  "class": "Джип",
+  "aliases": [
+   "NISSAN NV200 VANETTE",
+   "NISSAN NV200"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "NISSAN NOTE",
+  "make": "Nissan",
+  "model": "Note",
+  "gen": "E12; E13 — 4045 мм",
+  "length": 4100,
+  "width": 1695,
+  "height": 1525,
+  "class": "Седан",
+  "aliases": [
+   "NISSAN NOTE"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "NISSAN QASHQAI",
+  "make": "Nissan",
+  "model": "Qashqai",
+  "gen": "J11; J12 — 4425 мм",
+  "length": 4394,
+  "width": 1806,
+  "height": 1590,
+  "class": "Кросс",
+  "aliases": [
+   "NISSAN QASHQAI GLORY",
+   "NISSAN QASHQAI"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "NISSAN SERENA",
+  "make": "Nissan",
+  "model": "Serena",
+  "gen": "C27",
+  "length": 4690,
+  "width": 1695,
+  "height": 1865,
+  "class": "Джип",
+  "aliases": [
+   "NISSAN SERENA"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "NISSAN X-TRAIL",
+  "make": "Nissan",
+  "model": "X-Trail",
+  "gen": "T33 (с 2021); T32 — 4690 мм",
+  "length": 4680,
+  "width": 1840,
+  "height": 1725,
+  "class": "Кросс",
+  "aliases": [
+   "NISSAN X-TRAIL"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "OMODA C5",
+  "make": "Omoda",
+  "model": "C5",
+  "gen": "",
+  "length": 4400,
+  "width": 1830,
+  "height": 1588,
+  "class": "Кросс",
+  "aliases": [
+   "OMODA C5"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "PEUGEOT 2008",
+  "make": "Peugeot",
+  "model": "2008",
+  "gen": "2-е поколение",
+  "length": 4300,
+  "width": 1770,
+  "height": 1550,
+  "class": "Кросс",
+  "aliases": [
+   "PEUGEOT 2008"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "PEUGEOT 308",
+  "make": "Peugeot",
+  "model": "308",
+  "gen": "T9",
+  "length": 4253,
+  "width": 1804,
+  "height": 1457,
+  "class": "Седан",
+  "aliases": [
+   "PEUGEOT 308"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "PORSCHE CAYENNE",
+  "make": "Porsche",
+  "model": "Cayenne",
+  "gen": "E3",
+  "length": 4918,
+  "width": 1983,
+  "height": 1696,
+  "class": "Кросс",
+  "aliases": [
+   "PORSCHE CAYENNE"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "RENAULT CAPTUR",
+  "make": "Renault",
+  "model": "Captur / Kaptur",
+  "gen": "",
+  "length": 4333,
+  "width": 1813,
+  "height": 1613,
+  "class": "Кросс",
+  "aliases": [
+   "RENAULT CAPTURE",
+   "RENAULT CAPTUR",
+   "RENAULT KAPTUR"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "RENAULT QM6",
+  "make": "Renault Samsung",
+  "model": "QM6",
+  "gen": "",
+  "length": 4675,
+  "width": 1845,
+  "height": 1680,
+  "class": "Кросс",
+  "aliases": [
+   "RENAULT SAMSUNG QM 6",
+   "RENAULT SAMSUNG QM6",
+   "RENAULT QM6",
+   "SAMSUNG QM6"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "RENAULT XM3",
+  "make": "Renault Samsung",
+  "model": "XM3",
+  "gen": "",
+  "length": 4570,
+  "width": 1820,
+  "height": 1570,
+  "class": "Кросс",
+  "aliases": [
+   "RENAULT SAMSUNG XM3",
+   "RENAULT XM3",
+   "SAMSUNG XM3"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "SKODA KAMIQ",
+  "make": "Skoda",
+  "model": "Kamiq",
+  "gen": "",
+  "length": 4241,
+  "width": 1793,
+  "height": 1531,
+  "class": "Кросс",
+  "aliases": [
+   "SKODA KAMIQ"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "SKODA KAROQ",
+  "make": "Skoda",
+  "model": "Karoq",
+  "gen": "",
+  "length": 4382,
+  "width": 1841,
+  "height": 1603,
+  "class": "Кросс",
+  "aliases": [
+   "SKODA KAROQ"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "SKODA KODIAQ",
+  "make": "Skoda",
+  "model": "Kodiaq",
+  "gen": "",
+  "length": 4697,
+  "width": 1882,
+  "height": 1676,
+  "class": "Кросс",
+  "aliases": [
+   "SKODA KODIAQ"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "SSANGYONG KORANDO",
+  "make": "SsangYong",
+  "model": "Korando",
+  "gen": "C300",
+  "length": 4450,
+  "width": 1870,
+  "height": 1620,
+  "class": "Джип",
+  "aliases": [
+   "SSANGYONG KORANDO"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "SSANGYONG TIVOLI",
+  "make": "SsangYong",
+  "model": "Tivoli",
+  "gen": "",
+  "length": 4225,
+  "width": 1810,
+  "height": 1615,
+  "class": "Кросс",
+  "aliases": [
+   "SSANGYONG TIVOLI"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "SUBARU FORESTER",
+  "make": "Subaru",
+  "model": "Forester",
+  "gen": "SK",
+  "length": 4640,
+  "width": 1815,
+  "height": 1730,
+  "class": "Кросс",
+  "aliases": [
+   "SUBARU FORESTER"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "SUBARU IMPREZA",
+  "make": "Subaru",
+  "model": "Impreza Sport",
+  "gen": "GT",
+  "length": 4460,
+  "width": 1775,
+  "height": 1480,
+  "class": "Седан",
+  "aliases": [
+   "SUBARU IMPREZA SPORT",
+   "SUBARU IMPREZA"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "SUBARU LEVORG",
+  "make": "Subaru",
+  "model": "Levorg",
+  "gen": "VN5",
+  "length": 4755,
+  "width": 1795,
+  "height": 1500,
+  "class": "Седан",
+  "aliases": [
+   "SUBARU LEVORG"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "SUBARU OUTBACK",
+  "make": "Subaru",
+  "model": "Outback",
+  "gen": "BT",
+  "length": 4870,
+  "width": 1875,
+  "height": 1675,
+  "class": "Кросс",
+  "aliases": [
+   "SUBARU OUTBACK"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "SUBARU XV",
+  "make": "Subaru",
+  "model": "XV",
+  "gen": "GT",
+  "length": 4465,
+  "width": 1800,
+  "height": 1550,
+  "class": "Седан",
+  "aliases": [
+   "SUBARU XV"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "SUZUKI EVERY",
+  "make": "Suzuki",
+  "model": "Every",
+  "gen": "DA17V",
+  "length": 3395,
+  "width": 1475,
+  "height": 1890,
+  "class": "Малыш",
+  "aliases": [
+   "SUZUKI EVERY"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "SUZUKI HUSTLER",
+  "make": "Suzuki",
+  "model": "Hustler",
+  "gen": "MR92S",
+  "length": 3395,
+  "width": 1475,
+  "height": 1680,
+  "class": "Малыш",
+  "aliases": [
+   "SUZUKI HUSTLER"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "SUZUKI JIMNY",
+  "make": "Suzuki",
+  "model": "Jimny",
+  "gen": "JB23W / JB64W",
+  "length": 3395,
+  "width": 1475,
+  "height": 1725,
+  "class": "Малыш",
+  "aliases": [
+   "SUZUKI JIMNY B64W",
+   "SUZUKI JIMNY"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "SUZUKI JIMNY NOMADE",
+  "make": "Suzuki",
+  "model": "Jimny Nomade (5 дверей)",
+  "gen": "JC74W",
+  "length": 3890,
+  "width": 1645,
+  "height": 1725,
+  "class": "Кросс",
+  "aliases": [
+   "SUZUKI JIMNY NOMADE C74W",
+   "SUZUKI JIMNY NOMADE"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "SUZUKI JIMNY SIERRA",
+  "make": "Suzuki",
+  "model": "Jimny Sierra",
+  "gen": "JB74W",
+  "length": 3550,
+  "width": 1645,
+  "height": 1730,
+  "class": "Малыш",
+  "aliases": [
+   "SUZUKI JIMNY SIERRA",
+   "SUZUKI JIMNY"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "SUZUKI SX4",
+  "make": "Suzuki",
+  "model": "SX4 S-Cross",
+  "gen": "",
+  "length": 4300,
+  "width": 1785,
+  "height": 1585,
+  "class": "Кросс",
+  "aliases": [
+   "SUZUKI SX4 S-CROSS",
+   "SUZUKI SX4"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "SUZUKI SOLIO",
+  "make": "Suzuki",
+  "model": "Solio / Bandit",
+  "gen": "MA27S, MA37S",
+  "length": 3790,
+  "width": 1645,
+  "height": 1745,
+  "class": "Седан",
+  "aliases": [
+   "SUZUKI SOLIO BANDIT",
+   "SUZUKI SOLIO HYBRID",
+   "SUZUKI BANDIT",
+   "SUZUKI SOLIO"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "SUZUKI SWIFT",
+  "make": "Suzuki",
+  "model": "Swift",
+  "gen": "4-е поколение",
+  "length": 3860,
+  "width": 1695,
+  "height": 1500,
+  "class": "Седан",
+  "aliases": [
+   "SUZUKI SWIFT"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "SUZUKI SWIFT SPORT",
+  "make": "Suzuki",
+  "model": "Swift Sport",
+  "gen": "ZC33S",
+  "length": 3890,
+  "width": 1735,
+  "height": 1495,
+  "class": "Седан",
+  "aliases": [
+   "SUZUKI SWIFT SPORT"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "SUZUKI XBEE",
+  "make": "Suzuki",
+  "model": "Xbee",
+  "gen": "MN71S",
+  "length": 3760,
+  "width": 1670,
+  "height": 1705,
+  "class": "Кросс",
+  "aliases": [
+   "SUZUKI XBEE HYBRID",
+   "SUZUKI XBEE"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TENET T4",
+  "make": "Tenet",
+  "model": "T4",
+  "gen": "на базе Chery Tiggo 4",
+  "length": 4318,
+  "width": 1831,
+  "height": 1662,
+  "class": "Кросс",
+  "aliases": [
+   "TENET T4L",
+   "TENET T4"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TENET T7",
+  "make": "Tenet",
+  "model": "T7",
+  "gen": "на базе Chery Tiggo 7",
+  "length": 4500,
+  "width": 1842,
+  "height": 1746,
+  "class": "Кросс",
+  "aliases": [
+   "TENET T7"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TENET T8",
+  "make": "Tenet",
+  "model": "T8",
+  "gen": "на базе Chery Tiggo 8",
+  "length": 4722,
+  "width": 1860,
+  "height": 1745,
+  "class": "Кросс",
+  "aliases": [
+   "TENET T8"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA ALPHARD",
+  "make": "Toyota",
+  "model": "Alphard",
+  "gen": "AH30",
+  "length": 4945,
+  "width": 1850,
+  "height": 1935,
+  "class": "Джип",
+  "aliases": [
+   "TOYOTA ALPHARD"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA AQUA",
+  "make": "Toyota",
+  "model": "Aqua",
+  "gen": "MXPK11",
+  "length": 4050,
+  "width": 1695,
+  "height": 1485,
+  "class": "Седан",
+  "aliases": [
+   "TOYOTA AQUA"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA C+POD",
+  "make": "Toyota",
+  "model": "C+pod",
+  "gen": "",
+  "length": 2490,
+  "width": 1290,
+  "height": 1550,
+  "class": "Малыш",
+  "aliases": [
+   "TOYOTA C PLUS POD",
+   "TOYOTA C+POD"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA C-HR",
+  "make": "Toyota",
+  "model": "C-HR",
+  "gen": "NGX10 / NGX50",
+  "length": 4385,
+  "width": 1795,
+  "height": 1550,
+  "class": "Кросс",
+  "aliases": [
+   "TOYOTA C-HR"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA CAMRY",
+  "make": "Toyota",
+  "model": "Camry",
+  "gen": "XV70",
+  "length": 4885,
+  "width": 1840,
+  "height": 1445,
+  "class": "Седан",
+  "aliases": [
+   "TOYOTA CAMRY"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA COROLLA AXIO",
+  "make": "Toyota",
+  "model": "Corolla Axio",
+  "gen": "E160",
+  "length": 4400,
+  "width": 1695,
+  "height": 1460,
+  "class": "Седан",
+  "aliases": [
+   "TOYOTA COROLLA AXIO"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA COROLLA CROSS",
+  "make": "Toyota",
+  "model": "Corolla Cross",
+  "gen": "",
+  "length": 4490,
+  "width": 1825,
+  "height": 1620,
+  "class": "Кросс",
+  "aliases": [
+   "TOYOTA COROLLA CROSS"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA FIELDER",
+  "make": "Toyota",
+  "model": "Corolla Fielder",
+  "gen": "E160 / E140",
+  "length": 4410,
+  "width": 1695,
+  "height": 1510,
+  "class": "Седан",
+  "aliases": [
+   "TOYOTA COROLLA FIELDER",
+   "TOYOTA FIELDER"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA COROLLA TOURING",
+  "make": "Toyota",
+  "model": "Corolla Touring",
+  "gen": "MZEA17",
+  "length": 4495,
+  "width": 1745,
+  "height": 1460,
+  "class": "Седан",
+  "aliases": [
+   "TOYOTA COROLLA TOURING"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA COROLLA",
+  "make": "Toyota",
+  "model": "Corolla седан",
+  "gen": "E210",
+  "length": 4630,
+  "width": 1780,
+  "height": 1435,
+  "class": "Седан",
+  "aliases": [
+   "TOYOTA COROLLA"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA HARRIER",
+  "make": "Toyota",
+  "model": "Harrier",
+  "gen": "ZSU60",
+  "length": 4720,
+  "width": 1835,
+  "height": 1690,
+  "class": "Кросс",
+  "aliases": [
+   "TOYOTA HARRIER"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA HIGHLANDER",
+  "make": "Toyota",
+  "model": "Highlander / Kluger",
+  "gen": "XU70",
+  "length": 4950,
+  "width": 1930,
+  "height": 1730,
+  "class": "Кросс",
+  "aliases": [
+   "TOYOTA HIGHLANDER",
+   "TOYOTA KLUGER"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA ISIS",
+  "make": "Toyota",
+  "model": "Isis",
+  "gen": "ZGM10 / ZGM15",
+  "length": 4640,
+  "width": 1710,
+  "height": 1640,
+  "class": "Седан",
+  "aliases": [
+   "TOYOTA ISIS"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA LAND CRUISER",
+  "make": "Toyota",
+  "model": "Land Cruiser 100",
+  "gen": "HDJ101",
+  "length": 4890,
+  "width": 1940,
+  "height": 1880,
+  "class": "Джип",
+  "aliases": [
+   "TOYOTA LAND CRUISER 100",
+   "TOYOTA LAND CRUISER"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA PRADO",
+  "make": "Toyota",
+  "model": "Land Cruiser Prado",
+  "gen": "150",
+  "length": 4840,
+  "width": 1885,
+  "height": 1845,
+  "class": "Джип",
+  "aliases": [
+   "TOYOTA LAND CRUISER PRADO"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA LEVIN",
+  "make": "Toyota",
+  "model": "Levin",
+  "gen": "",
+  "length": 4640,
+  "width": 1780,
+  "height": 1455,
+  "class": "Седан",
+  "aliases": [
+   "TOYOTA COROLLA LEVIN",
+   "TOYOTA LEVIN"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA LITE ACE NOAH",
+  "make": "Toyota",
+  "model": "Lite Ace Noah",
+  "gen": "R50",
+  "length": 4385,
+  "width": 1690,
+  "height": 1980,
+  "class": "Джип",
+  "aliases": [
+   "TOYOTA LITE ACE NOAH"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA MEGA CRUISER",
+  "make": "Toyota",
+  "model": "Mega Cruiser",
+  "gen": "",
+  "length": 5090,
+  "width": 2170,
+  "height": 2075,
+  "class": "Джип",
+  "aliases": [
+   "TOYOTA MEGA CRUISER"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA NOAH",
+  "make": "Toyota",
+  "model": "Noah / Voxy / Esquire",
+  "gen": "R80",
+  "length": 4695,
+  "width": 1695,
+  "height": 1825,
+  "class": "Джип",
+  "aliases": [
+   "TOYOTA ESQUIRE",
+   "TOYOTA NOAH",
+   "TOYOTA VOXY"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA PASSO",
+  "make": "Toyota",
+  "model": "Passo",
+  "gen": "M700A",
+  "length": 3650,
+  "width": 1665,
+  "height": 1525,
+  "class": "Седан",
+  "aliases": [
+   "TOYOTA PASSO"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA PIXIS VAN",
+  "make": "Toyota",
+  "model": "Pixis Van",
+  "gen": "",
+  "length": 3395,
+  "width": 1475,
+  "height": 1880,
+  "class": "Малыш",
+  "aliases": [
+   "TOYOTA PIXIS VAN",
+   "TOYOTA PIXIS"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA PREMIO",
+  "make": "Toyota",
+  "model": "Premio",
+  "gen": "ZRT260",
+  "length": 4595,
+  "width": 1695,
+  "height": 1475,
+  "class": "Седан",
+  "aliases": [
+   "TOYOTA PREMIO"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA PRIUS",
+  "make": "Toyota",
+  "model": "Prius",
+  "gen": "ZVW50",
+  "length": 4575,
+  "width": 1760,
+  "height": 1470,
+  "class": "Седан",
+  "aliases": [
+   "TOYOTA PRIUS"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA PRIUS PHV",
+  "make": "Toyota",
+  "model": "Prius PHV",
+  "gen": "ZVW52",
+  "length": 4645,
+  "width": 1760,
+  "height": 1470,
+  "class": "Седан",
+  "aliases": [
+   "TOYOTA PRIUS PHV"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA PROBOX",
+  "make": "Toyota",
+  "model": "Probox / Succeed",
+  "gen": "NSP160 / NCP165",
+  "length": 4245,
+  "width": 1690,
+  "height": 1525,
+  "class": "Седан",
+  "aliases": [
+   "TOYOTA SUCCEED",
+   "TOYOTA PROBOX"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA RAV4",
+  "make": "Toyota",
+  "model": "RAV4",
+  "gen": "XA50",
+  "length": 4600,
+  "width": 1855,
+  "height": 1685,
+  "class": "Кросс",
+  "aliases": [
+   "TOYOTA RAV4"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA RAIZE",
+  "make": "Toyota",
+  "model": "Raize",
+  "gen": "A200A / A210A",
+  "length": 3995,
+  "width": 1695,
+  "height": 1620,
+  "class": "Кросс",
+  "aliases": [
+   "TOYOTA RAIZE"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA ROOMY",
+  "make": "Toyota",
+  "model": "Roomy / Tank",
+  "gen": "M900A",
+  "length": 3700,
+  "width": 1670,
+  "height": 1735,
+  "class": "Седан",
+  "aliases": [
+   "TOYOTA ROOMY",
+   "TOYOTA TANK"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA RUSH",
+  "make": "Toyota",
+  "model": "Rush",
+  "gen": "J210E",
+  "length": 4420,
+  "width": 1695,
+  "height": 1705,
+  "class": "Кросс",
+  "aliases": [
+   "TOYOTA RUSH"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA SIENNA",
+  "make": "Toyota",
+  "model": "Sienna",
+  "gen": "XL40",
+  "length": 5175,
+  "width": 1995,
+  "height": 1765,
+  "class": "Джип",
+  "aliases": [
+   "TOYOTA SIENNA"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA SIENTA",
+  "make": "Toyota",
+  "model": "Sienta",
+  "gen": "NSP170",
+  "length": 4260,
+  "width": 1695,
+  "height": 1675,
+  "class": "Седан",
+  "aliases": [
+   "TOYOTA SIENTA"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA VITZ",
+  "make": "Toyota",
+  "model": "Vitz",
+  "gen": "KSP130 / NSP130",
+  "length": 3885,
+  "width": 1695,
+  "height": 1500,
+  "class": "Седан",
+  "aliases": [
+   "TOYOTA VITZ"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA WISH",
+  "make": "Toyota",
+  "model": "Wish",
+  "gen": "ZGE20 / ZNE10",
+  "length": 4590,
+  "width": 1695,
+  "height": 1590,
+  "class": "Седан",
+  "aliases": [
+   "TOYOTA WISH"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA YARIS",
+  "make": "Toyota",
+  "model": "Yaris",
+  "gen": "KSP210 / MXPA10",
+  "length": 3940,
+  "width": 1695,
+  "height": 1500,
+  "class": "Седан",
+  "aliases": [
+   "TOYOTA YARIS"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA YARIS CROSS",
+  "make": "Toyota",
+  "model": "Yaris Cross",
+  "gen": "MXPB10",
+  "length": 4180,
+  "width": 1765,
+  "height": 1590,
+  "class": "Кросс",
+  "aliases": [
+   "TOYOTA YARIS CROSS"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA YARIS L",
+  "make": "Toyota",
+  "model": "Yaris L",
+  "gen": "хэтчбек (Китай)",
+  "length": 4160,
+  "width": 1700,
+  "height": 1495,
+  "class": "Седан",
+  "aliases": [
+   "TOYOTA YARIS L"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA BB",
+  "make": "Toyota",
+  "model": "bB",
+  "gen": "QNC21",
+  "length": 3800,
+  "width": 1690,
+  "height": 1635,
+  "class": "Седан",
+  "aliases": [
+   "TOYOTA BB"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "TOYOTA BZ3X",
+  "make": "Toyota",
+  "model": "bZ3X",
+  "gen": "",
+  "length": 4600,
+  "width": 1875,
+  "height": 1645,
+  "class": "Кросс",
+  "aliases": [
+   "TOYOTA BZ3X"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VW BEETLE",
+  "make": "Volkswagen",
+  "model": "Beetle",
+  "gen": "A5",
+  "length": 4278,
+  "width": 1808,
+  "height": 1486,
+  "class": "Седан",
+  "aliases": [
+   "VOLKSWAGEN BEETLE",
+   "VW BEETLE"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VW GOLF",
+  "make": "Volkswagen",
+  "model": "Golf",
+  "gen": "Mk8; Mk7 — 4255 мм",
+  "length": 4284,
+  "width": 1789,
+  "height": 1456,
+  "class": "Седан",
+  "aliases": [
+   "VOLKSWAGEN GOLF",
+   "VW GOLF"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VW JETTA",
+  "make": "Volkswagen",
+  "model": "Jetta",
+  "gen": "Mk7",
+  "length": 4702,
+  "width": 1799,
+  "height": 1458,
+  "class": "Седан",
+  "aliases": [
+   "VOLKSWAGEN JETTA",
+   "VW JETTA"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VW LAMANDO",
+  "make": "Volkswagen",
+  "model": "Lamando",
+  "gen": "",
+  "length": 4597,
+  "width": 1826,
+  "height": 1435,
+  "class": "Седан",
+  "aliases": [
+   "VOLKSWAGEN LAMANDO",
+   "VW LAMANDO"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VW LAMANDO L",
+  "make": "Volkswagen",
+  "model": "Lamando L",
+  "gen": "",
+  "length": 4784,
+  "width": 1831,
+  "height": 1469,
+  "class": "Седан",
+  "aliases": [
+   "VOLKSWAGEN LAMANDO L",
+   "VW LAMANDO L"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VW LAVIDA",
+  "make": "Volkswagen",
+  "model": "Lavida",
+  "gen": "",
+  "length": 4678,
+  "width": 1806,
+  "height": 1474,
+  "class": "Седан",
+  "aliases": [
+   "VOLKSWAGEN LAVIDA",
+   "VW LAVIDA"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VW MAGOTAN",
+  "make": "Volkswagen",
+  "model": "Magotan",
+  "gen": "B8 (Китай)",
+  "length": 4865,
+  "width": 1832,
+  "height": 1471,
+  "class": "Седан",
+  "aliases": [
+   "VOLKSWAGEN MAGOTAN",
+   "VW MAGOTAN"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VW PASSAT",
+  "make": "Volkswagen",
+  "model": "Passat",
+  "gen": "B8",
+  "length": 4767,
+  "width": 1832,
+  "height": 1456,
+  "class": "Седан",
+  "aliases": [
+   "VOLKSWAGEN PASSAT",
+   "VW PASSAT"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VW PASSAT CC",
+  "make": "Volkswagen",
+  "model": "Passat CC",
+  "gen": "",
+  "length": 4802,
+  "width": 1855,
+  "height": 1417,
+  "class": "Седан",
+  "aliases": [
+   "VOLKSWAGEN PASSAT CC",
+   "VW PASSAT CC"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VW PASSAT VARIANT",
+  "make": "Volkswagen",
+  "model": "Passat Variant",
+  "gen": "B8",
+  "length": 4773,
+  "width": 1832,
+  "height": 1516,
+  "class": "Седан",
+  "aliases": [
+   "VOLKSWAGEN PASSAT VARIANT",
+   "VW PASSAT VARIANT"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VW POLO",
+  "make": "Volkswagen",
+  "model": "Polo лифтбек",
+  "gen": "",
+  "length": 4469,
+  "width": 1706,
+  "height": 1468,
+  "class": "Седан",
+  "aliases": [
+   "VOLKSWAGEN POLO",
+   "VW POLO"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VW SAGITAR",
+  "make": "Volkswagen",
+  "model": "Sagitar",
+  "gen": "",
+  "length": 4753,
+  "width": 1800,
+  "height": 1462,
+  "class": "Седан",
+  "aliases": [
+   "VOLKSWAGEN SAGITAR",
+   "VW SAGITAR"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VW SHARAN",
+  "make": "Volkswagen",
+  "model": "Sharan",
+  "gen": "",
+  "length": 4854,
+  "width": 1904,
+  "height": 1720,
+  "class": "Джип",
+  "aliases": [
+   "VOLKSWAGEN SHARAN",
+   "VW SHARAN"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VW T-CROSS",
+  "make": "Volkswagen",
+  "model": "T-Cross",
+  "gen": "Китай",
+  "length": 4218,
+  "width": 1760,
+  "height": 1584,
+  "class": "Кросс",
+  "aliases": [
+   "VOLKSWAGEN T-CROSS 10DL",
+   "VOLKSWAGEN T-CROSS",
+   "VW T-CROSS"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VW T-ROC",
+  "make": "Volkswagen",
+  "model": "T-Roc",
+  "gen": "",
+  "length": 4234,
+  "width": 1819,
+  "height": 1573,
+  "class": "Кросс",
+  "aliases": [
+   "VOLKSWAGEN T-ROC",
+   "VW T-ROC"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VW TACQUA",
+  "make": "Volkswagen",
+  "model": "Tacqua",
+  "gen": "",
+  "length": 4410,
+  "width": 1800,
+  "height": 1600,
+  "class": "Кросс",
+  "aliases": [
+   "VOLKSWAGEN TACQUA",
+   "VW TACQUA"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VW TALAGON",
+  "make": "Volkswagen",
+  "model": "Talagon",
+  "gen": "",
+  "length": 5150,
+  "width": 1990,
+  "height": 1795,
+  "class": "Джип",
+  "aliases": [
+   "VOLKSWAGEN TALAGON",
+   "VW TALAGON"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VW TAYRON",
+  "make": "Volkswagen",
+  "model": "Tayron",
+  "gen": "Китай, 2019–2024",
+  "length": 4589,
+  "width": 1860,
+  "height": 1660,
+  "class": "Кросс",
+  "aliases": [
+   "VOLKSWAGEN TAYRON 7263",
+   "VOLKSWAGEN TAYRON",
+   "VW TAYRON"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VW TAYRON X",
+  "make": "Volkswagen",
+  "model": "Tayron X",
+  "gen": "",
+  "length": 4592,
+  "width": 1860,
+  "height": 1626,
+  "class": "Кросс",
+  "aliases": [
+   "VOLKSWAGEN TAYRON X",
+   "VW TAYRON X"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VW TERAMONT",
+  "make": "Volkswagen",
+  "model": "Teramont",
+  "gen": "",
+  "length": 5039,
+  "width": 1989,
+  "height": 1773,
+  "class": "Джип",
+  "aliases": [
+   "VOLKSWAGEN TERAMONT",
+   "VW TERAMONT"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VW THARU",
+  "make": "Volkswagen",
+  "model": "Tharu",
+  "gen": "",
+  "length": 4453,
+  "width": 1841,
+  "height": 1632,
+  "class": "Кросс",
+  "aliases": [
+   "VOLKSWAGEN THARU XR",
+   "VOLKSWAGEN THARU",
+   "VW THARU"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VW TIGUAN",
+  "make": "Volkswagen",
+  "model": "Tiguan",
+  "gen": "Mk2",
+  "length": 4486,
+  "width": 1839,
+  "height": 1673,
+  "class": "Кросс",
+  "aliases": [
+   "VOLKSWAGEN TIGUAN",
+   "VW TIGUAN"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VW TIGUAN L",
+  "make": "Volkswagen",
+  "model": "Tiguan L",
+  "gen": "длинный (Китай)",
+  "length": 4712,
+  "width": 1839,
+  "height": 1673,
+  "class": "Кросс",
+  "aliases": [
+   "VOLKSWAGEN TIGUAN L",
+   "VW TIGUAN L"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VOLVO V40",
+  "make": "Volvo",
+  "model": "V40",
+  "gen": "",
+  "length": 4369,
+  "width": 1802,
+  "height": 1445,
+  "class": "Седан",
+  "aliases": [
+   "VOLVO V40"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VOLVO V60",
+  "make": "Volvo",
+  "model": "V60",
+  "gen": "",
+  "length": 4761,
+  "width": 1850,
+  "height": 1432,
+  "class": "Седан",
+  "aliases": [
+   "VOLVO V60"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VOLVO V90",
+  "make": "Volvo",
+  "model": "V90",
+  "gen": "",
+  "length": 4936,
+  "width": 1879,
+  "height": 1475,
+  "class": "Седан",
+  "aliases": [
+   "VOLVO V90"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VOLVO XC40",
+  "make": "Volvo",
+  "model": "XC40",
+  "gen": "",
+  "length": 4425,
+  "width": 1863,
+  "height": 1652,
+  "class": "Кросс",
+  "aliases": [
+   "VOLVO XC40"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VOLVO XC60",
+  "make": "Volvo",
+  "model": "XC60",
+  "gen": "",
+  "length": 4708,
+  "width": 1902,
+  "height": 1658,
+  "class": "Кросс",
+  "aliases": [
+   "VOLVO XC60"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "VOYAH DREAMER",
+  "make": "Voyah",
+  "model": "Dreamer",
+  "gen": "",
+  "length": 5315,
+  "width": 1980,
+  "height": 1820,
+  "class": "Джип",
+  "aliases": [
+   "VOYAH DREAMER"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ },
+ {
+  "key": "XIAOMI YU7",
+  "make": "Xiaomi",
+  "model": "YU7",
+  "gen": "",
+  "length": 4999,
+  "width": 1996,
+  "height": 1600,
+  "class": "Кросс",
+  "aliases": [
+   "XIAOMI YU7"
+  ],
+  "frames": [],
+  "oldUntil": 0
+ }
+]

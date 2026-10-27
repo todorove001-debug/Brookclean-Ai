@@ -1,0 +1,48 @@
+# Сервер Reg.ru: база PostgreSQL, API и Caddy — два сайта (клиенты и сотрудники), HTTPS выпускается автоматически
+# запуск: docker compose up -d --build
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: brook
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?задайте DB_PASSWORD в .env}
+      POSTGRES_DB: brookclean
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "brook"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build: ../server
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://brook:${DB_PASSWORD}@db:5432/brookclean
+      STORAGE: s3
+    depends_on:
+      db:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      CLIENT_DOMAIN: ${CLIENT_DOMAIN:?задайте CLIENT_DOMAIN в .env}
+      STAFF_DOMAIN: ${STAFF_DOMAIN:?задайте STAFF_DOMAIN в .env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../web/client:/srv/client:ro
+      - ../web/staff:/srv/staff:ro
+      - caddy_data:/data
+    depends_on:
+      - api
+
+volumes:
+  db:
+  caddy_data:
