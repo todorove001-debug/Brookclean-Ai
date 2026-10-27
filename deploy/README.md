@@ -33,7 +33,6 @@ cat ~/.ssh/id_ed25519.pub
 git clone git@github.com:todorove001-debug/Brookclean-Ai.git /opt/brookclean
 ```
 
-Пока код не слит в основную ветку, добавьте к команде `-b claude/lucid-einstein-46as72`.
 
 ## 3. Установка одной командой
 
@@ -84,9 +83,27 @@ crontab -e
 
 ## 5. Обновление
 
+### Автоматически из GitHub
+
+После каждого слияния в `main` GitHub Actions прогоняет тесты сервера и, если они прошли, сам обновляет сервер: забирает код, пересобирает контейнеры, ждёт ответа API. Новые миграции базы применяются при старте API. Разовая настройка:
+
+1. На сервере создайте ключ, которым GitHub будет входить на сервер:
+
+   ```bash
+   ssh-keygen -t ed25519 -N "" -f ~/.ssh/github_actions -C github-actions
+   cat ~/.ssh/github_actions.pub >> ~/.ssh/authorized_keys
+   cat ~/.ssh/github_actions
+   ```
+
+2. На GitHub откройте репозиторий → Settings → Secrets and variables → Actions → New repository secret и добавьте:
+   - `DEPLOY_HOST` — IP сервера;
+   - `DEPLOY_SSH_KEY` — весь вывод последней команды, от `-----BEGIN` до `-----END ... KEY-----` включительно.
+
+Закрытый ключ вставляйте только в секреты GitHub, не в чат и не в файлы репозитория. Пока секретов нет, шаг обновления пропускается, тесты всё равно идут. Запустить обновление вручную: вкладка Actions → «Сервер» → Run workflow.
+
+### Вручную
+
 ```bash
 cd /opt/brookclean && git pull
-cd deploy && docker compose up -d --build api
+cd deploy && docker compose up -d --build
 ```
-
-Новые миграции базы применяются сами при старте API.

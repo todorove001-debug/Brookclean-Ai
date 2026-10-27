@@ -1,0 +1,82 @@
+# Проверка сервера на каждое изменение; после слияния в main — обновление сервера Reg.ru.
+# Для обновления нужны секреты репозитория (Settings → Secrets and variables → Actions):
+#   DEPLOY_HOST — IP сервера, DEPLOY_SSH_KEY — закрытый ключ для входа на сервер (см. deploy/README.md).
+#   DEPLOY_USER — пользователь, по умолчанию root. Пока секретов нет, шаг обновления пропускается.
+name: Сервер
+
+on:
+  push:
+    paths: ["server/**", "deploy/**", "web/**", ".github/workflows/server.yml"]
+  pull_request:
+    paths: ["server/**", "deploy/**", "web/**", ".github/workflows/server.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: server-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Тесты
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: brook
+          POSTGRES_PASSWORD: brook
+          POSTGRES_DB: brookclean_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U brook" --health-interval 5s --health-timeout 5s --health-retries 10
+    defaults:
+      run:
+        working-directory: server
+    env:
+      TEST_DATABASE_URL: postgres://brook:brook@localhost:5432/brookclean_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: Тесты с хранилищем S3
+        run: npm test
+        env:
+          TEST_STORAGE: s3
+      - name: Сборка образа
+        run: docker build -t brookclean-api .
+
+  deploy:
+    name: Обновление сервера
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Обновить код и перезапустить
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER_NAME: ${{ secrets.DEPLOY_USER }}
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          if [ -z "$HOST" ] || [ -z "$KEY" ]; then
+            echo "::notice::Секреты DEPLOY_HOST и DEPLOY_SSH_KEY не заданы — обновление сервера пропущено."
+            exit 0
+          fi
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          ssh-keyscan -T 15 -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh -i ~/.ssh/deploy -o BatchMode=yes "${USER_NAME:-root}@$HOST" 'set -e
+            cd /opt/brookclean
+            git fetch -q origin main && git checkout -q main && git reset -q --hard origin/main
+            cd deploy
+            docker compose up -d --build
+            for i in $(seq 1 40); do
+              if docker compose exec -T api node -e "fetch(\"http://localhost:3000/api/health\").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; then echo "API работает"; exit 0; fi
+              sleep 3
+            done
+            docker compose logs --tail 40 api; exit 1'
