@@ -16,49 +16,61 @@
    - Адрес хранилища: `https://s3.regru.cloud`.
 3. **Домен и поддомен.** В DNS добавьте две A-записи на IP облачного сервера: для основного домена (`brookclean.ru`) и для поддомена сотрудников (`crm.brookclean.ru`). Название поддомена можно выбрать любое.
 
-## 2. Подготовка сервера
+## 2. Доступ сервера к репозиторию
+
+Репозиторий закрытый, поэтому серверу нужен ключ развёртывания (только на чтение):
 
 ```bash
 ssh root@IP_СЕРВЕРА
-apt update && apt upgrade -y
-curl -fsSL https://get.docker.com | sh
-ufw allow 22 && ufw allow 80 && ufw allow 443 && ufw --force enable
-git clone https://github.com/todorove001-debug/Brookclean-Ai.git /opt/brookclean
-cd /opt/brookclean/deploy
-cp .env.example .env
-nano .env
+apt update && apt install -y git
+ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519 -C brookclean-server
+cat ~/.ssh/id_ed25519.pub
 ```
 
-Что заполнить в `.env`:
-
-- `CLIENT_DOMAIN` — домен для клиентов, `STAFF_DOMAIN` — поддомен для сотрудников.
-- `DB_PASSWORD` — длинный случайный пароль: `openssl rand -hex 24`.
-- `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` — из личного кабинета Reg.ru.
-- `S3_REGION` — если в личном кабинете указан другой регион, впишите его.
-
-## 3. Запуск
+Скопируйте выведенную строку. На GitHub откройте репозиторий → Settings → Deploy keys → Add deploy key, вставьте её и оставьте флажок «Allow write access» выключенным.
 
 ```bash
-docker compose up -d --build
-docker compose logs -f api        # «миграция применена», затем «Server listening»
+git clone git@github.com:todorove001-debug/Brookclean-Ai.git /opt/brookclean
 ```
 
-При старте API проверяет, что бакет доступен с этими ключами. Если ключи или бакет неверные, в логе будет ошибка, и API не запустится.
+Пока код не слит в основную ветку, добавьте к команде `-b claude/lucid-einstein-46as72`.
 
-Первый менеджер:
+## 3. Установка одной командой
+
+```bash
+cd /opt/brookclean/deploy
+bash install.sh
+```
+
+Скрипт:
+
+1. ставит Docker и открывает порты 22, 80 и 443;
+2. спрашивает домен, поддомен, бакет, регион и ключи S3, сам генерирует пароль базы и сохраняет всё в `deploy/.env` с доступом только для root;
+3. проверяет, что A-записи доменов указывают на этот сервер;
+4. собирает и запускает базу, API и Caddy. API при старте применяет миграции и проверяет доступ к бакету;
+5. создаёт первого менеджера (телефон, ФИО, пароль);
+6. включает ночную копию базы в S3 в 03:30.
+
+HTTPS-сертификаты Caddy выпускает сам в первые минуты после запуска. Затем проверьте:
+
+- `https://CLIENT_DOMAIN/api/health` и `https://STAFF_DOMAIN/api/health` возвращают `{"ok":true}`;
+- `https://CLIENT_DOMAIN/api/orders` возвращает 404: адреса сотрудников с клиентского сайта закрыты.
+
+Скрипт можно запускать повторно, например после исправления ключей S3.
+
+Если API не запустился, скрипт покажет журнал. Частые причины: неверное имя бакета, ключи или регион S3. Посмотреть журнал вручную: `cd /opt/brookclean/deploy && docker compose logs --tail 50 api`.
+
+### Установка вручную
+
+Если нужен ручной путь: `cp .env.example .env`, заполнить `.env`, затем `docker compose up -d --build`. Первый менеджер:
 
 ```bash
 docker compose run --rm -e SEED_PHONE=79001234567 -e SEED_PASSWORD='надёжный-пароль' -e SEED_NAME='Тодоров Евгений Константинович' api node dist/db/seed.js
 ```
 
-Проверка:
-
-- `https://CLIENT_DOMAIN/api/health` и `https://STAFF_DOMAIN/api/health` возвращают `{"ok":true}`;
-- `https://CLIENT_DOMAIN/api/orders` возвращает 404: адреса сотрудников с клиентского сайта закрыты.
-
-Менеджер входит на сайте сотрудников.
-
 ## 4. Резервные копии базы
+
+`install.sh` уже включает ночную копию. Для ручной установки:
 
 Скрипт `backup.sh` выгружает базу в тот же бакет, в папку `backups/`. Чтобы он запускался каждую ночь:
 
