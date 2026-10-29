@@ -11,7 +11,7 @@ from sqlalchemy import select
 from app.agents.base import run_agent, untrusted
 from app.analytics.links import create_link, public_url
 from app.content.channel import approved_facts, get_channel
-from app.content.service import load_version, new_version
+from app.content.service import Stale, load_version, new_version
 from app.database.enums import ContentStatus, SourceVerification
 from app.database.models import ContentItem, ContentVersion, ResearchSource
 from app.database.session import session_scope, utcnow
@@ -138,6 +138,8 @@ async def write_copy(services: Services, item_id: uuid.UUID, *, qa_feedback: lis
     async with session_scope() as session:
         item = await session.get(ContentItem, item_id, with_for_update=True)
         assert item is not None
+        if ContentStatus(item.status) not in {ContentStatus.drafting, ContentStatus.changes_requested}:
+            raise Stale(f"статус материала сменился на {item.status}")
         body = postprocess_body(draft.body_html, set())
         cta_text = telegram_html.visible_text(draft.cta_text).strip()
         publish_options: dict = {"used_fact_keys": draft.used_fact_keys, "used_claims": draft.used_claims,

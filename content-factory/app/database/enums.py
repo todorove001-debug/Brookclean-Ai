@@ -54,12 +54,14 @@ TRANSITIONS: dict[ContentStatus, set[ContentStatus]] = {
     },
     ContentStatus.approved: {
         ContentStatus.scheduled,
+        ContentStatus.failed,
         ContentStatus.changes_requested,
         ContentStatus.quality_check,
         ContentStatus.cancelled,
     },
     ContentStatus.scheduled: {
         ContentStatus.publishing,
+        ContentStatus.failed,
         ContentStatus.changes_requested,
         ContentStatus.quality_check,
         ContentStatus.cancelled,

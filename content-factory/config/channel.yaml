@@ -1,0 +1,88 @@
+# Настройки канала при первом запуске. Дальше они хранятся в базе и меняются через Admin API
+# (PUT /api/v1/channel, /api/v1/brand, /api/v1/budget) без изменения кода.
+name: Brookclean Trucks
+description: Перевозка автомобилей автовозами из Владивостока по России
+
+brand:
+  company_name: Brookclean Trucks
+  logo: config/brand/logo.jpg          # путь к файлу или storage:<ключ> после загрузки через API
+  colors:
+    primary: "#1F4FA3"
+    secondary: "#0E1B2E"
+    accent: "#F2B705"
+    text: "#FFFFFF"
+    text_dark: "#0E1B2E"
+    background: "#0E1B2E"
+  fonts:
+    regular: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+    bold: /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
+  contacts: []                          # например: ["@brookclean_manager", "+7 ..."] — только утверждённые контакты
+  hashtags: ["#автовоз", "#перевозкаавто"]
+  voice: >-
+    Спокойный экспертный тон человека, который каждый день грузит машины на автовоз.
+    Конкретика вместо восклицаний, без канцелярита и рекламного пафоса, обращение на «вы».
+  synthetic_disclosure: Иллюстрация создана с помощью ИИ
+
+schedule:
+  timezone: Europe/Moscow
+  posts_per_day_min: 4
+  posts_per_day_max: 7
+  slots: ["09:00", "12:00", "15:00", "18:00", "20:30"]
+  windows:
+    - {start: "08:00", end: "22:00"}
+  min_gap_minutes: 90
+  production_lead_days: 2
+
+mix:
+  shares: {short_post: 0.25, article: 0.12, image_post: 0.12, infographic: 0.08, video: 0.25, poll: 0.06, ad: 0.08, story: 0.04}
+  videos_per_month_min: 30
+  videos_per_month_max: 60
+
+rubrics:
+  - {key: news, title: Новости автологистики, description: "Новости рынка перевозок и автомобильной логистики", needs_sources: true}
+  - {key: law, title: Законодательство, description: "Изменения правил и законов, влияющие на перевозку и ввоз автомобилей", needs_sources: true}
+  - {key: buyer_tips, title: Советы покупателям, description: "Что проверить при покупке машины в другом регионе и перед отправкой"}
+  - {key: preparation, title: Подготовка к перевозке, description: "Как подготовить автомобиль к погрузке на автовоз"}
+  - {key: loading, title: Погрузка и крепление, description: "Как машины грузят, крепят и везут на автовозе"}
+  - {key: routes, title: Маршруты, description: "Логистика между Владивостоком и регионами: особенности дороги, сезонность"}
+  - {key: faq, title: Вопросы клиентов, description: "Ответы на частые вопросы о перевозке"}
+  - {key: myths, title: Мифы и ошибки, description: "Разбор распространённых заблуждений и ошибок при перевозке автомобиля"}
+  - {key: service, title: Об услуге, description: "Рассказ об услуге перевозки на основе утверждённых фактов"}
+  - {key: cases, title: Истории перевозок, description: "Реальные перевозки по материалам владельца", requires_owner_material: true}
+
+routes:
+  - {origin: Владивосток, destination: Новосибирск}
+  - {origin: Владивосток, destination: Москва}
+  - {origin: Владивосток, destination: Краснодар}
+  - {origin: Владивосток, destination: Санкт-Петербург}
+  - {origin: Владивосток, destination: Тюмень}
+
+# Куда ведут призывы к действию. Ключ — имя цели, значение — URL (оборачивается в отслеживаемую ссылку /r/<код>).
+# Например: calc: https://brookclean.ru/  или  manager: https://t.me/<менеджер>
+cta_targets: {}
+
+# RSS-ленты отраслевых СМИ и госорганов для Research Agent. Добавляйте только проверенные адреса.
+rss_feeds: []
+
+budget:
+  daily_limit_usd: 15
+  monthly_limit_usd: 300
+  max_task_cost_usd: 5
+  video_generations_per_month: 120
+  max_retries_paid: 2
+  warn_thresholds: [0.5, 0.8, 0.95]
+  hard_stop: true
+
+qa:
+  max_auto_fix_rounds: 1
+  ad_marking_required: false   # маркировка рекламы (erid): решение принимает владелец или юрист
+
+# Сведения о компании. При первом запуске попадают в базу НЕутверждёнными:
+# владелец подтверждает их через API (PUT /api/v1/facts с approve: true) или командой factory facts approve.
+approved_facts:
+  - {key: service.car_carrier, category: service, statement: "Компания перевозит легковые автомобили автовозами."}
+  - {key: route.vvo_nsk, category: route, statement: "Маршрут перевозки: Владивосток — Новосибирск."}
+  - {key: route.vvo_msk, category: route, statement: "Маршрут перевозки: Владивосток — Москва."}
+  - {key: route.vvo_krd, category: route, statement: "Маршрут перевозки: Владивосток — Краснодар."}
+  - {key: route.vvo_spb, category: route, statement: "Маршрут перевозки: Владивосток — Санкт-Петербург."}
+  - {key: route.vvo_tmn, category: route, statement: "Маршрут перевозки: Владивосток — Тюмень."}

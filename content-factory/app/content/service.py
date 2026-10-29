@@ -26,6 +26,10 @@ class VersionFrozen(Exception):
     pass
 
 
+class Stale(Exception):  # noqa: N818
+    """Пока шла операция, материал изменили — результат не применяется."""
+
+
 async def transition(
     session: AsyncSession,
     item: ContentItem,

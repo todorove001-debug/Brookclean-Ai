@@ -36,6 +36,7 @@ class Storage(Protocol):
     async def size(self, key: str) -> int | None: ...
     async def presigned_url(self, key: str, expires_s: int = 600) -> str | None: ...
     async def check(self) -> None: ...
+    async def list_keys(self, prefix: str) -> list[tuple[str, int]]: ...
 
 
 def sha256_file(path: Path) -> str:
@@ -124,3 +125,9 @@ class LocalStorage:
     async def check(self) -> None:
         probe = self.root / ".healthcheck"
         await asyncio.to_thread(probe.write_text, "ok")
+
+    async def list_keys(self, prefix: str) -> list[tuple[str, int]]:
+        base = self._path(prefix.rstrip("/")) if prefix.strip("/") else self.root
+        if not base.exists():
+            return []
+        return sorted((str(p.relative_to(self.root)), p.stat().st_size) for p in base.rglob("*") if p.is_file())

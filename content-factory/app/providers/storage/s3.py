@@ -105,3 +105,12 @@ class S3Storage:
                 raise StorageError(f"бакет {self.bucket} недоступен: {exc}") from exc
 
         await asyncio.to_thread(_check)
+
+    async def list_keys(self, prefix: str) -> list[tuple[str, int]]:
+        def _list() -> list[tuple[str, int]]:
+            out: list[tuple[str, int]] = []
+            for page in self._client.get_paginator("list_objects_v2").paginate(Bucket=self.bucket, Prefix=prefix):
+                out += [(o["Key"], int(o["Size"])) for o in page.get("Contents", [])]
+            return sorted(out)
+
+        return await asyncio.to_thread(_list)

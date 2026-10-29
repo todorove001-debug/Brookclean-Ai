@@ -11,7 +11,6 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
-from decimal import Decimal
 from pathlib import Path
 from typing import Literal
 
@@ -32,6 +31,7 @@ from app.orchestration.services import Services
 from app.providers.base import ProviderError
 from app.providers.llm.base import ImageInput
 from app.settings.channel import BrandConfig
+from app.settings.config import ROOT_DIR
 
 log = get_logger(__name__)
 
@@ -57,6 +57,8 @@ async def load_brand_file(services: Services, ref: str | None) -> bytes | None:
     if ref.startswith("storage:"):
         return await services.storage.get_bytes(ref.removeprefix("storage:"))
     path = Path(ref)
+    if not path.is_absolute():
+        path = ROOT_DIR / path
     return path.read_bytes() if path.exists() else None
 
 
@@ -194,4 +196,4 @@ async def prepare_visuals(services: Services, item_id: uuid.UUID, version_id: uu
     return warnings
 
 
-__all__ = ["Decimal", "generate_illustration", "make_renderer", "prepare_visuals", "review_image"]
+__all__ = ["generate_illustration", "make_renderer", "prepare_visuals", "review_image"]

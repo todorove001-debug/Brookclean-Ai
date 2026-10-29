@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Контент-фабрика Brookclean</title>
+<link rel="stylesheet" href="admin.css">
+</head>
+<body>
+<header>
+  <strong>Контент-фабрика</strong>
+  <nav id="nav" hidden>
+    <button data-view="status">Сводка</button>
+    <button data-view="drafts">Согласование</button>
+    <button data-view="plan">План</button>
+    <button data-view="budget">Бюджет</button>
+    <button data-view="errors">Ошибки</button>
+    <button id="logout">Выйти</button>
+  </nav>
+</header>
+<main>
+  <section id="login">
+    <h1>Вход</h1>
+    <p>Введите API-токен (выдаётся командой <code>factory issue-token</code>). Токен хранится только в этой вкладке.</p>
+    <form id="login-form">
+      <input id="token" type="password" autocomplete="off" placeholder="cf_..." required>
+      <button type="submit">Войти</button>
+    </form>
+    <p id="login-error" class="error"></p>
+  </section>
+  <section id="view" hidden></section>
+</main>
+<script src="admin.js"></script>
+</body>
+</html>
