@@ -1,0 +1,41 @@
+# Контент-фабрика: линтер и тесты на каждое изменение в content-factory/.
+name: Контент-фабрика
+
+on:
+  push:
+    paths: ["content-factory/**", ".github/workflows/content-factory.yml"]
+  pull_request:
+    paths: ["content-factory/**", ".github/workflows/content-factory.yml"]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Тесты
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: factory
+          POSTGRES_PASSWORD: factory
+          POSTGRES_DB: factory_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U factory" --health-interval 5s --health-timeout 5s --health-retries 10
+    defaults:
+      run:
+        working-directory: content-factory
+    env:
+      TEST_DATABASE_URL: postgresql+asyncpg://factory:factory@localhost:5432/factory_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: FFmpeg, шрифты, клиент PostgreSQL
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core postgresql-client
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+      - run: uv sync --frozen --python 3.12
+      - run: uv run ruff check app tests
+      - run: uv run pytest -q
+      - name: Сборка образа
+        run: docker build -t brookclean-content-factory .
