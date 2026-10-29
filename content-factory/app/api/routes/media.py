@@ -60,12 +60,19 @@ async def upload(
                     head += chunk[: 64 - len(head)]
                 fh.write(chunk)
         try:
-            detected = validate_upload(head, size, max_bytes=max_bytes, allowed_mime=settings.allowed_upload_mime)
+            detected = validate_upload(
+                head, size, max_bytes=max_bytes, allowed_mime=settings.allowed_upload_mime
+            )
         except UploadRejected as exc:
             raise HTTPException(415, str(exc)) from exc
-        kinds = {("source", "video"): MediaKind.source_video, ("source", "image"): MediaKind.source_image,
-                 ("source", "audio"): MediaKind.source_audio, ("music", "audio"): MediaKind.music,
-                 ("logo", "image"): MediaKind.logo, ("font", "font"): MediaKind.font}
+        kinds = {
+            ("source", "video"): MediaKind.source_video,
+            ("source", "image"): MediaKind.source_image,
+            ("source", "audio"): MediaKind.source_audio,
+            ("music", "audio"): MediaKind.music,
+            ("logo", "image"): MediaKind.logo,
+            ("font", "font"): MediaKind.font,
+        }
         kind = kinds.get((purpose, detected.category))
         if kind is None:
             raise HTTPException(415, f"файл типа {detected.mime} не подходит для назначения «{purpose}»")
@@ -77,24 +84,55 @@ async def upload(
                 raise HTTPException(422, "файл повреждён или не читается FFmpeg") from exc
             if detected.category == "video" and not info.has_video:
                 raise HTTPException(422, "в файле нет видеодорожки")
-        rights = {"license": rights_license, "author": rights_author, "source_url": rights_source_url, "notes": rights_notes,
-                  "uploaded_by": str(user.id), "uploaded_at": utcnow().isoformat()}
-        asset = await store_file(session, services.storage, dest, kind=kind, origin=MediaOrigin.owner_upload, mime=detected.mime,
-                                 item_id=item_id, title=title or file.filename, rights=rights, rights_confirmed=rights_confirmed,
-                                 probe_info=info, created_by=f"user:{user.id}")
+        rights = {
+            "license": rights_license,
+            "author": rights_author,
+            "source_url": rights_source_url,
+            "notes": rights_notes,
+            "uploaded_by": str(user.id),
+            "uploaded_at": utcnow().isoformat(),
+        }
+        asset = await store_file(
+            session,
+            services.storage,
+            dest,
+            kind=kind,
+            origin=MediaOrigin.owner_upload,
+            mime=detected.mime,
+            item_id=item_id,
+            title=title or file.filename,
+            rights=rights,
+            rights_confirmed=rights_confirmed,
+            probe_info=info,
+            created_by=f"user:{user.id}",
+        )
         if detected.category == "image":
             img = image_info(dest.read_bytes())
             asset.width, asset.height = img.width, img.height
         if rights_confirmed:
             asset.rights_confirmed_by = user.id
-    await audit(session, "media.upload", actor_type="user", actor_id=str(user.id), entity_type="media_asset", entity_id=asset.id,
-                kind=kind.value, size=size, sha256=asset.sha256, rights_confirmed=rights_confirmed)
+    await audit(
+        session,
+        "media.upload",
+        actor_type="user",
+        actor_id=str(user.id),
+        entity_type="media_asset",
+        entity_id=asset.id,
+        kind=kind.value,
+        size=size,
+        sha256=asset.sha256,
+        rights_confirmed=rights_confirmed,
+    )
     return asset
 
 
 @router.get("", response_model=list[MediaOut], dependencies=[Depends(require(Permission.content_read))])
-async def list_media(session: SessionDep, item_id: uuid.UUID | None = None, kind: MediaKind | None = None,
-                     limit: int = Query(50, le=200)) -> list[MediaAsset]:
+async def list_media(
+    session: SessionDep,
+    item_id: uuid.UUID | None = None,
+    kind: MediaKind | None = None,
+    limit: int = Query(50, le=200),
+) -> list[MediaAsset]:
     stmt = select(MediaAsset).order_by(MediaAsset.created_at.desc())
     if item_id:
         stmt = stmt.where(MediaAsset.item_id == item_id)
@@ -104,15 +142,32 @@ async def list_media(session: SessionDep, item_id: uuid.UUID | None = None, kind
 
 
 @router.put("/{asset_id}/rights", response_model=MediaOut)
-async def set_rights(asset_id: uuid.UUID, body: RightsIn, session: SessionDep, user: User = Depends(require(Permission.content_approve))) -> MediaAsset:
+async def set_rights(
+    asset_id: uuid.UUID,
+    body: RightsIn,
+    session: SessionDep,
+    user: User = Depends(require(Permission.content_approve)),
+) -> MediaAsset:
     asset = await session.get(MediaAsset, asset_id, with_for_update=True)
     if asset is None:
         raise HTTPException(404, "файл не найден")
-    asset.rights = {**(asset.rights or {}), **body.model_dump(exclude={"confirmed"}), "confirmed_at": utcnow().isoformat()}
+    asset.rights = {
+        **(asset.rights or {}),
+        **body.model_dump(exclude={"confirmed"}),
+        "confirmed_at": utcnow().isoformat(),
+    }
     asset.rights_confirmed = body.confirmed
     asset.rights_confirmed_by = user.id if body.confirmed else None
-    await audit(session, "media.rights", actor_type="user", actor_id=str(user.id), entity_type="media_asset", entity_id=asset.id,
-                confirmed=body.confirmed, license=body.license)
+    await audit(
+        session,
+        "media.rights",
+        actor_type="user",
+        actor_id=str(user.id),
+        entity_type="media_asset",
+        entity_id=asset.id,
+        confirmed=body.confirmed,
+        license=body.license,
+    )
     return asset
 
 
@@ -125,5 +180,11 @@ async def download(asset_id: uuid.UUID, session: SessionDep, services: ServicesD
     if url:
         return RedirectResponse(url, status_code=307, headers={"Cache-Control": "no-store"})
     data = await fetch_verified(services.storage, asset)
-    return Response(data, media_type=asset.mime_type, headers={"Cache-Control": "private, no-store",
-                                                               "Content-Disposition": f'inline; filename="{asset.id}"'})
+    return Response(
+        data,
+        media_type=asset.mime_type,
+        headers={
+            "Cache-Control": "private, no-store",
+            "Content-Disposition": f'inline; filename="{asset.id}"',
+        },
+    )

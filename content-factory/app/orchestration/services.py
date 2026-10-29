@@ -38,7 +38,9 @@ class Services:
 
     def require_llm(self) -> LLMProvider:
         if self.llm is None:
-            raise ProviderNotConfigured("языковая модель не настроена (LLM_PROVIDER / ANTHROPIC_API_KEY)", provider="llm")
+            raise ProviderNotConfigured(
+                "языковая модель не настроена (LLM_PROVIDER / ANTHROPIC_API_KEY)", provider="llm"
+            )
         return self.llm
 
     def require_telegram(self) -> TelegramBotClient:
@@ -50,23 +52,37 @@ class Services:
 def build_storage(settings: Settings) -> Storage:
     if settings.storage_backend == "s3":
         if not (settings.s3_bucket and settings.s3_access_key and settings.s3_secret_key):
-            raise ProviderNotConfigured("для STORAGE_BACKEND=s3 нужны S3_BUCKET, S3_ACCESS_KEY, S3_SECRET_KEY", provider="s3")
+            raise ProviderNotConfigured(
+                "для STORAGE_BACKEND=s3 нужны S3_BUCKET, S3_ACCESS_KEY, S3_SECRET_KEY", provider="s3"
+            )
         return S3Storage(
-            endpoint=settings.s3_endpoint, region=settings.s3_region, bucket=settings.s3_bucket,
-            access_key=settings.secret("s3_access_key") or "", secret_key=settings.secret("s3_secret_key") or "",
+            endpoint=settings.s3_endpoint,
+            region=settings.s3_region,
+            bucket=settings.s3_bucket,
+            access_key=settings.secret("s3_access_key") or "",
+            secret_key=settings.secret("s3_secret_key") or "",
         )
     return LocalStorage(settings.storage_dir)
 
 
 def build_services(settings: Settings, *, rss_feeds: list[str] | None = None) -> Services:
     proxy = settings.secret("outbound_proxy_url")
-    fetcher = SafeFetcher(timeout_s=settings.fetch_timeout_s, max_bytes=settings.fetch_max_bytes, allow_private=settings.ssrf_allow_private)
-    services = Services(settings=settings, storage=build_storage(settings), pricing=get_pricing(), fetcher=fetcher)
+    fetcher = SafeFetcher(
+        timeout_s=settings.fetch_timeout_s,
+        max_bytes=settings.fetch_max_bytes,
+        allow_private=settings.ssrf_allow_private,
+    )
+    services = Services(
+        settings=settings, storage=build_storage(settings), pricing=get_pricing(), fetcher=fetcher
+    )
 
     if settings.llm_provider == "anthropic" and settings.anthropic_api_key:
         services.llm = AnthropicProvider(
-            api_key=settings.secret("anthropic_api_key"), model=settings.llm_model, effort=settings.llm_effort,
-            server_fallbacks=settings.llm_server_fallbacks, timeout_s=settings.llm_timeout_s,
+            api_key=settings.secret("anthropic_api_key"),
+            model=settings.llm_model,
+            effort=settings.llm_effort,
+            server_fallbacks=settings.llm_server_fallbacks,
+            timeout_s=settings.llm_timeout_s,
         )
     if services.llm is not None and "anthropic_web" in settings.search_providers:
         services.search.append(AnthropicWebSearch(services.llm))
@@ -75,15 +91,29 @@ def build_services(settings: Settings, *, rss_feeds: list[str] | None = None) ->
 
     openai_key = settings.secret("openai_api_key")
     if settings.image_provider == "openai" and openai_key:
-        services.images = OpenAIImageGenerator(api_key=openai_key, model=settings.image_model, base_url=settings.openai_base_url, proxy=proxy)
+        services.images = OpenAIImageGenerator(
+            api_key=openai_key, model=settings.image_model, base_url=settings.openai_base_url, proxy=proxy
+        )
     if settings.video_provider == "openai_sora" and openai_key:
-        services.video = OpenAISoraGenerator(api_key=openai_key, model=settings.video_model, base_url=settings.openai_base_url, proxy=proxy)
+        services.video = OpenAISoraGenerator(
+            api_key=openai_key, model=settings.video_model, base_url=settings.openai_base_url, proxy=proxy
+        )
     elif settings.video_provider == "runway" and settings.runway_api_key:
-        services.video = RunwayGenerator(api_key=settings.secret("runway_api_key") or "", model=settings.video_model,
-                                         base_url=settings.runway_base_url, version=settings.runway_version, fetcher=fetcher, proxy=proxy)
+        services.video = RunwayGenerator(
+            api_key=settings.secret("runway_api_key") or "",
+            model=settings.video_model,
+            base_url=settings.runway_base_url,
+            version=settings.runway_version,
+            fetcher=fetcher,
+            proxy=proxy,
+        )
     if settings.transcription_provider == "openai" and openai_key:
-        services.transcriber = OpenAITranscriber(api_key=openai_key, model=settings.transcription_model,
-                                                 base_url=settings.openai_base_url, proxy=proxy)
+        services.transcriber = OpenAITranscriber(
+            api_key=openai_key,
+            model=settings.transcription_model,
+            base_url=settings.openai_base_url,
+            proxy=proxy,
+        )
     if settings.speller_enabled:
         services.speller = YandexSpeller(settings.speller_url)
     token = settings.secret("telegram_bot_token")

@@ -130,4 +130,6 @@ class LocalStorage:
         base = self._path(prefix.rstrip("/")) if prefix.strip("/") else self.root
         if not base.exists():
             return []
-        return sorted((str(p.relative_to(self.root)), p.stat().st_size) for p in base.rglob("*") if p.is_file())
+        return sorted(
+            (str(p.relative_to(self.root)), p.stat().st_size) for p in base.rglob("*") if p.is_file()
+        )

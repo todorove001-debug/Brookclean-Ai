@@ -57,8 +57,15 @@ async def tick(now: datetime | None = None) -> list[str]:
             key = period_key(job, now, tz)
             if key is None:
                 continue
-            task_id = await enqueue(session, job.task, {}, once_key=f"periodic:{job.name}:{key}", dedup_key=f"periodic:{job.name}",
-                                    priority=job.priority, max_attempts=3)
+            task_id = await enqueue(
+                session,
+                job.task,
+                {},
+                once_key=f"periodic:{job.name}:{key}",
+                dedup_key=f"periodic:{job.name}",
+                priority=job.priority,
+                max_attempts=3,
+            )
             if task_id:
                 created.append(job.name)
     return created

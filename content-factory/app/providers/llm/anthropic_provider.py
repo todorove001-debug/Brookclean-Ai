@@ -64,32 +64,54 @@ class AnthropicProvider:
         if response.stop_reason == "refusal":
             details = getattr(response, "stop_details", None)
             category = getattr(details, "category", None) if details else None
-            raise ProviderRejected(f"модель отказалась выполнять запрос (категория: {category})", provider="anthropic", code="refusal")
+            raise ProviderRejected(
+                f"модель отказалась выполнять запрос (категория: {category})",
+                provider="anthropic",
+                code="refusal",
+            )
         if response.stop_reason == "max_tokens":
-            raise ProviderRejected("ответ модели обрезан по лимиту max_tokens", provider="anthropic", code="max_tokens")
+            raise ProviderRejected(
+                "ответ модели обрезан по лимиту max_tokens", provider="anthropic", code="max_tokens"
+            )
 
     async def _call(self, fn: Any, **kwargs: Any) -> Any:
         try:
             response = await fn(**kwargs)
         except anthropic.AuthenticationError as exc:
             PROVIDER_CALLS.labels(self.name, "messages", "auth_error").inc()
-            raise ProviderNotConfigured(f"ключ Anthropic отклонён: {exc.message}", provider=self.name, code="401") from exc
+            raise ProviderNotConfigured(
+                f"ключ Anthropic отклонён: {exc.message}", provider=self.name, code="401"
+            ) from exc
         except anthropic.PermissionDeniedError as exc:
             PROVIDER_CALLS.labels(self.name, "messages", "forbidden").inc()
-            raise ProviderNotConfigured(f"нет доступа к API Anthropic: {exc.message}", provider=self.name, code="403") from exc
+            raise ProviderNotConfigured(
+                f"нет доступа к API Anthropic: {exc.message}", provider=self.name, code="403"
+            ) from exc
         except anthropic.RateLimitError as exc:
             PROVIDER_CALLS.labels(self.name, "messages", "rate_limited").inc()
             retry = exc.response.headers.get("retry-after") if exc.response is not None else None
-            raise ProviderUnavailable("лимит запросов Anthropic", provider=self.name, code="429",
-                                      retry_after_s=float(retry) if retry and retry.isdigit() else 60) from exc
+            raise ProviderUnavailable(
+                "лимит запросов Anthropic",
+                provider=self.name,
+                code="429",
+                retry_after_s=float(retry) if retry and retry.isdigit() else 60,
+            ) from exc
         except anthropic.BadRequestError as exc:
             PROVIDER_CALLS.labels(self.name, "messages", "bad_request").inc()
-            raise ProviderRejected(f"некорректный запрос: {exc.message}", provider=self.name, code="400") from exc
+            raise ProviderRejected(
+                f"некорректный запрос: {exc.message}", provider=self.name, code="400"
+            ) from exc
         except anthropic.APIStatusError as exc:
             PROVIDER_CALLS.labels(self.name, "messages", "server_error").inc()
             if exc.status_code >= 500:
-                raise ProviderUnavailable(f"ошибка сервера Anthropic {exc.status_code}", provider=self.name, code=str(exc.status_code)) from exc
-            raise ProviderRejected(f"ошибка API {exc.status_code}: {exc.message}", provider=self.name, code=str(exc.status_code)) from exc
+                raise ProviderUnavailable(
+                    f"ошибка сервера Anthropic {exc.status_code}",
+                    provider=self.name,
+                    code=str(exc.status_code),
+                ) from exc
+            raise ProviderRejected(
+                f"ошибка API {exc.status_code}: {exc.message}", provider=self.name, code=str(exc.status_code)
+            ) from exc
         except anthropic.APIConnectionError as exc:
             PROVIDER_CALLS.labels(self.name, "messages", "connection_error").inc()
             raise ProviderUnavailable(f"нет соединения с API Anthropic: {exc}", provider=self.name) from exc
@@ -111,7 +133,11 @@ class AnthropicProvider:
             content.append(
                 {
                     "type": "image",
-                    "source": {"type": "base64", "media_type": image.media_type, "data": base64.standard_b64encode(image.data).decode()},
+                    "source": {
+                        "type": "base64",
+                        "media_type": image.media_type,
+                        "data": base64.standard_b64encode(image.data).decode(),
+                    },
                 }
             )
         content.append({"type": "text", "text": prompt})
@@ -129,7 +155,9 @@ class AnthropicProvider:
         self._check_stop(response)
         parsed = response.parsed_output
         if parsed is None:
-            raise ProviderRejected("модель не вернула структурированный ответ", provider=self.name, code="no_output")
+            raise ProviderRejected(
+                "модель не вернула структурированный ответ", provider=self.name, code="no_output"
+            )
         # Повторная проверка нашей схемой (валидаторы Pydantic, которые не выражаются в JSON Schema).
         data = schema.model_validate(parsed.model_dump() if hasattr(parsed, "model_dump") else parsed)
         return LLMResult(data=data, usage=self._usage(response))
@@ -160,7 +188,9 @@ class AnthropicProvider:
                 if block.type == "web_search_tool_result" and isinstance(block.content, list):
                     for result in block.content:
                         if result.url not in hits:
-                            hits[result.url] = WebHit(url=result.url, title=result.title, page_age=result.page_age)
+                            hits[result.url] = WebHit(
+                                url=result.url, title=result.title, page_age=result.page_age
+                            )
                 elif block.type == "text":
                     summary_parts.append(block.text)
             if response.stop_reason != "pause_turn":
@@ -168,4 +198,6 @@ class AnthropicProvider:
                     self._check_stop(response)
                 break
             messages.append({"role": "assistant", "content": response.content})
-        return WebSearchResult(hits=list(hits.values()), summary="\n".join(summary_parts).strip(), usage=total)
+        return WebSearchResult(
+            hits=list(hits.values()), summary="\n".join(summary_parts).strip(), usage=total
+        )

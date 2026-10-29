@@ -17,7 +17,9 @@ def public_url(code: str) -> str:
     return f"{get_settings().public_base_url.rstrip('/')}/r/{code}"
 
 
-async def create_link(session: AsyncSession, target_url: str, *, item_id: uuid.UUID | None, label: str | None) -> TrackedLink:
+async def create_link(
+    session: AsyncSession, target_url: str, *, item_id: uuid.UUID | None, label: str | None
+) -> TrackedLink:
     if not target_url.startswith("tg://"):
         validate_url_syntax(target_url)  # только http/https на стандартных портах
     for _ in range(5):
@@ -35,7 +37,9 @@ async def register_click(session: AsyncSession, code: str) -> str | None:
     link = (await session.execute(select(TrackedLink).where(TrackedLink.code == code))).scalar_one_or_none()
     if link is None:
         return None
-    await session.execute(update(TrackedLink).where(TrackedLink.id == link.id).values(clicks=TrackedLink.clicks + 1))
+    await session.execute(
+        update(TrackedLink).where(TrackedLink.id == link.id).values(clicks=TrackedLink.clicks + 1)
+    )
     session.add(LinkClick(link_id=link.id))
     return link.target_url
 

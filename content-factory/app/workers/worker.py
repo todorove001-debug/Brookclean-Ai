@@ -13,7 +13,10 @@ from app.workers.runtime import run
 
 async def main(services: Services, stop: asyncio.Event) -> None:
     settings = get_settings()
-    workers = [Worker(HANDLERS, services, lease_s=settings.worker_lease_s) for _ in range(settings.worker_concurrency)]
+    workers = [
+        Worker(HANDLERS, services, lease_s=settings.worker_lease_s)
+        for _ in range(settings.worker_concurrency)
+    ]
     await asyncio.gather(*(w.run_forever(stop) for w in workers))
 
 

@@ -67,8 +67,11 @@ def extract_page(html: str) -> tuple[str, str, datetime | None]:
         title = tree.css_first("title").text(strip=True)
     published: datetime | None = None
     for selector in (
-        'meta[property="article:published_time"]', 'meta[name="pubdate"]', 'meta[name="date"]',
-        'meta[itemprop="datePublished"]', "time[datetime]",
+        'meta[property="article:published_time"]',
+        'meta[name="pubdate"]',
+        'meta[name="date"]',
+        'meta[itemprop="datePublished"]',
+        "time[datetime]",
     ):
         node = tree.css_first(selector)
         if node is None:
@@ -105,17 +108,32 @@ async def _search(services: Services, item: ContentItem) -> tuple[list[SearchCan
     for provider in services.search:
         if provider.name == "anthropic_web":
             llm = services.require_llm()
-            estimated = services.pricing.llm_cost(llm.model, 20000, 3000) + services.pricing.web_search_cost(4)
-            async with paid_call(provider="anthropic", operation="research.web_search", estimated_usd=estimated,
-                                 model=llm.model, item_id=item.id) as call:
+            estimated = services.pricing.llm_cost(llm.model, 20000, 3000) + services.pricing.web_search_cost(
+                4
+            )
+            async with paid_call(
+                provider="anthropic",
+                operation="research.web_search",
+                estimated_usd=estimated,
+                model=llm.model,
+                item_id=item.id,
+            ) as call:
                 response = await provider.search(query, limit=10)
                 if response.usage:
                     u = response.usage
-                    actual = services.pricing.llm_cost(u.model, u.input_tokens, u.output_tokens, u.cache_read_tokens,
-                                                       u.cache_write_tokens) + services.pricing.web_search_cost(u.web_search_requests)
-                    call.set_actual(actual, source="tokens", request_id=u.request_id,
-                                    units={"web_search_requests": u.web_search_requests, "input_tokens": u.input_tokens,
-                                           "output_tokens": u.output_tokens})
+                    actual = services.pricing.llm_cost(
+                        u.model, u.input_tokens, u.output_tokens, u.cache_read_tokens, u.cache_write_tokens
+                    ) + services.pricing.web_search_cost(u.web_search_requests)
+                    call.set_actual(
+                        actual,
+                        source="tokens",
+                        request_id=u.request_id,
+                        units={
+                            "web_search_requests": u.web_search_requests,
+                            "input_tokens": u.input_tokens,
+                            "output_tokens": u.output_tokens,
+                        },
+                    )
         else:
             response = await provider.search(query, limit=10)
         candidates += response.candidates
@@ -132,34 +150,67 @@ async def _analyze(services: Services, item: ContentItem, candidate: SearchCandi
     try:
         page = await services.fetcher.fetch(candidate.url)
     except (FetchError, UnsafeURLError) as exc:
-        return ResearchSource(item_id=item.id, source_type=SourceType(candidate.source_type), url=candidate.url,
-                              title=candidate.title, retrieved_at=retrieved, verification=SourceVerification.unavailable,
-                              notes=f"не загружено: {exc}")
+        return ResearchSource(
+            item_id=item.id,
+            source_type=SourceType(candidate.source_type),
+            url=candidate.url,
+            title=candidate.title,
+            retrieved_at=retrieved,
+            verification=SourceVerification.unavailable,
+            notes=f"не загружено: {exc}",
+        )
     if page.status_code != 200 or "html" not in page.content_type.lower():
-        return ResearchSource(item_id=item.id, source_type=SourceType(candidate.source_type), url=candidate.url,
-                              title=candidate.title, retrieved_at=retrieved, verification=SourceVerification.unavailable,
-                              notes=f"HTTP {page.status_code}, {page.content_type}")
+        return ResearchSource(
+            item_id=item.id,
+            source_type=SourceType(candidate.source_type),
+            url=candidate.url,
+            title=candidate.title,
+            retrieved_at=retrieved,
+            verification=SourceVerification.unavailable,
+            notes=f"HTTP {page.status_code}, {page.content_type}",
+        )
     title, text, meta_date = extract_page(page.text)
     sha = hashlib.sha256(text.encode()).hexdigest()
     excerpt = text[:MAX_PAGE_CHARS]
     result = await run_agent(
-        services, agent="research_claims", schema=SourceClaims, item_id=item.id, expected_output_tokens=900, max_tokens=6000,
+        services,
+        agent="research_claims",
+        schema=SourceClaims,
+        item_id=item.id,
+        expected_output_tokens=900,
+        max_tokens=6000,
         effort="medium",
-        prompt="\n".join([
-            f"Тема публикации: {item.topic}",
-            f"Тезис: {item.thesis or '—'}",
-            f"URL: {page.final_url}",
-            untrusted("web_page", f"Заголовок: {title or candidate.title}\n\n{excerpt}"),
-        ]),
+        prompt="\n".join(
+            [
+                f"Тема публикации: {item.topic}",
+                f"Тезис: {item.thesis or '—'}",
+                f"URL: {page.final_url}",
+                untrusted("web_page", f"Заголовок: {title or candidate.title}\n\n{excerpt}"),
+            ]
+        ),
     )
-    claims = [{"claim": c.claim, "quote": c.quote[:400], "verified": quote_found(c.quote, text)} for c in result.claims]
+    claims = [
+        {"claim": c.claim, "quote": c.quote[:400], "verified": quote_found(c.quote, text)}
+        for c in result.claims
+    ]
     verified = [c for c in claims if c["verified"]]
     status = SourceVerification.verified if result.relevant and verified else SourceVerification.unverified
-    published = meta_date or (parse_date(result.published_date) if result.published_date else None) or candidate.published_at
+    published = (
+        meta_date
+        or (parse_date(result.published_date) if result.published_date else None)
+        or candidate.published_at
+    )
     return ResearchSource(
-        item_id=item.id, source_type=SourceType(candidate.source_type), url=page.final_url, title=title or candidate.title,
-        publisher=(result.publisher or urlsplit(page.final_url).hostname or "")[:200], published_at=published,
-        retrieved_at=retrieved, content_sha256=sha, claims=claims, verification=status,
+        item_id=item.id,
+        source_type=SourceType(candidate.source_type),
+        url=page.final_url,
+        title=title or candidate.title,
+        publisher=(result.publisher or urlsplit(page.final_url).hostname or "")[:200],
+        published_at=published,
+        retrieved_at=retrieved,
+        content_sha256=sha,
+        claims=claims,
+        verification=status,
         notes=None if result.relevant else "модель сочла страницу нерелевантной",
     )
 
@@ -170,10 +221,16 @@ async def research_item(services: Services, item_id: uuid.UUID) -> dict[str, int
         assert item is not None
         if item.owner_brief:
             # Материалы владельца — первоисточник для историй и кейсов. Утверждения не перепроверяются моделью.
-            session.add(ResearchSource(item_id=item.id, source_type=SourceType.owner_material, title="Материалы владельца",
-                                       retrieved_at=utcnow(), claims=[{"claim": item.owner_brief, "quote": item.owner_brief[:400],
-                                                                       "verified": True}],
-                                       verification=SourceVerification.verified))
+            session.add(
+                ResearchSource(
+                    item_id=item.id,
+                    source_type=SourceType.owner_material,
+                    title="Материалы владельца",
+                    retrieved_at=utcnow(),
+                    claims=[{"claim": item.owner_brief, "quote": item.owner_brief[:400], "verified": True}],
+                    verification=SourceVerification.verified,
+                )
+            )
         needs_sources = item.needs_sources
     if not needs_sources:
         return {"sources": 0, "verified": 0}

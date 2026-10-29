@@ -66,7 +66,8 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "S", "ASYNC"]
-ignore = ["S101", "B008", "S603", "S607", "E501"]
+# ASYNC240/221: короткие локальные операции с файлами и CLI-процессы допустимы; UP046/047: TypeVar читается привычнее.
+ignore = ["S101", "B008", "S603", "S607", "E501", "ASYNC240", "ASYNC221", "ASYNC109", "UP046", "UP047"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S", "B"]

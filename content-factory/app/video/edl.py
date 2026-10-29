@@ -97,7 +97,9 @@ class LoudnessSpec(BaseModel):
 class EDL(BaseModel):
     version: int = 1
     output: OutputSpec = Field(default_factory=OutputSpec)
-    segments: list[Annotated[ClipSegment | CardSegment, Field(discriminator="type")]] = Field(default_factory=list)
+    segments: list[Annotated[ClipSegment | CardSegment, Field(discriminator="type")]] = Field(
+        default_factory=list
+    )
     overlays: list[OverlaySpec] = Field(default_factory=list)
     subtitles: list[SubtitleSegment] = Field(default_factory=list)
     logo: LogoSpec | None = Field(default_factory=LogoSpec)

@@ -47,17 +47,23 @@ async def collect_link_clicks(services: Services, days: int = 30) -> int:
     since = utcnow() - timedelta(days=days)
     async with session_scope() as session:
         channel = await get_channel(session)
-        rows = (await session.execute(
-            select(TrackedLink.item_id, TrackedLink.id, func.count(LinkClick.id))
-            .join(LinkClick, LinkClick.link_id == TrackedLink.id, isouter=True)
-            .where(TrackedLink.item_id.is_not(None), TrackedLink.created_at >= since)
-            .group_by(TrackedLink.item_id, TrackedLink.id)
-        )).all()
+        rows = (
+            await session.execute(
+                select(TrackedLink.item_id, TrackedLink.id, func.count(LinkClick.id))
+                .join(LinkClick, LinkClick.link_id == TrackedLink.id, isouter=True)
+                .where(TrackedLink.item_id.is_not(None), TrackedLink.created_at >= since)
+                .group_by(TrackedLink.item_id, TrackedLink.id)
+            )
+        ).all()
         per_item: dict[Any, int] = {}
         for item_id, _link_id, clicks in rows:
             per_item[item_id] = per_item.get(item_id, 0) + int(clicks)
         for item_id, clicks in per_item.items():
-            session.add(AnalyticsSnapshot(channel_id=channel.id, item_id=item_id, source="tracked_links", link_clicks=clicks))
+            session.add(
+                AnalyticsSnapshot(
+                    channel_id=channel.id, item_id=item_id, source="tracked_links", link_clicks=clicks
+                )
+            )
     return len(per_item)
 
 
@@ -73,7 +79,17 @@ async def collect_mtproto(services: Services, days: int = 14) -> int:
         return 0
     async with session_scope() as session:
         channel = await get_channel(session)
-        results = (await session.execute(select(PublishingResult).where(PublishingResult.published_at >= utcnow() - timedelta(days=days)))).scalars().all()
+        results = (
+            (
+                await session.execute(
+                    select(PublishingResult).where(
+                        PublishingResult.published_at >= utcnow() - timedelta(days=days)
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
         chat_id = channel.row.telegram_channel_id or s.telegram_channel_id
     if not results or not chat_id:
         return 0
@@ -94,11 +110,22 @@ async def collect_mtproto(services: Services, days: int = 14) -> int:
                 reactions = {}
                 if getattr(msg, "reactions", None) and msg.reactions.results:
                     for rc in msg.reactions.results:
-                        key = getattr(rc.reaction, "emoticon", None) or str(getattr(rc.reaction, "document_id", "?"))
+                        key = getattr(rc.reaction, "emoticon", None) or str(
+                            getattr(rc.reaction, "document_id", "?")
+                        )
                         reactions[key] = rc.count
-                session.add(AnalyticsSnapshot(channel_id=channel.id, item_id=by_id[msg.id].item_id, message_id=msg.id, source="mtproto",
-                                              views=msg.views, forwards=msg.forwards, reactions=reactions or None,
-                                              reactions_total=sum(reactions.values()) if reactions else None))
+                session.add(
+                    AnalyticsSnapshot(
+                        channel_id=channel.id,
+                        item_id=by_id[msg.id].item_id,
+                        message_id=msg.id,
+                        source="mtproto",
+                        views=msg.views,
+                        forwards=msg.forwards,
+                        reactions=reactions or None,
+                        reactions_total=sum(reactions.values()) if reactions else None,
+                    )
+                )
                 updated += 1
         return updated
     finally:
@@ -108,12 +135,28 @@ async def collect_mtproto(services: Services, days: int = 14) -> int:
 async def store_poll_update(poll: dict[str, Any]) -> bool:
     """Обновление poll от Bot API: итоги опроса, отправленного ботом."""
     async with session_scope() as session:
-        result = (await session.execute(select(PublishingResult).where(PublishingResult.response["poll_id"].astext == poll["id"]))).scalar_one_or_none()
+        result = (
+            await session.execute(
+                select(PublishingResult).where(PublishingResult.response["poll_id"].astext == poll["id"])
+            )
+        ).scalar_one_or_none()
         if result is None:
             return False
         channel = await get_channel(session)
         options = {o["text"]: o.get("voter_count", 0) for o in poll.get("options") or []}
-        session.add(AnalyticsSnapshot(channel_id=channel.id, item_id=result.item_id, message_id=result.primary_message_id, source="bot_api",
-                                      raw={"poll": {"total_voter_count": poll.get("total_voter_count"), "options": options,
-                                                    "is_closed": poll.get("is_closed")}}))
+        session.add(
+            AnalyticsSnapshot(
+                channel_id=channel.id,
+                item_id=result.item_id,
+                message_id=result.primary_message_id,
+                source="bot_api",
+                raw={
+                    "poll": {
+                        "total_voter_count": poll.get("total_voter_count"),
+                        "options": options,
+                        "is_closed": poll.get("is_closed"),
+                    }
+                },
+            )
+        )
         return True

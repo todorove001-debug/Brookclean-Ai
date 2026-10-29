@@ -137,7 +137,7 @@ def upgrade() -> None:
     sa.UniqueConstraint('once_key')
     )
     op.create_index('ix_tasks_ready', 'tasks', ['status', 'run_at', 'priority'], unique=False)
-    op.create_index('uq_tasks_dedup_active', 'tasks', ['dedup_key'], unique=True, postgresql_where=sa.text("status IN ('queued', 'running') AND dedup_key IS NOT NULL"))
+    op.create_index('uq_tasks_dedup_active', 'tasks', ['dedup_key'], unique=True, postgresql_where=sa.text("status = 'queued' AND dedup_key IS NOT NULL"))
     op.create_table('users',
     sa.Column('id', sa.UUID(), server_default=sa.text('gen_random_uuid()'), nullable=False),
     sa.Column('display_name', sa.String(length=200), nullable=False),
@@ -523,7 +523,7 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_company_facts_channel_id'), table_name='company_facts')
     op.drop_table('company_facts')
     op.drop_table('users')
-    op.drop_index('uq_tasks_dedup_active', table_name='tasks', postgresql_where=sa.text("status IN ('queued', 'running') AND dedup_key IS NOT NULL"))
+    op.drop_index('uq_tasks_dedup_active', table_name='tasks', postgresql_where=sa.text("status = 'queued' AND dedup_key IS NOT NULL"))
     op.drop_index('ix_tasks_ready', table_name='tasks')
     op.drop_table('tasks')
     op.drop_table('notifications')

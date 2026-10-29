@@ -24,7 +24,12 @@ TERMINAL_STATUSES = {ContentStatus.published, ContentStatus.rejected, ContentSta
 
 # Разрешённые переходы. Всё, что не перечислено, запрещено и отклоняется сервисом.
 TRANSITIONS: dict[ContentStatus, set[ContentStatus]] = {
-    ContentStatus.idea: {ContentStatus.researching, ContentStatus.drafting, ContentStatus.cancelled, ContentStatus.failed},
+    ContentStatus.idea: {
+        ContentStatus.researching,
+        ContentStatus.drafting,
+        ContentStatus.cancelled,
+        ContentStatus.failed,
+    },
     ContentStatus.researching: {ContentStatus.drafting, ContentStatus.failed, ContentStatus.cancelled},
     ContentStatus.drafting: {
         ContentStatus.media_generation,
@@ -32,7 +37,11 @@ TRANSITIONS: dict[ContentStatus, set[ContentStatus]] = {
         ContentStatus.failed,
         ContentStatus.cancelled,
     },
-    ContentStatus.media_generation: {ContentStatus.quality_check, ContentStatus.failed, ContentStatus.cancelled},
+    ContentStatus.media_generation: {
+        ContentStatus.quality_check,
+        ContentStatus.failed,
+        ContentStatus.cancelled,
+    },
     ContentStatus.quality_check: {
         ContentStatus.awaiting_approval,
         ContentStatus.drafting,

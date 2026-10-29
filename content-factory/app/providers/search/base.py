@@ -52,9 +52,13 @@ class AnthropicWebSearch:
         self.max_uses = max_uses
 
     async def search(self, query: str, *, limit: int = 8) -> SearchResponse:
-        result = await self.llm.web_search(query=query, instructions=SEARCH_INSTRUCTIONS, max_uses=self.max_uses)
-        candidates = [SearchCandidate(url=h.url, title=h.title, source_type="web", published_at=_parse_age(h.page_age))
-                      for h in result.hits[:limit]]
+        result = await self.llm.web_search(
+            query=query, instructions=SEARCH_INSTRUCTIONS, max_uses=self.max_uses
+        )
+        candidates = [
+            SearchCandidate(url=h.url, title=h.title, source_type="web", published_at=_parse_age(h.page_age))
+            for h in result.hits[:limit]
+        ]
         return SearchResponse(candidates=candidates, usage=result.usage)
 
 
@@ -84,7 +88,9 @@ class RssSearch:
 
     async def _load(self, url: str) -> tuple[list[SearchCandidate], str | None]:
         try:
-            resource = await self.fetcher.fetch(url, accept="application/rss+xml,application/atom+xml,application/xml,text/xml")
+            resource = await self.fetcher.fetch(
+                url, accept="application/rss+xml,application/atom+xml,application/xml,text/xml"
+            )
         except (FetchError, UnsafeURLError) as exc:
             return [], f"{url}: {exc}"
         if resource.status_code != 200:
@@ -106,7 +112,15 @@ class RssSearch:
                         published = None
                     break
             summary = re.sub(r"<[^>]+>", " ", entry.get("summary", ""))[:500]
-            items.append(SearchCandidate(url=link, title=entry.get("title", ""), source_type="rss", published_at=published, snippet=summary))
+            items.append(
+                SearchCandidate(
+                    url=link,
+                    title=entry.get("title", ""),
+                    source_type="rss",
+                    published_at=published,
+                    snippet=summary,
+                )
+            )
         return items, None
 
     async def search(self, query: str, *, limit: int = 8) -> SearchResponse:

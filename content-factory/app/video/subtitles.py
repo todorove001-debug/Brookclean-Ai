@@ -37,7 +37,7 @@ def split_text_by_time(text: str, start: float, end: float) -> list[SubtitleSegm
     if not text:
         return []
     lines = _wrap(text)
-    chunks = [" ".join(lines[i:i + MAX_LINES]) for i in range(0, len(lines), MAX_LINES)]
+    chunks = [" ".join(lines[i : i + MAX_LINES]) for i in range(0, len(lines), MAX_LINES)]
     total = sum(len(c) for c in chunks)
     segments, t = [], start
     for chunk in chunks:
@@ -81,7 +81,9 @@ def check(segments: list[SubtitleSegment], timeline_end: float) -> list[Subtitle
         if len(lines) > MAX_LINES:
             issues.append(SubtitleIssue(i, f"{len(lines)} строки — больше {MAX_LINES}"))
         if dur > 0 and len(seg.text) / dur > MAX_CPS:
-            issues.append(SubtitleIssue(i, f"скорость чтения {len(seg.text) / dur:.0f} симв/с — больше {MAX_CPS:.0f}"))
+            issues.append(
+                SubtitleIssue(i, f"скорость чтения {len(seg.text) / dur:.0f} симв/с — больше {MAX_CPS:.0f}")
+            )
         if seg.end > timeline_end + 0.05:
             issues.append(SubtitleIssue(i, "выходит за конец ролика"))
         if i and seg.start < segments[i - 1].end - 0.01:
@@ -106,8 +108,16 @@ def _escape(text: str) -> str:
     return text.replace("\\", "\\\\").replace("{", "(").replace("}", ")").replace("\n", "\\N")
 
 
-def build_ass(segments: list[SubtitleSegment], *, width: int, height: int, font_name: str, primary: str = "#FFFFFF",
-              outline: str = "#000000", box: str = "#0E1B2E") -> str:
+def build_ass(
+    segments: list[SubtitleSegment],
+    *,
+    width: int,
+    height: int,
+    font_name: str,
+    primary: str = "#FFFFFF",
+    outline: str = "#000000",
+    box: str = "#0E1B2E",
+) -> str:
     font_size = int(height * (0.034 if height > width else 0.05))
     margin_v = int(height * (0.16 if height > width else 0.08))
     header = (

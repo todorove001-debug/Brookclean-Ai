@@ -79,8 +79,9 @@ def _wrap(text: str, font: ImageFont.FreeTypeFont, max_width: int) -> list[str]:
     return lines
 
 
-def _fit(text: str, font_path: str, size_range: list[int], width: int, height: int, spacing: float = 1.18
-         ) -> tuple[ImageFont.FreeTypeFont, list[str], int, bool]:
+def _fit(
+    text: str, font_path: str, size_range: list[int], width: int, height: int, spacing: float = 1.18
+) -> tuple[ImageFont.FreeTypeFont, list[str], int, bool]:
     max_size, min_size = size_range[0], size_range[-1]
     size = max_size
     while size >= min_size:
@@ -103,8 +104,14 @@ def _fit(text: str, font_path: str, size_range: list[int], width: int, height: i
 
 
 class TemplateRenderer:
-    def __init__(self, templates_path: Path, brand: BrandConfig, *, logo_bytes: bytes | None = None,
-                 font_paths: dict[str, str] | None = None):
+    def __init__(
+        self,
+        templates_path: Path,
+        brand: BrandConfig,
+        *,
+        logo_bytes: bytes | None = None,
+        font_paths: dict[str, str] | None = None,
+    ):
         self.templates = load_templates(str(templates_path))
         self.brand = brand
         self.logo = Image.open(io.BytesIO(logo_bytes)).convert("RGBA") if logo_bytes else None
@@ -113,14 +120,25 @@ class TemplateRenderer:
     def template_ids(self) -> list[str]:
         return sorted(self.templates)
 
-    def render(self, template_id: str, fields: dict[str, Any], *, images: dict[str, bytes] | None = None,
-               size: tuple[int, int] | None = None, synthetic: bool = False) -> RenderResult:
+    def render(
+        self,
+        template_id: str,
+        fields: dict[str, Any],
+        *,
+        images: dict[str, bytes] | None = None,
+        size: tuple[int, int] | None = None,
+        synthetic: bool = False,
+    ) -> RenderResult:
         spec = self.templates.get(template_id)
         if spec is None:
             raise TemplateError(f"нет шаблона {template_id}")
         w, h = size or tuple(spec["size"])
         transparent = bool(spec.get("transparent"))
-        canvas = Image.new("RGBA", (w, h), (0, 0, 0, 0) if transparent else (*_color(self.brand.colors.background, self.brand), 255))
+        canvas = Image.new(
+            "RGBA",
+            (w, h),
+            (0, 0, 0, 0) if transparent else (*_color(self.brand.colors.background, self.brand), 255),
+        )
         draw = ImageDraw.Draw(canvas)
         warnings: list[str] = []
         images = images or {}
@@ -170,8 +188,16 @@ class TemplateRenderer:
                     warnings.append("для маршрута нужно минимум две точки")
             elif kind == "disclosure":
                 if synthetic and self.brand.synthetic_disclosure:
-                    self._text(canvas, {**el, "valign": "top"}, self.brand.synthetic_disclosure, w, h, boxed=True, opacity=0.55,
-                               background="#000000")
+                    self._text(
+                        canvas,
+                        {**el, "valign": "top"},
+                        self.brand.synthetic_disclosure,
+                        w,
+                        h,
+                        boxed=True,
+                        opacity=0.55,
+                        background="#000000",
+                    )
                     draw = ImageDraw.Draw(canvas)
             else:
                 raise TemplateError(f"неизвестный элемент шаблона: {kind}")
@@ -186,9 +212,18 @@ class TemplateRenderer:
         if direction == "vertical":
             mask = vertical
         else:
-            horizontal = Image.linear_gradient("L").rotate(90, expand=True).transpose(Image.Transpose.FLIP_LEFT_RIGHT).resize((w, h))
-            mask = horizontal if direction == "horizontal" else ImageChops.add(horizontal, vertical, scale=2.0)
-        return Image.composite(Image.new("RGBA", (w, h), (*b, 255)), Image.new("RGBA", (w, h), (*a, 255)), mask)
+            horizontal = (
+                Image.linear_gradient("L")
+                .rotate(90, expand=True)
+                .transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+                .resize((w, h))
+            )
+            mask = (
+                horizontal if direction == "horizontal" else ImageChops.add(horizontal, vertical, scale=2.0)
+            )
+        return Image.composite(
+            Image.new("RGBA", (w, h), (*b, 255)), Image.new("RGBA", (w, h), (*a, 255)), mask
+        )
 
     def _shade(self, w: int, h: int, el: dict[str, Any]) -> Image.Image:
         color = _color(el["color"], self.brand)
@@ -213,14 +248,36 @@ class TemplateRenderer:
         ly = y + (bh - logo.height) // 2
         canvas.alpha_composite(logo, (lx, ly))
 
-    def _text(self, canvas: Image.Image, el: dict[str, Any], text: str, w: int, h: int, *, boxed: bool = False,
-              opacity: float | None = None, background: str | None = None) -> bool:
+    def _text(
+        self,
+        canvas: Image.Image,
+        el: dict[str, Any],
+        text: str,
+        w: int,
+        h: int,
+        *,
+        boxed: bool = False,
+        opacity: float | None = None,
+        background: str | None = None,
+    ) -> bool:
         x, y, bw, bh = _box(el["box"], w, h)
         pad = int(min(bw, bh) * 0.08) if boxed else 0
-        font, lines, line_h, fits = _fit(text, self.fonts[el.get("font", "regular")], el.get("size", [48, 24]), bw - 2 * pad, bh - 2 * pad)
+        font, lines, line_h, fits = _fit(
+            text, self.fonts[el.get("font", "regular")], el.get("size", [48, 24]), bw - 2 * pad, bh - 2 * pad
+        )
         block_h = line_h * len(lines)
         valign = el.get("valign", "top")
-        top = y + pad + (0 if valign == "top" else (bh - 2 * pad - block_h) if valign == "bottom" else (bh - 2 * pad - block_h) // 2)
+        top = (
+            y
+            + pad
+            + (
+                0
+                if valign == "top"
+                else (bh - 2 * pad - block_h)
+                if valign == "bottom"
+                else (bh - 2 * pad - block_h) // 2
+            )
+        )
         align = el.get("align", "left")
         color = _color(el.get("color", "brand.text"), self.brand)
         if boxed:
@@ -230,7 +287,9 @@ class TemplateRenderer:
             box_w = widest + 2 * pad
             bx = x if align == "left" else x + bw - box_w if align == "right" else x + (bw - box_w) // 2
             layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
-            ImageDraw.Draw(layer).rounded_rectangle([bx, top - pad, bx + box_w, top + block_h + pad // 2], radius=pad, fill=(*bg, alpha))
+            ImageDraw.Draw(layer).rounded_rectangle(
+                [bx, top - pad, bx + box_w, top + block_h + pad // 2], radius=pad, fill=(*bg, alpha)
+            )
             canvas.alpha_composite(layer)
         draw = ImageDraw.Draw(canvas)
         for i, line in enumerate(lines):
@@ -239,7 +298,9 @@ class TemplateRenderer:
             draw.text((lx, top + i * line_h), line, font=font, fill=color)
         return fits
 
-    def _numbered(self, draw: ImageDraw.ImageDraw, el: dict[str, Any], points: list[str], w: int, h: int) -> bool:
+    def _numbered(
+        self, draw: ImageDraw.ImageDraw, el: dict[str, Any], points: list[str], w: int, h: int
+    ) -> bool:
         x, y, bw, bh = _box(el["box"], w, h)
         row_h = bh // len(points)
         badge = int(min(row_h * 0.6, bw * 0.1))
@@ -247,20 +308,30 @@ class TemplateRenderer:
         for i, point in enumerate(points):
             ry = y + i * row_h
             cy = ry + row_h // 2
-            draw.ellipse([x, cy - badge // 2, x + badge, cy + badge // 2], fill=_color(el["badge"], self.brand))
+            draw.ellipse(
+                [x, cy - badge // 2, x + badge, cy + badge // 2], fill=_color(el["badge"], self.brand)
+            )
             num_font = _font(self.fonts["bold"], int(badge * 0.55))
             label = str(i + 1)
-            draw.text((x + badge / 2 - num_font.getlength(label) / 2, cy - badge * 0.36), label, font=num_font,
-                      fill=_color(el["badge_text"], self.brand))
+            draw.text(
+                (x + badge / 2 - num_font.getlength(label) / 2, cy - badge * 0.36),
+                label,
+                font=num_font,
+                fill=_color(el["badge_text"], self.brand),
+            )
             tx = x + badge + int(badge * 0.4)
-            font, lines, line_h, fits = _fit(point, self.fonts[el.get("font", "regular")], el["size"], bw - (tx - x), int(row_h * 0.92))
+            font, lines, line_h, fits = _fit(
+                point, self.fonts[el.get("font", "regular")], el["size"], bw - (tx - x), int(row_h * 0.92)
+            )
             all_fit &= fits
             top = cy - line_h * len(lines) // 2
             for j, line in enumerate(lines):
                 draw.text((tx, top + j * line_h), line, font=font, fill=_color(el["color"], self.brand))
         return all_fit
 
-    def _route(self, draw: ImageDraw.ImageDraw, el: dict[str, Any], points: list[str], w: int, h: int) -> None:
+    def _route(
+        self, draw: ImageDraw.ImageDraw, el: dict[str, Any], points: list[str], w: int, h: int
+    ) -> None:
         x, y, bw, bh = _box(el["box"], w, h)
         line_color = _color(el["line"], self.brand)
         text_color = _color(el["color"], self.brand)
@@ -271,6 +342,14 @@ class TemplateRenderer:
             cy = int(y + i * step)
             r = int(bw * (0.035 if i in (0, len(points) - 1) else 0.022))
             draw.ellipse([lx - r, cy - r, lx + r, cy + r], fill=line_color, outline=text_color, width=3)
-            font, lines, line_h, _ = _fit(name, self.fonts[el.get("font", "bold")], el["size"], int(bw * 0.8), int(step * 0.9) if len(points) > 1 else bh)
+            font, lines, line_h, _ = _fit(
+                name,
+                self.fonts[el.get("font", "bold")],
+                el["size"],
+                int(bw * 0.8),
+                int(step * 0.9) if len(points) > 1 else bh,
+            )
             for j, line in enumerate(lines[:2]):
-                draw.text((lx + int(bw * 0.08), cy - line_h // 2 + j * line_h), line, font=font, fill=text_color)
+                draw.text(
+                    (lx + int(bw * 0.08), cy - line_h // 2 + j * line_h), line, font=font, fill=text_color
+                )

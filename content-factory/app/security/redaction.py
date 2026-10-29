@@ -6,7 +6,8 @@ import re
 from typing import Any
 
 SENSITIVE_KEYS = re.compile(
-    r"(token|secret|password|passwd|api[_-]?key|authorization|cookie|dsn|access[_-]?key|private)", re.IGNORECASE
+    r"(token|secret|password|passwd|api[_-]?key|authorization|cookie|dsn|access[_-]?key|private)",
+    re.IGNORECASE,
 )
 PATTERNS = [
     # Токен Telegram-бота: 123456789:AA...
@@ -15,7 +16,10 @@ PATTERNS = [
     (re.compile(r"\bsk-ant-[A-Za-z0-9_-]{10,}"), "[anthropic-key]"),
     (re.compile(r"\bsk-[A-Za-z0-9_-]{20,}"), "[api-key]"),
     (re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{8,}"), "Bearer [redacted]"),
-    (re.compile(r"(?i)(X-Amz-Signature|X-Amz-Credential|Signature|AWSAccessKeyId)=[^&\s]+"), r"\1=[redacted]"),
+    (
+        re.compile(r"(?i)(X-Amz-Signature|X-Amz-Credential|Signature|AWSAccessKeyId)=[^&\s]+"),
+        r"\1=[redacted]",
+    ),
     (re.compile(r"(?i)(postgres(?:ql)?(?:\+\w+)?://[^:\s/]+:)[^@\s]+@"), r"\1[redacted]@"),
 ]
 
@@ -33,7 +37,11 @@ def redact(value: Any, *, _depth: int = 0) -> Any:
         return redact_text(value)
     if isinstance(value, dict):
         return {
-            k: ("[redacted]" if isinstance(k, str) and SENSITIVE_KEYS.search(k) else redact(v, _depth=_depth + 1))
+            k: (
+                "[redacted]"
+                if isinstance(k, str) and SENSITIVE_KEYS.search(k)
+                else redact(v, _depth=_depth + 1)
+            )
             for k, v in value.items()
         }
     if isinstance(value, list | tuple):

@@ -24,7 +24,15 @@ from app.agents.qa import caption_text
 from app.content.channel import get_channel
 from app.content.service import load_version, recompute_hash, transition
 from app.database.enums import ApprovalAction, ContentStatus, MediaKind, PublishingJobStatus, QAStatus
-from app.database.models import ApprovalEvent, ContentItem, ContentVersion, MediaAsset, PublishingJob, PublishingResult, User
+from app.database.models import (
+    ApprovalEvent,
+    ContentItem,
+    ContentVersion,
+    MediaAsset,
+    PublishingJob,
+    PublishingResult,
+    User,
+)
 from app.database.session import session_scope, utcnow
 from app.media.assets import IntegrityError, fetch_verified
 from app.monitoring.alerts import notify_owner
@@ -38,8 +46,14 @@ from app.security.rbac import Permission, has_permission
 from app.settings.channel import FORMATS_WITH_IMAGE, FORMATS_WITH_VIDEO
 
 log = get_logger(__name__)
-INVALIDATING = {ApprovalAction.invalidated, ApprovalAction.reject, ApprovalAction.cancel, ApprovalAction.request_changes,
-                ApprovalAction.regenerate_text, ApprovalAction.regenerate_video}
+INVALIDATING = {
+    ApprovalAction.invalidated,
+    ApprovalAction.reject,
+    ApprovalAction.cancel,
+    ApprovalAction.request_changes,
+    ApprovalAction.regenerate_text,
+    ApprovalAction.regenerate_video,
+}
 
 
 @dataclass
@@ -54,7 +68,9 @@ class Readiness:
         return not self.blockers and self.wait is None
 
 
-async def check_publishable(session: AsyncSession, item: ContentItem, *, now: datetime | None = None) -> Readiness:
+async def check_publishable(
+    session: AsyncSession, item: ContentItem, *, now: datetime | None = None
+) -> Readiness:
     """Все условия публикации. Любой пункт blockers запрещает публикацию."""
     now = now or utcnow()
     r = Readiness()
@@ -84,10 +100,21 @@ async def check_publishable(session: AsyncSession, item: ContentItem, *, now: da
     if QAStatus(version.qa_status) not in {QAStatus.passed, QAStatus.needs_review}:
         r.blockers.append("обязательные проверки не пройдены")
 
-    events = (await session.execute(
-        select(ApprovalEvent).where(ApprovalEvent.item_id == item.id).order_by(ApprovalEvent.created_at)
-    )).scalars().all()
-    approval = next((e for e in reversed(events) if e.action == ApprovalAction.approve and e.version_id == version.id), None)
+    events = (
+        (
+            await session.execute(
+                select(ApprovalEvent)
+                .where(ApprovalEvent.item_id == item.id)
+                .order_by(ApprovalEvent.created_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    approval = next(
+        (e for e in reversed(events) if e.action == ApprovalAction.approve and e.version_id == version.id),
+        None,
+    )
     if approval is None or approval.content_hash != item.approved_content_hash:
         r.blockers.append("нет записи об одобрении этой версии")
     else:
@@ -95,7 +122,11 @@ async def check_publishable(session: AsyncSession, item: ContentItem, *, now: da
         if later:
             r.blockers.append(f"после одобрения было действие «{later[0].action}»")
         approver = await session.get(User, approval.actor_user_id) if approval.actor_user_id else None
-        if approver is None or not approver.is_active or not has_permission(approver.role, Permission.content_approve):
+        if (
+            approver is None
+            or not approver.is_active
+            or not has_permission(approver.role, Permission.content_approve)
+        ):
             r.blockers.append("одобривший пользователь больше не имеет права одобрять публикации")
 
     for link in version.media_links:
@@ -130,31 +161,55 @@ async def _prepare_media(services: Services, readiness: Readiness) -> Prepared:
     return prepared
 
 
-async def _send(services: Services, chat_id: str, item_format: str, version: ContentVersion, media: dict[str, MediaAsset],
-                files: dict[str, bytes], sent: list[dict]) -> None:
+async def _send(
+    services: Services,
+    chat_id: str,
+    item_format: str,
+    version: ContentVersion,
+    media: dict[str, MediaAsset],
+    files: dict[str, bytes],
+    sent: list[dict],
+) -> None:
     tg = services.require_telegram()
     disable_preview = (version.publish_options or {}).get("disable_preview", True)
     if item_format == "poll":
         poll = version.poll or {}
         if version.body_html.strip():
             sent.append(await tg.send_message(chat_id, version.body_html, disable_preview=disable_preview))
-        sent.append(await tg.send_poll(chat_id, poll["question"], poll["options"],
-                                       allows_multiple_answers=bool(poll.get("allows_multiple_answers"))))
+        sent.append(
+            await tg.send_poll(
+                chat_id,
+                poll["question"],
+                poll["options"],
+                allows_multiple_answers=bool(poll.get("allows_multiple_answers")),
+            )
+        )
         return
     caption = caption_text(version)
     if item_format in FORMATS_WITH_VIDEO:
         video = media["primary"]
         thumb = files.get("thumbnail")
-        sent.append(await tg.send_video(
-            chat_id, InputFile("video.mp4", files["primary"], video.mime_type), caption=caption, width=video.width,
-            height=video.height, duration=int(video.duration_s or 0) or None,
-            thumbnail=InputFile("thumb.jpg", _thumbnail_jpeg(thumb), "image/jpeg") if thumb else None,
-        ))
+        sent.append(
+            await tg.send_video(
+                chat_id,
+                InputFile("video.mp4", files["primary"], video.mime_type),
+                caption=caption,
+                width=video.width,
+                height=video.height,
+                duration=int(video.duration_s or 0) or None,
+                thumbnail=InputFile("thumb.jpg", _thumbnail_jpeg(thumb), "image/jpeg") if thumb else None,
+            )
+        )
         return
     if item_format in FORMATS_WITH_IMAGE:
         image = media["primary"]
-        sent.append(await tg.send_photo(chat_id, InputFile(f"image.{image.mime_type.split('/')[-1]}", files["primary"], image.mime_type),
-                                        caption=caption))
+        sent.append(
+            await tg.send_photo(
+                chat_id,
+                InputFile(f"image.{image.mime_type.split('/')[-1]}", files["primary"], image.mime_type),
+                caption=caption,
+            )
+        )
         return
     sent.append(await tg.send_message(chat_id, caption, disable_preview=disable_preview))
 
@@ -179,9 +234,16 @@ async def publish_item(services: Services, item_id: uuid.UUID) -> str:
 
     # Шаг 1: повторная проверка под блокировкой и перевод в «sending».
     async with session_scope() as session:
-        item = (await session.execute(select(ContentItem).where(ContentItem.id == item_id).with_for_update())).scalar_one()
-        job = (await session.execute(select(PublishingJob).where(PublishingJob.version_id == item.approved_version_id)
-                                     .with_for_update())).scalar_one_or_none()
+        item = (
+            await session.execute(select(ContentItem).where(ContentItem.id == item_id).with_for_update())
+        ).scalar_one()
+        job = (
+            await session.execute(
+                select(PublishingJob)
+                .where(PublishingJob.version_id == item.approved_version_id)
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
         if job is None:
             return "нет задания публикации"
         if job.status != PublishingJobStatus.pending:
@@ -220,23 +282,46 @@ async def publish_item(services: Services, item_id: uuid.UUID) -> str:
         item = await session.get(ContentItem, item_id, with_for_update=True)
         assert job is not None and item is not None
         ids = [m["message_id"] for m in sent]
-        session.add(PublishingResult(publishing_job_id=job.id, item_id=item.id, chat_id=str(chat_id), primary_message_id=ids[-1],
-                                     message_ids=ids, published_at=utcnow(),
-                                     response={"messages": [{"message_id": m["message_id"], "date": m.get("date")} for m in sent],
-                                               "poll_id": next((m["poll"]["id"] for m in sent if m.get("poll")), None)}))
+        session.add(
+            PublishingResult(
+                publishing_job_id=job.id,
+                item_id=item.id,
+                chat_id=str(chat_id),
+                primary_message_id=ids[-1],
+                message_ids=ids,
+                published_at=utcnow(),
+                response={
+                    "messages": [{"message_id": m["message_id"], "date": m.get("date")} for m in sent],
+                    "poll_id": next((m["poll"]["id"] for m in sent if m.get("poll")), None),
+                },
+            )
+        )
         job.status = PublishingJobStatus.succeeded
         job.finished_at = utcnow()
         job.last_error = None
         item.published_at = utcnow()
         await transition(session, item, ContentStatus.published)
-        await audit(session, "publishing.published", entity_type="content_item", entity_id=item.id, message_ids=ids, chat_id=str(chat_id))
-        await notify_owner(session, key=f"published:{item.id}", kind="info",
-                           text=f"✅ Опубликовано: «{version.title[:120]}» (сообщение {ids[-1]}).")
+        await audit(
+            session,
+            "publishing.published",
+            entity_type="content_item",
+            entity_id=item.id,
+            message_ids=ids,
+            chat_id=str(chat_id),
+        )
+        await notify_owner(
+            session,
+            key=f"published:{item.id}",
+            kind="info",
+            text=f"✅ Опубликовано: «{version.title[:120]}» (сообщение {ids[-1]}).",
+        )
     PUBLICATIONS.labels("ok").inc()
     return f"опубликовано, message_id={ids[-1]}"
 
 
-async def _on_send_error(item_id: uuid.UUID, job_id: uuid.UUID, exc: TelegramError, sent: list[dict], chat_id: str) -> str:
+async def _on_send_error(
+    item_id: uuid.UUID, job_id: uuid.UUID, exc: TelegramError, sent: list[dict], chat_id: str
+) -> str:
     async with session_scope() as session:
         job = await session.get(PublishingJob, job_id, with_for_update=True)
         item = await session.get(ContentItem, item_id, with_for_update=True)
@@ -245,10 +330,21 @@ async def _on_send_error(item_id: uuid.UUID, job_id: uuid.UUID, exc: TelegramErr
         if sent:
             # Часть сообщений уже в канале: фиксируем их и не повторяем автоматически.
             ids = [m["message_id"] for m in sent]
-            session.add(PublishingResult(publishing_job_id=job.id, item_id=item.id, chat_id=chat_id, primary_message_id=ids[-1],
-                                         message_ids=ids, published_at=utcnow(), response={"partial": True}))
+            session.add(
+                PublishingResult(
+                    publishing_job_id=job.id,
+                    item_id=item.id,
+                    chat_id=chat_id,
+                    primary_message_id=ids[-1],
+                    message_ids=ids,
+                    published_at=utcnow(),
+                    response={"partial": True},
+                )
+            )
             job.status = PublishingJobStatus.uncertain
-            await transition(session, item, ContentStatus.failed, reason="опубликована только часть сообщений")
+            await transition(
+                session, item, ContentStatus.failed, reason="опубликована только часть сообщений"
+            )
             item.last_error = f"опубликована часть сообщений ({ids}); ошибка: {exc.description}"
             outcome = "partial"
         elif not exc.request_sent or exc.error_code == 429:
@@ -259,7 +355,9 @@ async def _on_send_error(item_id: uuid.UUID, job_id: uuid.UUID, exc: TelegramErr
         elif exc.request_sent and exc.error_code is None:
             job.status = PublishingJobStatus.uncertain
             await transition(session, item, ContentStatus.failed, reason="ответ Telegram не получен")
-            item.last_error = "ответ Telegram не получен: проверьте канал вручную, автоматический повтор отключён"
+            item.last_error = (
+                "ответ Telegram не получен: проверьте канал вручную, автоматический повтор отключён"
+            )
             outcome = "uncertain"
         else:
             job.status = PublishingJobStatus.failed
@@ -267,10 +365,21 @@ async def _on_send_error(item_id: uuid.UUID, job_id: uuid.UUID, exc: TelegramErr
             await transition(session, item, ContentStatus.failed, reason=exc.description)
             item.last_error = f"Telegram отклонил публикацию: {exc.description}"
             outcome = "failed"
-        await audit(session, "publishing.error", entity_type="content_item", entity_id=item.id, outcome=outcome, error=job.last_error)
+        await audit(
+            session,
+            "publishing.error",
+            entity_type="content_item",
+            entity_id=item.id,
+            outcome=outcome,
+            error=job.last_error,
+        )
         if outcome != "retry":
-            await notify_owner(session, key=f"publish-error:{job.id}:{job.attempts}", kind="error",
-                               text=f"❗ Публикация {str(item.id)[:8]} не выполнена ({outcome}): {exc.description}")
+            await notify_owner(
+                session,
+                key=f"publish-error:{job.id}:{job.attempts}",
+                kind="error",
+                text=f"❗ Публикация {str(item.id)[:8]} не выполнена ({outcome}): {exc.description}",
+            )
     PUBLICATIONS.labels(outcome).inc()
     if outcome == "retry":
         raise Reschedule(exc.retry_after or 60, f"Telegram: {exc.description}")
@@ -282,21 +391,34 @@ async def _block(item_id: uuid.UUID, reasons: list[str]) -> None:
         item = await session.get(ContentItem, item_id, with_for_update=True)
         if item is None or ContentStatus(item.status) != ContentStatus.scheduled:
             return
-        jobs = (await session.execute(select(PublishingJob).where(PublishingJob.item_id == item_id,
-                                                                  PublishingJob.status == PublishingJobStatus.pending))).scalars()
+        jobs = (
+            await session.execute(
+                select(PublishingJob).where(
+                    PublishingJob.item_id == item_id, PublishingJob.status == PublishingJobStatus.pending
+                )
+            )
+        ).scalars()
         for job in jobs:
             job.status = PublishingJobStatus.cancelled
             job.last_error = "; ".join(reasons)
         await transition(session, item, ContentStatus.failed, reason="; ".join(reasons))
         item.last_error = "Публикация запрещена: " + "; ".join(reasons)
-        await notify_owner(session, key=f"publish-blocked:{item_id}:{utcnow():%Y%m%d%H}", kind="error",
-                           text=f"⛔ Публикация {str(item_id)[:8]} остановлена: " + "; ".join(reasons))
+        await notify_owner(
+            session,
+            key=f"publish-blocked:{item_id}:{utcnow():%Y%m%d%H}",
+            kind="error",
+            text=f"⛔ Публикация {str(item_id)[:8]} остановлена: " + "; ".join(reasons),
+        )
 
 
 async def due_items(session: AsyncSession, now: datetime | None = None) -> list[uuid.UUID]:
     now = now or utcnow()
-    rows = await session.execute(select(ContentItem.id).where(ContentItem.status == ContentStatus.scheduled,
-                                                              ContentItem.scheduled_at <= now).order_by(ContentItem.scheduled_at).limit(20))
+    rows = await session.execute(
+        select(ContentItem.id)
+        .where(ContentItem.status == ContentStatus.scheduled, ContentItem.scheduled_at <= now)
+        .order_by(ContentItem.scheduled_at)
+        .limit(20)
+    )
     return [r[0] for r in rows]
 
 

@@ -1,0 +1,36 @@
+# Тестовая конфигурация канала: та же схема, что и config/channel.yaml.
+name: Тестовый канал
+description: Перевозка автомобилей автовозами
+brand:
+  company_name: Brookclean Trucks
+  logo: config/brand/logo.jpg
+  contacts: ["@brookclean_test"]
+  hashtags: ["#автовоз"]
+schedule:
+  timezone: Europe/Moscow
+  posts_per_day_min: 4
+  posts_per_day_max: 6
+  slots: ["09:00", "12:00", "15:00", "18:00", "20:30"]
+  windows: [{start: "08:00", end: "22:00"}]
+  min_gap_minutes: 90
+  production_lead_days: 2
+rubrics:
+  - {key: preparation, title: Подготовка, description: Подготовка машины к перевозке}
+  - {key: loading, title: Погрузка, description: Погрузка и крепление}
+  - {key: law, title: Законы, description: Изменения законодательства, needs_sources: true}
+  - {key: service, title: Об услуге, description: Об услуге}
+  - {key: cases, title: Истории, description: Истории, requires_owner_material: true}
+routes:
+  - {origin: Владивосток, destination: Москва}
+  - {origin: Владивосток, destination: Новосибирск}
+cta_targets:
+  manager: https://t.me/brookclean_manager
+budget:
+  daily_limit_usd: 10
+  monthly_limit_usd: 100
+  max_task_cost_usd: 3
+  video_generations_per_month: 10
+  max_retries_paid: 1
+approved_facts:
+  - {key: service.car_carrier, category: service, statement: "Компания перевозит легковые автомобили автовозами."}
+  - {key: price.vvo_msk, category: price, statement: "Перевозка седана Владивосток — Москва стоит от 150 000 рублей."}

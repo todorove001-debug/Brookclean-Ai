@@ -79,7 +79,12 @@ def validate_url_syntax(url: str) -> tuple[str, str, int]:
     host = (parts.hostname or "").rstrip(".").lower()
     if not host:
         raise UnsafeURLError("в URL нет хоста")
-    if host == "localhost" or host.endswith(".localhost") or host.endswith(".internal") or host.endswith(".local"):
+    if (
+        host == "localhost"
+        or host.endswith(".localhost")
+        or host.endswith(".internal")
+        or host.endswith(".local")
+    ):
         raise UnsafeURLError("внутренние имена хостов запрещены")
     port = parts.port or (443 if scheme == "https" else 80)
     if port not in ALLOWED_PORTS:
@@ -124,12 +129,16 @@ class SafeFetcher:
         self.allow_private = allow_private
         self._transport = transport
 
-    async def fetch(self, url: str, *, method: str = "GET", accept: str = "text/html,application/xhtml+xml,*/*;q=0.5") -> FetchedResource:
+    async def fetch(
+        self, url: str, *, method: str = "GET", accept: str = "text/html,application/xhtml+xml,*/*;q=0.5"
+    ) -> FetchedResource:
         current = url
         for _ in range(MAX_REDIRECTS + 1):
             scheme, host, port = validate_url_syntax(current)
             addresses = await resolve_public(host, port, allow_private=self.allow_private)
-            status, headers, content = await self._request(method, current, scheme, host, port, addresses[0], accept)
+            status, headers, content = await self._request(
+                method, current, scheme, host, port, addresses[0], accept
+            )
             if status in {301, 302, 303, 307, 308}:
                 location = headers.get("location")
                 if not location:
@@ -161,10 +170,16 @@ class SafeFetcher:
             pinned = urlunsplit((scheme, netloc, parts.path or "/", parts.query, ""))
             headers = {"Host": parts.netloc, "User-Agent": USER_AGENT, "Accept": accept}
             extensions = {"sni_hostname": host} if scheme == "https" else {}
-            async with httpx.AsyncClient(timeout=max(self.timeout_s, 120), follow_redirects=False, trust_env=False,
-                                         transport=self._transport) as client:
+            async with httpx.AsyncClient(
+                timeout=max(self.timeout_s, 120),
+                follow_redirects=False,
+                trust_env=False,
+                transport=self._transport,
+            ) as client:
                 try:
-                    async with client.stream("GET", pinned, headers=headers, extensions=extensions) as response:
+                    async with client.stream(
+                        "GET", pinned, headers=headers, extensions=extensions
+                    ) as response:
                         if response.status_code in {301, 302, 303, 307, 308}:
                             location = response.headers.get("location")
                             if not location:

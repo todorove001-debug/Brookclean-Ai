@@ -38,14 +38,21 @@ def create_app(services: Services | None = None) -> FastAPI:
             if secret:
                 from app.approval.bot import ALLOWED_UPDATES
 
-                await app.state.services.telegram.set_webhook(f"{settings.public_base_url.rstrip('/')}/telegram/webhook", secret,
-                                                              ALLOWED_UPDATES)
+                await app.state.services.telegram.set_webhook(
+                    f"{settings.public_base_url.rstrip('/')}/telegram/webhook", secret, ALLOWED_UPDATES
+                )
             else:
                 log.error("telegram.webhook_secret_missing")
         yield
 
-    app = FastAPI(title="Brookclean Content Factory", version="0.1.0", lifespan=lifespan,
-                  docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
+    app = FastAPI(
+        title="Brookclean Content Factory",
+        version="0.1.0",
+        lifespan=lifespan,
+        docs_url="/api/docs",
+        openapi_url="/api/openapi.json",
+        redoc_url=None,
+    )
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):  # noqa: ANN001, ANN202
@@ -54,7 +61,9 @@ def create_app(services: Services | None = None) -> FastAPI:
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("Referrer-Policy", "no-referrer")
         if request.url.path.startswith("/admin"):
-            response.headers["Content-Security-Policy"] = "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; frame-ancestors 'none'"
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; frame-ancestors 'none'"
+            )
         return response
 
     @app.exception_handler(Exception)

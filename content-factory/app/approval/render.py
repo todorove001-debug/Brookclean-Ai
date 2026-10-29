@@ -14,17 +14,37 @@ from app.providers.telegram.client import inline_keyboard
 from app.security.telegram_html import escape
 
 STATUS_RU = {
-    "idea": "идея", "researching": "исследование", "drafting": "написание", "media_generation": "медиа",
-    "quality_check": "проверка", "awaiting_approval": "ждёт согласования", "changes_requested": "правки",
-    "approved": "одобрено", "scheduled": "запланировано", "publishing": "публикуется", "published": "опубликовано",
-    "failed": "ошибка", "rejected": "отклонено", "cancelled": "отменено",
+    "idea": "идея",
+    "researching": "исследование",
+    "drafting": "написание",
+    "media_generation": "медиа",
+    "quality_check": "проверка",
+    "awaiting_approval": "ждёт согласования",
+    "changes_requested": "правки",
+    "approved": "одобрено",
+    "scheduled": "запланировано",
+    "publishing": "публикуется",
+    "published": "опубликовано",
+    "failed": "ошибка",
+    "rejected": "отклонено",
+    "cancelled": "отменено",
 }
 FORMAT_RU = {
-    "short_post": "пост", "article": "статья", "story": "история", "ad": "реклама", "poll": "опрос",
-    "image_post": "пост с обложкой", "infographic": "инфографика", "video": "видео",
+    "short_post": "пост",
+    "article": "статья",
+    "story": "история",
+    "ad": "реклама",
+    "poll": "опрос",
+    "image_post": "пост с обложкой",
+    "infographic": "инфографика",
+    "video": "видео",
 }
-QA_RU = {QAStatus.passed: "✅ проверки пройдены", QAStatus.needs_review: "🟡 есть пункты для вашей проверки",
-         QAStatus.failed: "⛔ обязательные проверки не пройдены", QAStatus.pending: "⏳ проверка не завершена"}
+QA_RU = {
+    QAStatus.passed: "✅ проверки пройдены",
+    QAStatus.needs_review: "🟡 есть пункты для вашей проверки",
+    QAStatus.failed: "⛔ обязательные проверки не пройдены",
+    QAStatus.pending: "⏳ проверка не завершена",
+}
 
 
 def short(uid: uuid.UUID | str) -> str:
@@ -62,7 +82,9 @@ def draft_card(item: ContentItem, version: ContentVersion, sources: list[Researc
         lines += ["", "Источники:"]
         for s in verified[:5]:
             date = s.published_at.strftime("%d.%m.%Y") if s.published_at else "дата не указана"
-            lines.append(f"• <a href=\"{escape(s.url or '')}\">{escape((s.publisher or s.title or s.url or '')[:60])}</a>, {date}")
+            lines.append(
+                f'• <a href="{escape(s.url or "")}">{escape((s.publisher or s.title or s.url or "")[:60])}</a>, {date}'
+            )
     if version.change_request:
         lines += ["", f"Учтены правки: {escape(version.change_request[:300])}"]
     if qa_status == QAStatus.needs_review:
@@ -120,8 +142,14 @@ def parse_video_params(text: str) -> dict[str, Any]:
         if 5 <= seconds <= 180:
             params["duration_s"] = seconds
         rest = rest.replace(m.group(0), " ")
-    flags = {"без ии": ("no_ai", True), "без субтитров": ("subtitles", False), "без логотипа": ("logo", False),
-             "обрезать": ("reframe", "crop"), "высокое качество": ("quality", "high"), "без концовки": ("outro", False)}
+    flags = {
+        "без ии": ("no_ai", True),
+        "без субтитров": ("subtitles", False),
+        "без логотипа": ("logo", False),
+        "обрезать": ("reframe", "crop"),
+        "высокое качество": ("quality", "high"),
+        "без концовки": ("outro", False),
+    }
     for phrase, (key, value) in flags.items():
         if phrase in low:
             params[key] = value

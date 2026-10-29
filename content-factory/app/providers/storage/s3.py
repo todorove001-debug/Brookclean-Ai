@@ -18,7 +18,16 @@ from app.providers.storage.base import ObjectExists, StorageError, StoredObject,
 class S3Storage:
     name = "s3"
 
-    def __init__(self, *, endpoint: str | None, region: str, bucket: str, access_key: str, secret_key: str, client: Any = None):
+    def __init__(
+        self,
+        *,
+        endpoint: str | None,
+        region: str,
+        bucket: str,
+        access_key: str,
+        secret_key: str,
+        client: Any = None,
+    ):
         self.bucket = bucket
         self._client = client or boto3.client(
             "s3",
@@ -26,9 +35,15 @@ class S3Storage:
             region_name=region,
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key,
-            config=Config(signature_version="s3v4", retries={"max_attempts": 5, "mode": "standard"}, s3={"addressing_style": "path"}),
+            config=Config(
+                signature_version="s3v4",
+                retries={"max_attempts": 5, "mode": "standard"},
+                s3={"addressing_style": "path"},
+            ),
         )
-        self._transfer = TransferConfig(multipart_threshold=32 * 1024 * 1024, multipart_chunksize=16 * 1024 * 1024)
+        self._transfer = TransferConfig(
+            multipart_threshold=32 * 1024 * 1024, multipart_chunksize=16 * 1024 * 1024
+        )
 
     def _head(self, key: str) -> dict[str, Any] | None:
         try:
@@ -46,7 +61,10 @@ class S3Storage:
                 raise ObjectExists(key)
             digest = sha256_file(path)
             self._client.upload_file(
-                str(path), self.bucket, key, Config=self._transfer,
+                str(path),
+                self.bucket,
+                key,
+                Config=self._transfer,
                 ExtraArgs={"ContentType": content_type, "Metadata": {"sha256": digest}},
             )
             return StoredObject(key, path.stat().st_size, digest)
@@ -60,7 +78,9 @@ class S3Storage:
             if self._head(key) is not None:
                 raise ObjectExists(key)
             digest = hashlib.sha256(data).hexdigest()
-            self._client.put_object(Bucket=self.bucket, Key=key, Body=data, ContentType=content_type, Metadata={"sha256": digest})
+            self._client.put_object(
+                Bucket=self.bucket, Key=key, Body=data, ContentType=content_type, Metadata={"sha256": digest}
+            )
             return StoredObject(key, len(data), digest)
 
         return await asyncio.to_thread(_put)
@@ -94,7 +114,10 @@ class S3Storage:
 
     async def presigned_url(self, key: str, expires_s: int = 600) -> str | None:
         return await asyncio.to_thread(
-            self._client.generate_presigned_url, "get_object", Params={"Bucket": self.bucket, "Key": key}, ExpiresIn=expires_s
+            self._client.generate_presigned_url,
+            "get_object",
+            Params={"Bucket": self.bucket, "Key": key},
+            ExpiresIn=expires_s,
         )
 
     async def check(self) -> None:
@@ -109,7 +132,9 @@ class S3Storage:
     async def list_keys(self, prefix: str) -> list[tuple[str, int]]:
         def _list() -> list[tuple[str, int]]:
             out: list[tuple[str, int]] = []
-            for page in self._client.get_paginator("list_objects_v2").paginate(Bucket=self.bucket, Prefix=prefix):
+            for page in self._client.get_paginator("list_objects_v2").paginate(
+                Bucket=self.bucket, Prefix=prefix
+            ):
                 out += [(o["Key"], int(o["Size"])) for o in page.get("Contents", [])]
             return sorted(out)
 

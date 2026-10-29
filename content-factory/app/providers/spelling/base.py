@@ -42,17 +42,31 @@ class YandexSpeller:
         issues: list[SpellingIssue] = []
         offset = 0
         while offset < len(text):
-            chunk = text[offset: offset + self.CHUNK]
+            chunk = text[offset : offset + self.CHUNK]
             try:
-                response = await self._http.post(self.url, data={"text": chunk, "lang": "ru,en",
-                                                                 "options": IGNORE_DIGITS | IGNORE_URLS | FIND_REPEAT_WORDS})
+                response = await self._http.post(
+                    self.url,
+                    data={
+                        "text": chunk,
+                        "lang": "ru,en",
+                        "options": IGNORE_DIGITS | IGNORE_URLS | FIND_REPEAT_WORDS,
+                    },
+                )
                 response.raise_for_status()
             except httpx.HTTPError as exc:
                 PROVIDER_CALLS.labels(self.name, "check", "error").inc()
-                raise ProviderUnavailable(f"Спеллер недоступен: {type(exc).__name__}", provider=self.name) from exc
+                raise ProviderUnavailable(
+                    f"Спеллер недоступен: {type(exc).__name__}", provider=self.name
+                ) from exc
             PROVIDER_CALLS.labels(self.name, "check", "ok").inc()
             for item in response.json():
-                issues.append(SpellingIssue(word=item.get("word", ""), position=offset + int(item.get("pos", 0)),
-                                            code=int(item.get("code", 1)), suggestions=list(item.get("s") or [])[:3]))
+                issues.append(
+                    SpellingIssue(
+                        word=item.get("word", ""),
+                        position=offset + int(item.get("pos", 0)),
+                        code=int(item.get("code", 1)),
+                        suggestions=list(item.get("s") or [])[:3],
+                    )
+                )
             offset += self.CHUNK
         return issues

@@ -18,10 +18,13 @@ class FFmpegError(RuntimeError):
         self.stderr = stderr[-3000:]
 
 
-async def run(args: list[str], *, timeout_s: float | None = None, cwd: Path | None = None) -> tuple[int, str, str]:
+async def run(
+    args: list[str], *, timeout_s: float | None = None, cwd: Path | None = None
+) -> tuple[int, str, str]:
     """Запуск без оболочки: аргументы передаются списком, внедрение команд невозможно."""
-    proc = await asyncio.create_subprocess_exec(*args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-                                                cwd=str(cwd) if cwd else None)
+    proc = await asyncio.create_subprocess_exec(
+        *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=str(cwd) if cwd else None
+    )
     try:
         out, err = await asyncio.wait_for(proc.communicate(), timeout=timeout_s)
     except TimeoutError:
@@ -94,13 +97,30 @@ def _fps(value: str | None) -> float | None:
 async def probe(path: Path) -> ProbeInfo:
     settings = get_settings()
     code, out, err = await run(
-        [settings.ffprobe_bin, "-v", "error", "-print_format", "json", "-show_format", "-show_streams", str(path)], timeout_s=120
+        [
+            settings.ffprobe_bin,
+            "-v",
+            "error",
+            "-print_format",
+            "json",
+            "-show_format",
+            "-show_streams",
+            str(path),
+        ],
+        timeout_s=120,
     )
     if code != 0:
         raise FFmpegError("ffprobe не смог прочитать файл — он повреждён или формат не поддерживается", err)
     data = json.loads(out or "{}")
     streams = data.get("streams") or []
-    video = next((s for s in streams if s.get("codec_type") == "video" and not (s.get("disposition") or {}).get("attached_pic")), None)
+    video = next(
+        (
+            s
+            for s in streams
+            if s.get("codec_type") == "video" and not (s.get("disposition") or {}).get("attached_pic")
+        ),
+        None,
+    )
     audio = next((s for s in streams if s.get("codec_type") == "audio"), None)
     rotation = 0
     if video:
@@ -109,7 +129,9 @@ async def probe(path: Path) -> ProbeInfo:
             if "rotation" in side:
                 rotation = int(float(side["rotation"]))
     fmt = data.get("format") or {}
-    duration = float(fmt.get("duration") or (video or {}).get("duration") or (audio or {}).get("duration") or 0)
+    duration = float(
+        fmt.get("duration") or (video or {}).get("duration") or (audio or {}).get("duration") or 0
+    )
     return ProbeInfo(
         duration_s=round(duration, 3),
         width=int(video["width"]) if video and video.get("width") else None,
@@ -134,7 +156,9 @@ async def decode_errors(path: Path, *, max_seconds: float | None = None) -> list
         args += ["-t", str(max_seconds)]
     args += ["-f", "null", "-"]
     settings = get_settings()
-    code, _, err = await run([settings.ffmpeg_bin, "-hide_banner", "-nostdin", *args], timeout_s=settings.render_timeout_s)
+    code, _, err = await run(
+        [settings.ffmpeg_bin, "-hide_banner", "-nostdin", *args], timeout_s=settings.render_timeout_s
+    )
     lines = [ln.strip() for ln in err.splitlines() if ln.strip()]
     if code != 0 and not lines:
         lines = [f"ffmpeg завершился с кодом {code}"]
@@ -209,22 +233,40 @@ async def analyze(path: Path, info: ProbeInfo, *, scene_threshold: float = 0.35)
         args += ["-map", "0:a:0", "-af", "silencedetect=n=-35dB:d=1.0"]
     args += ["-f", "null", "-"]
     settings = get_settings()
-    code, _, err = await run([settings.ffmpeg_bin, "-hide_banner", "-nostdin", *args], timeout_s=settings.render_timeout_s)
+    code, _, err = await run(
+        [settings.ffmpeg_bin, "-hide_banner", "-nostdin", *args], timeout_s=settings.render_timeout_s
+    )
     if code != 0:
         raise FFmpegError("анализ кадров не выполнен", err)
     duration = info.duration_s
     black = [Interval(float(a), float(b)) for a, b in _BLACK.findall(err)]
-    frozen = _pair([float(x) for x in _FREEZE_START.findall(err)], [float(x) for x in _FREEZE_END.findall(err)], duration)
-    silence = _pair([float(x) for x in _SIL_START.findall(err)], [float(x) for x in _SIL_END.findall(err)], duration)
+    frozen = _pair(
+        [float(x) for x in _FREEZE_START.findall(err)], [float(x) for x in _FREEZE_END.findall(err)], duration
+    )
+    silence = _pair(
+        [float(x) for x in _SIL_START.findall(err)], [float(x) for x in _SIL_END.findall(err)], duration
+    )
     scenes = sorted({round(float(x), 3) for x in _PTS.findall(err) if 0 < float(x) < duration})
-    return FrameAnalysis(duration_s=duration, black=black, frozen=frozen, silence=silence, scene_changes=scenes)
+    return FrameAnalysis(
+        duration_s=duration, black=black, frozen=frozen, silence=silence, scene_changes=scenes
+    )
 
 
 async def loudness(path: Path) -> dict[str, float] | None:
     """Интегральная громкость (EBU R128) через loudnorm. None — в файле нет звука."""
     try:
-        err = await ffmpeg("-i", str(path), "-map", "0:a:0", "-af", "loudnorm=I=-16:TP=-1.5:LRA=11:print_format=json",
-                           "-f", "null", "-", timeout_s=600)
+        err = await ffmpeg(
+            "-i",
+            str(path),
+            "-map",
+            "0:a:0",
+            "-af",
+            "loudnorm=I=-16:TP=-1.5:LRA=11:print_format=json",
+            "-f",
+            "null",
+            "-",
+            timeout_s=600,
+        )
     except FFmpegError:
         return None
     match = re.search(r"\{[^{}]*\"input_i\"[^{}]*\}", err, re.DOTALL)
@@ -249,7 +291,21 @@ async def extract_frame(path: Path, at_s: float, dest: Path, *, width: int | Non
 
 
 async def extract_audio_for_asr(path: Path, dest: Path) -> Path:
-    await ffmpeg("-i", str(path), "-vn", "-ac", "1", "-ar", "16000", "-c:a", "libmp3lame", "-b:a", "64k", str(dest), timeout_s=900)
+    await ffmpeg(
+        "-i",
+        str(path),
+        "-vn",
+        "-ac",
+        "1",
+        "-ar",
+        "16000",
+        "-c:a",
+        "libmp3lame",
+        "-b:a",
+        "64k",
+        str(dest),
+        timeout_s=900,
+    )
     return dest
 
 

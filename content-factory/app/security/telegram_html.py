@@ -12,7 +12,22 @@ import re
 from html.parser import HTMLParser
 from urllib.parse import urlsplit
 
-ALLOWED_TAGS = {"b", "strong", "i", "em", "u", "ins", "s", "strike", "del", "a", "code", "pre", "blockquote", "tg-spoiler"}
+ALLOWED_TAGS = {
+    "b",
+    "strong",
+    "i",
+    "em",
+    "u",
+    "ins",
+    "s",
+    "strike",
+    "del",
+    "a",
+    "code",
+    "pre",
+    "blockquote",
+    "tg-spoiler",
+}
 ALLOWED_LINK_SCHEMES = {"http", "https", "tg"}
 SKIP_CONTENT = {"script", "style", "head", "title"}
 URL_RE = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)

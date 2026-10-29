@@ -113,10 +113,14 @@ _CLAIM_SQL = text(
     UPDATE tasks SET status = 'running', attempts = attempts + 1, locked_by = :worker,
            locked_until = now() + make_interval(secs => :lease), updated_at = now()
     WHERE id = (
-        SELECT id FROM tasks
-        WHERE (status = 'queued' AND run_at <= now())
-           OR (status = 'running' AND locked_until < now())
-        ORDER BY priority DESC, run_at
+        SELECT t.id FROM tasks t
+        WHERE ((t.status = 'queued' AND t.run_at <= now())
+               OR (t.status = 'running' AND t.locked_until < now()))
+          -- задачи с одним dedup_key не выполняются параллельно
+          AND (t.dedup_key IS NULL OR NOT EXISTS (
+                SELECT 1 FROM tasks r
+                WHERE r.dedup_key = t.dedup_key AND r.status = 'running' AND r.id <> t.id AND r.locked_until >= now()))
+        ORDER BY t.priority DESC, t.run_at
         LIMIT 1
         FOR UPDATE SKIP LOCKED
     )
@@ -130,7 +134,9 @@ def backoff_seconds(attempt: int) -> float:
 
 
 class Worker:
-    def __init__(self, handlers: dict[str, Handler], services: Any, *, lease_s: int = 300, worker_id: str | None = None):
+    def __init__(
+        self, handlers: dict[str, Handler], services: Any, *, lease_s: int = 300, worker_id: str | None = None
+    ):
         self.handlers = handlers
         self.services = services
         self.lease_s = lease_s
@@ -143,7 +149,9 @@ class Worker:
             for row in reaped:
                 log.error("task.lease_expired", task_id=str(row.id), name=row.name)
                 await self._on_dead(session, row.id, row.name, "задача зависла и исчерпала попытки")
-            row = (await session.execute(_CLAIM_SQL, {"worker": self.worker_id, "lease": self.lease_s})).first()
+            row = (
+                await session.execute(_CLAIM_SQL, {"worker": self.worker_id, "lease": self.lease_s})
+            ).first()
         if row is None:
             return False
 
@@ -154,7 +162,9 @@ class Worker:
         async def heartbeat() -> None:
             async with session_scope() as s:
                 await s.execute(
-                    text("UPDATE tasks SET locked_until = now() + make_interval(secs => :lease) WHERE id = :id AND locked_by = :w"),
+                    text(
+                        "UPDATE tasks SET locked_until = now() + make_interval(secs => :lease) WHERE id = :id AND locked_by = :w"
+                    ),
                     {"lease": self.lease_s, "id": task_id, "w": self.worker_id},
                 )
 
@@ -165,7 +175,13 @@ class Worker:
                 raise PermanentError(f"нет обработчика для задачи {row.name}")
             await self._run_with_heartbeat(handler, ctx, row.payload or {})
         except Reschedule as exc:
-            await self._finish(task_id, status=TaskStatus.queued, delay_s=exc.delay_s, error=exc.reason or None, refund_attempt=True)
+            await self._finish(
+                task_id,
+                status=TaskStatus.queued,
+                delay_s=exc.delay_s,
+                error=exc.reason or None,
+                refund_attempt=True,
+            )
             TASKS_TOTAL.labels(row.name, "rescheduled").inc()
             bound.info("task.rescheduled", delay_s=exc.delay_s, reason=exc.reason)
         except Exception as exc:  # noqa: BLE001 — любая ошибка обработчика фиксируется в задаче

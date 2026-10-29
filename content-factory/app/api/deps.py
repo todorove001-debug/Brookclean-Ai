@@ -35,12 +35,19 @@ ServicesDep = Annotated[Services, Depends(get_services)]
 
 async def current_user(session: SessionDep, authorization: Annotated[str | None, Header()] = None) -> User:
     if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "нужен заголовок Authorization: Bearer <токен>",
-                            headers={"WWW-Authenticate": "Bearer"})
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            "нужен заголовок Authorization: Bearer <токен>",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     token = authorization.split(" ", 1)[1].strip()
-    user = (await session.execute(select(User).where(User.api_token_hash == hash_token(token)))).scalar_one_or_none()
+    user = (
+        await session.execute(select(User).where(User.api_token_hash == hash_token(token)))
+    ).scalar_one_or_none()
     if user is None or not user.is_active:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "токен недействителен", headers={"WWW-Authenticate": "Bearer"})
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, "токен недействителен", headers={"WWW-Authenticate": "Bearer"}
+        )
     return user
 
 

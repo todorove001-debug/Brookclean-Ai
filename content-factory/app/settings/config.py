@@ -70,7 +70,9 @@ class Settings(BaseSettings):
     llm_timeout_s: float = 300.0
 
     # --- Поиск источников ---
-    search_providers: list[Literal["anthropic_web", "rss"]] = Field(default_factory=lambda: ["anthropic_web", "rss"])
+    search_providers: list[Literal["anthropic_web", "rss"]] = Field(
+        default_factory=lambda: ["anthropic_web", "rss"]
+    )
     research_max_sources: int = 6
 
     # --- Изображения ---
@@ -155,7 +157,11 @@ class Settings(BaseSettings):
 
     @property
     def sync_database_url(self) -> str:
-        return self.database_url.replace("+asyncpg", "+psycopg") if "+asyncpg" in self.database_url else self.database_url
+        return (
+            self.database_url.replace("+asyncpg", "+psycopg")
+            if "+asyncpg" in self.database_url
+            else self.database_url
+        )
 
     def secret(self, name: str) -> str | None:
         value = getattr(self, name)

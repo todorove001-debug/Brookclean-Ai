@@ -33,7 +33,14 @@ BUDGET_LOCK_KEY = 0x0B0D6E7  # общий ключ advisory-блокировки
 
 
 class BudgetExceeded(Exception):  # noqa: N818
-    def __init__(self, reason: str, *, period: str | None = None, spent: Decimal | None = None, limit: Decimal | None = None):
+    def __init__(
+        self,
+        reason: str,
+        *,
+        period: str | None = None,
+        spent: Decimal | None = None,
+        limit: Decimal | None = None,
+    ):
         super().__init__(reason)
         self.reason = reason
         self.period = period
@@ -57,7 +64,14 @@ class PaidCall:
     units: dict[str, Any] = field(default_factory=dict)
     request_id: str | None = None
 
-    def set_actual(self, amount: Decimal, *, source: str, units: dict[str, Any] | None = None, request_id: str | None = None) -> None:
+    def set_actual(
+        self,
+        amount: Decimal,
+        *,
+        source: str,
+        units: dict[str, Any] | None = None,
+        request_id: str | None = None,
+    ) -> None:
         self.actual = amount
         self.cost_source = source
         if units:
@@ -87,7 +101,9 @@ async def current_spend(session: AsyncSession, tz_name: str, now: datetime | Non
     month = (await session.execute(text(_SPENT), {"since": month_start})).scalar_one()
     videos = (
         await session.execute(
-            select(func.count()).select_from(VideoJob).where(
+            select(func.count())
+            .select_from(VideoJob)
+            .where(
                 VideoJob.kind == VideoJobKind.ai_scene,
                 VideoJob.created_at >= month_start,
                 VideoJob.provider_job_id.is_not(None),
@@ -115,22 +131,40 @@ async def reserve(
     await session.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": BUDGET_LOCK_KEY})
 
     if estimated_usd > budget.max_task_cost_usd:
-        raise BudgetExceeded(f"оценка операции ${estimated_usd} выше лимита на задачу ${budget.max_task_cost_usd}")
+        raise BudgetExceeded(
+            f"оценка операции ${estimated_usd} выше лимита на задачу ${budget.max_task_cost_usd}"
+        )
     spend = await current_spend(session, tz)
     if budget.hard_stop and spend.day_usd + estimated_usd > budget.daily_limit_usd:
-        raise BudgetExceeded(f"дневной лимит ${budget.daily_limit_usd} будет превышен (потрачено ${spend.day_usd:.2f})",
-                             period="day", spent=spend.day_usd, limit=budget.daily_limit_usd)
+        raise BudgetExceeded(
+            f"дневной лимит ${budget.daily_limit_usd} будет превышен (потрачено ${spend.day_usd:.2f})",
+            period="day",
+            spent=spend.day_usd,
+            limit=budget.daily_limit_usd,
+        )
     if budget.hard_stop and spend.month_usd + estimated_usd > budget.monthly_limit_usd:
-        raise BudgetExceeded(f"месячный лимит ${budget.monthly_limit_usd} будет превышен (потрачено ${spend.month_usd:.2f})",
-                             period="month", spent=spend.month_usd, limit=budget.monthly_limit_usd)
+        raise BudgetExceeded(
+            f"месячный лимит ${budget.monthly_limit_usd} будет превышен (потрачено ${spend.month_usd:.2f})",
+            period="month",
+            spent=spend.month_usd,
+            limit=budget.monthly_limit_usd,
+        )
     if is_video_generation and spend.video_generations_month >= budget.video_generations_per_month:
-        raise BudgetExceeded(f"достигнут лимит генераций видео в месяц ({budget.video_generations_per_month})",
-                             period="video", spent=Decimal(spend.video_generations_month),
-                             limit=Decimal(budget.video_generations_per_month))
+        raise BudgetExceeded(
+            f"достигнут лимит генераций видео в месяц ({budget.video_generations_per_month})",
+            period="video",
+            spent=Decimal(spend.video_generations_month),
+            limit=Decimal(budget.video_generations_per_month),
+        )
 
     usage = ProviderUsage(
-        provider=provider, operation=operation, model=model, status=UsageStatus.reserved,
-        estimated_cost_usd=estimated_usd, item_id=item_id, units=units or {},
+        provider=provider,
+        operation=operation,
+        model=model,
+        status=UsageStatus.reserved,
+        estimated_cost_usd=estimated_usd,
+        item_id=item_id,
+        units=units or {},
     )
     session.add(usage)
     await session.flush()
@@ -141,8 +175,12 @@ async def reserve(
 async def notify_budget_stop(session: AsyncSession, exc: BudgetExceeded) -> None:
     """Уведомление об остановке платных задач. Вызывается в новой транзакции: резерв к этому моменту откатан."""
     if exc.period is None or exc.spent is None or exc.limit is None:
-        await notify_owner(session, key=f"budget-stop:task:{utcnow():%Y-%m-%d}:{exc.reason[:60]}", kind="budget",
-                           text=f"⛔ Платная операция не запущена: {exc.reason}")
+        await notify_owner(
+            session,
+            key=f"budget-stop:task:{utcnow():%Y-%m-%d}:{exc.reason[:60]}",
+            kind="budget",
+            text=f"⛔ Платная операция не запущена: {exc.reason}",
+        )
         return
     period, spent, limit = exc.period, exc.spent, exc.limit
     label = {"day": "дневной", "month": "месячный", "video": "месячный лимит генераций видео —"}[period]
@@ -156,10 +194,14 @@ async def notify_budget_stop(session: AsyncSession, exc: BudgetExceeded) -> None
     )
 
 
-async def _warn_thresholds(session: AsyncSession, budget: BudgetSettings, spend: Spend, added: Decimal) -> None:
+async def _warn_thresholds(
+    session: AsyncSession, budget: BudgetSettings, spend: Spend, added: Decimal
+) -> None:
     now = utcnow()
-    for period, spent, limit in (("day", spend.day_usd + added, budget.daily_limit_usd),
-                                 ("month", spend.month_usd + added, budget.monthly_limit_usd)):
+    for period, spent, limit in (
+        ("day", spend.day_usd + added, budget.daily_limit_usd),
+        ("month", spend.month_usd + added, budget.monthly_limit_usd),
+    ):
         if limit <= 0:
             continue
         ratio = float(spent / limit)
@@ -175,8 +217,15 @@ async def _warn_thresholds(session: AsyncSession, budget: BudgetSettings, spend:
                 )
 
 
-async def commit_usage(session: AsyncSession, usage_id: uuid.UUID, actual_usd: Decimal, *, cost_source: str,
-                       units: dict[str, Any] | None = None, request_id: str | None = None) -> None:
+async def commit_usage(
+    session: AsyncSession,
+    usage_id: uuid.UUID,
+    actual_usd: Decimal,
+    *,
+    cost_source: str,
+    units: dict[str, Any] | None = None,
+    request_id: str | None = None,
+) -> None:
     usage = await session.get(ProviderUsage, usage_id, with_for_update=True)
     if usage is None or usage.status != UsageStatus.reserved:
         return
@@ -200,8 +249,14 @@ async def release_usage(session: AsyncSession, usage_id: uuid.UUID, error: str |
 
 @asynccontextmanager
 async def paid_call(
-    *, provider: str, operation: str, estimated_usd: Decimal, model: str | None = None,
-    item_id: uuid.UUID | None = None, is_video_generation: bool = False, units: dict[str, Any] | None = None,
+    *,
+    provider: str,
+    operation: str,
+    estimated_usd: Decimal,
+    model: str | None = None,
+    item_id: uuid.UUID | None = None,
+    is_video_generation: bool = False,
+    units: dict[str, Any] | None = None,
     charge_on_error: bool = False,
 ) -> AsyncIterator[PaidCall]:
     """Резерв → вызов → фиксация. Если вызывающий не указал факт, фиксируется оценка.
@@ -210,8 +265,16 @@ async def paid_call(
     """
     try:
         async with session_scope() as session:
-            usage = await reserve(session, provider=provider, operation=operation, estimated_usd=estimated_usd, model=model,
-                                  item_id=item_id, is_video_generation=is_video_generation, units=units)
+            usage = await reserve(
+                session,
+                provider=provider,
+                operation=operation,
+                estimated_usd=estimated_usd,
+                model=model,
+                item_id=item_id,
+                is_video_generation=is_video_generation,
+                units=units,
+            )
             usage_id = usage.id
     except BudgetExceeded as exc:
         async with session_scope() as session:
@@ -228,19 +291,32 @@ async def paid_call(
                 await release_usage(session, usage_id, f"{type(exc).__name__}: {exc}")
         raise
     async with session_scope() as session:
-        await commit_usage(session, usage_id, call.actual if call.actual is not None else estimated_usd,
-                           cost_source=call.cost_source if call.actual is not None else "estimate",
-                           units=call.units, request_id=call.request_id)
+        await commit_usage(
+            session,
+            usage_id,
+            call.actual if call.actual is not None else estimated_usd,
+            cost_source=call.cost_source if call.actual is not None else "estimate",
+            units=call.units,
+            request_id=call.request_id,
+        )
 
 
 async def settle_stale_reservations(session: AsyncSession, older_than: timedelta = timedelta(hours=6)) -> int:
     """Резервы, «зависшие» после сбоя процесса, считаются потраченными по оценке — так лимит не занижается."""
     rows = (
-        await session.execute(
-            select(ProviderUsage).where(ProviderUsage.status == UsageStatus.reserved,
-                                        ProviderUsage.created_at < utcnow() - older_than).with_for_update(skip_locked=True)
+        (
+            await session.execute(
+                select(ProviderUsage)
+                .where(
+                    ProviderUsage.status == UsageStatus.reserved,
+                    ProviderUsage.created_at < utcnow() - older_than,
+                )
+                .with_for_update(skip_locked=True)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     for usage in rows:
         usage.status = UsageStatus.committed
         usage.actual_cost_usd = usage.estimated_cost_usd

@@ -70,7 +70,11 @@ async def approval_send(ctx: TaskContext, payload: dict[str, Any]) -> None:
     item_id, version_id = uuid.UUID(payload["item_id"]), uuid.UUID(payload["version_id"])
     async with session_scope() as session:
         item = await session.get(ContentItem, item_id)
-        if item is None or ContentStatus(item.status) != ContentStatus.awaiting_approval or item.current_version_id != version_id:
+        if (
+            item is None
+            or ContentStatus(item.status) != ContentStatus.awaiting_approval
+            or item.current_version_id != version_id
+        ):
             return
     if ctx.services.telegram is None:
         log.warning("approval.no_bot", item_id=str(item_id))
@@ -84,14 +88,21 @@ async def plan_generate(ctx: TaskContext, payload: dict[str, Any]) -> None:
     async with session_scope() as session:
         report = await build_report(session, days=30)
         if report["publications"]:
-            insights = "; ".join(f"{k}: опубликовано {v['published']}, медиана реакций {v['reactions_median']} (n={v['reactions_n']})"
-                                 for k, v in report["formats"].items())
+            insights = "; ".join(
+                f"{k}: опубликовано {v['published']}, медиана реакций {v['reactions_median']} (n={v['reactions_n']})"
+                for k, v in report["formats"].items()
+            )
     result = await generate_plan(ctx.services, horizon_days=days, insights=insights)
     async with session_scope() as session:
         text = f"🗓 План на {days} дней: добавлено {result.created} материалов."
         if result.skipped:
             text += "\nНе заполнено или отклонено проверкой: " + "; ".join(result.skipped[:8])
-        await notify_owner(session, key=f"plan:{result.plan_id or utcnow().isoformat()}", kind="info", text=text + "\n/plan — посмотреть.")
+        await notify_owner(
+            session,
+            key=f"plan:{result.plan_id or utcnow().isoformat()}",
+            kind="info",
+            text=text + "\n/plan — посмотреть.",
+        )
 
 
 async def plan_rolling(ctx: TaskContext, payload: dict[str, Any]) -> None:
@@ -104,10 +115,21 @@ async def production_kick(ctx: TaskContext, payload: dict[str, Any]) -> None:
     async with session_scope() as session:
         channel = await get_channel(session)
         horizon = utcnow() + timedelta(days=channel.settings.schedule.production_lead_days, hours=12)
-        ids = (await session.execute(select(ContentItem.id).where(ContentItem.status == ContentStatus.idea,
-                                                                  ContentItem.planned_at <= horizon).limit(30))).scalars().all()
+        ids = (
+            (
+                await session.execute(
+                    select(ContentItem.id)
+                    .where(ContentItem.status == ContentStatus.idea, ContentItem.planned_at <= horizon)
+                    .limit(30)
+                )
+            )
+            .scalars()
+            .all()
+        )
         for item_id in ids:
-            await enqueue(session, "pipeline.advance", {"item_id": str(item_id)}, dedup_key=f"advance:{item_id}")
+            await enqueue(
+                session, "pipeline.advance", {"item_id": str(item_id)}, dedup_key=f"advance:{item_id}"
+            )
 
 
 async def publish_dispatch(ctx: TaskContext, payload: dict[str, Any]) -> None:
@@ -116,7 +138,14 @@ async def publish_dispatch(ctx: TaskContext, payload: dict[str, Any]) -> None:
         if channel.row.publishing_paused:
             return
         for item_id in await due_items(session):
-            await enqueue(session, "publish.item", {"item_id": str(item_id)}, dedup_key=f"publish:{item_id}", max_attempts=10, priority=10)
+            await enqueue(
+                session,
+                "publish.item",
+                {"item_id": str(item_id)},
+                dedup_key=f"publish:{item_id}",
+                max_attempts=10,
+                priority=10,
+            )
 
 
 async def publish_one(ctx: TaskContext, payload: dict[str, Any]) -> None:
@@ -135,14 +164,34 @@ async def video_poll(ctx: TaskContext, payload: dict[str, Any]) -> None:
 async def video_watchdog(ctx: TaskContext, payload: dict[str, Any]) -> None:
     """Задания генерации без активной задачи опроса (например, после сбоя) снова ставятся в очередь."""
     async with session_scope() as session:
-        jobs = (await session.execute(select(VideoJob).where(
-            VideoJob.status.in_([VideoJobStatus.submitted, VideoJobStatus.processing, VideoJobStatus.pending, VideoJobStatus.waiting_provider]),
-            VideoJob.updated_at < utcnow() - timedelta(minutes=15)))).scalars().all()
+        jobs = (
+            (
+                await session.execute(
+                    select(VideoJob).where(
+                        VideoJob.status.in_(
+                            [
+                                VideoJobStatus.submitted,
+                                VideoJobStatus.processing,
+                                VideoJobStatus.pending,
+                                VideoJobStatus.waiting_provider,
+                            ]
+                        ),
+                        VideoJob.updated_at < utcnow() - timedelta(minutes=15),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
         for job in jobs:
             if job.status in {VideoJobStatus.pending, VideoJobStatus.waiting_provider}:
-                await enqueue(session, "video.submit", {"job_id": str(job.id)}, dedup_key=f"video.submit:{job.id}")
+                await enqueue(
+                    session, "video.submit", {"job_id": str(job.id)}, dedup_key=f"video.submit:{job.id}"
+                )
             else:
-                await enqueue(session, "video.poll", {"job_id": str(job.id)}, dedup_key=f"video.poll:{job.id}")
+                await enqueue(
+                    session, "video.poll", {"job_id": str(job.id)}, dedup_key=f"video.poll:{job.id}"
+                )
 
 
 async def analytics_collect(ctx: TaskContext, payload: dict[str, Any]) -> None:
@@ -155,8 +204,10 @@ async def analytics_weekly(ctx: TaskContext, payload: dict[str, Any]) -> None:
     async with session_scope() as session:
         report = await build_report(session, days=7)
     recs = await recommendations(ctx.services, report, use_llm=False)
-    lines = [f"📊 Неделя: публикаций {report['publications']}, успешность {report['publishing_success_rate'] or '—'}",
-             f"Расходы за месяц: ${report['costs']['month_usd']:.2f}"]
+    lines = [
+        f"📊 Неделя: публикаций {report['publications']}, успешность {report['publishing_success_rate'] or '—'}",
+        f"Расходы за месяц: ${report['costs']['month_usd']:.2f}",
+    ]
     lines += [f"• {r['title']}: {r['evidence']}. {r['action']}" for r in recs["rules"]]
     async with session_scope() as session:
         await notify_owner(session, key=f"weekly:{utcnow():%G-%V}", kind="report", text="\n".join(lines))
@@ -165,15 +216,37 @@ async def analytics_weekly(ctx: TaskContext, payload: dict[str, Any]) -> None:
 async def maintenance(ctx: TaskContext, payload: dict[str, Any]) -> None:
     async with session_scope() as session:
         settled = await settle_stale_reservations(session)
-        await session.execute(delete(Task).where(Task.status == TaskStatus.succeeded, Task.finished_at < utcnow() - timedelta(days=14)))
+        await session.execute(
+            delete(Task).where(
+                Task.status == TaskStatus.succeeded, Task.finished_at < utcnow() - timedelta(days=14)
+            )
+        )
         await session.execute(delete(BotConversation).where(BotConversation.expires_at < utcnow()))
         # Материалы, «застрявшие» в промежуточных статусах (например, задача потерялась), снова ставятся в конвейер.
-        stuck = (await session.execute(select(ContentItem.id).where(
-            ContentItem.status.in_([ContentStatus.researching, ContentStatus.drafting, ContentStatus.quality_check,
-                                    ContentStatus.changes_requested, ContentStatus.approved]),
-            ContentItem.status_changed_at < utcnow() - timedelta(hours=2)))).scalars().all()
+        stuck = (
+            (
+                await session.execute(
+                    select(ContentItem.id).where(
+                        ContentItem.status.in_(
+                            [
+                                ContentStatus.researching,
+                                ContentStatus.drafting,
+                                ContentStatus.quality_check,
+                                ContentStatus.changes_requested,
+                                ContentStatus.approved,
+                            ]
+                        ),
+                        ContentItem.status_changed_at < utcnow() - timedelta(hours=2),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
         for item_id in stuck:
-            await enqueue(session, "pipeline.advance", {"item_id": str(item_id)}, dedup_key=f"advance:{item_id}")
+            await enqueue(
+                session, "pipeline.advance", {"item_id": str(item_id)}, dedup_key=f"advance:{item_id}"
+            )
         counters = await health_counters(session)
     for status, count in counters["queue"].items():
         QUEUE_DEPTH.labels(status).set(count)

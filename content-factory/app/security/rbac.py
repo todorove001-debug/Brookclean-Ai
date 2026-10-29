@@ -39,7 +39,12 @@ ROLE_PERMISSIONS: dict[UserRole, frozenset[Permission]] = {
         }
     ),
     UserRole.editor: frozenset(
-        {Permission.content_read, Permission.content_write, Permission.media_write, Permission.monitoring_read}
+        {
+            Permission.content_read,
+            Permission.content_write,
+            Permission.media_write,
+            Permission.monitoring_read,
+        }
     ),
     UserRole.viewer: frozenset({Permission.content_read}),
 }
@@ -49,7 +54,7 @@ def has_permission(role: UserRole | str, permission: Permission) -> bool:
     return permission in ROLE_PERMISSIONS.get(UserRole(role), frozenset())
 
 
-TOKEN_PREFIX = "cf_"
+TOKEN_PREFIX = "cf_"  # noqa: S105 — префикс, не секрет
 
 
 def new_api_token() -> tuple[str, str, str]:

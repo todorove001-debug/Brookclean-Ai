@@ -57,13 +57,30 @@ async def run_agent(
     # Оценка с запасом на рассуждения модели: резерв снимается после ответа фактической суммой.
     estimated = services.pricing.llm_cost(llm.model, input_tokens, expected_output_tokens * 2)
     estimated = max(estimated, Decimal("0.001"))
-    async with paid_call(provider=llm.name, operation=f"agent.{agent}", estimated_usd=estimated, model=llm.model,
-                         item_id=item_id, units={"estimated_input_tokens": input_tokens}) as call:
-        result = await llm.structured(system=system, prompt=prompt, schema=schema, images=images,
-                                      max_tokens=max_tokens, effort=effort)
+    async with paid_call(
+        provider=llm.name,
+        operation=f"agent.{agent}",
+        estimated_usd=estimated,
+        model=llm.model,
+        item_id=item_id,
+        units={"estimated_input_tokens": input_tokens},
+    ) as call:
+        result = await llm.structured(
+            system=system, prompt=prompt, schema=schema, images=images, max_tokens=max_tokens, effort=effort
+        )
         u = result.usage
-        actual = services.pricing.llm_cost(u.model, u.input_tokens, u.output_tokens, u.cache_read_tokens, u.cache_write_tokens)
-        call.set_actual(actual, source="tokens", request_id=u.request_id,
-                        units={"input_tokens": u.input_tokens, "output_tokens": u.output_tokens,
-                               "cache_read_tokens": u.cache_read_tokens, "cache_write_tokens": u.cache_write_tokens})
+        actual = services.pricing.llm_cost(
+            u.model, u.input_tokens, u.output_tokens, u.cache_read_tokens, u.cache_write_tokens
+        )
+        call.set_actual(
+            actual,
+            source="tokens",
+            request_id=u.request_id,
+            units={
+                "input_tokens": u.input_tokens,
+                "output_tokens": u.output_tokens,
+                "cache_read_tokens": u.cache_read_tokens,
+                "cache_write_tokens": u.cache_write_tokens,
+            },
+        )
     return result.data

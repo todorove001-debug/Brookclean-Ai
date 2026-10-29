@@ -36,7 +36,9 @@ class PricingTable:
         table = self.data.get("llm", {})
         return table.get(model) or table.get("default") or {"input": 0, "output": 0}
 
-    def llm_cost(self, model: str, input_tokens: int, output_tokens: int, cache_read: int = 0, cache_write: int = 0) -> Decimal:
+    def llm_cost(
+        self, model: str, input_tokens: int, output_tokens: int, cache_read: int = 0, cache_write: int = 0
+    ) -> Decimal:
         p = self._llm(model)
         total = (
             _d(input_tokens) * _d(p.get("input", 0))

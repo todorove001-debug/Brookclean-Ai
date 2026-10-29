@@ -87,8 +87,12 @@ class ScheduleConfig(BaseModel):
     posts_per_day_min: int = Field(4, ge=1, le=20)
     posts_per_day_max: int = Field(7, ge=1, le=20)
     # Предпочтительные слоты; планировщик ставит публикации в них, а при занятости — в разрешённые окна.
-    slots: list[time] = Field(default_factory=lambda: [time(9, 0), time(12, 0), time(15, 0), time(18, 0), time(20, 30)])
-    windows: list[PublishWindow] = Field(default_factory=lambda: [PublishWindow(start=time(8, 0), end=time(22, 0))])
+    slots: list[time] = Field(
+        default_factory=lambda: [time(9, 0), time(12, 0), time(15, 0), time(18, 0), time(20, 30)]
+    )
+    windows: list[PublishWindow] = Field(
+        default_factory=lambda: [PublishWindow(start=time(8, 0), end=time(22, 0))]
+    )
     min_gap_minutes: int = Field(90, ge=10)
     # За сколько дней до даты публикации запускать подготовку, чтобы владелец успел согласовать.
     production_lead_days: int = Field(2, ge=0, le=14)

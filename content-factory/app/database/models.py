@@ -47,8 +47,15 @@ from app.database.enums import (
 
 def _enum(cls: type) -> Enum:
     # Строка с CHECK-ограничением вместо типа ENUM в PostgreSQL: новые значения добавляются без ALTER TYPE.
-    return Enum(cls, native_enum=False, create_constraint=True, length=32, validate_strings=True,
-                name=f"ck_{cls.__name__.lower()}", values_callable=lambda e: [m.value for m in e])
+    return Enum(
+        cls,
+        native_enum=False,
+        create_constraint=True,
+        length=32,
+        validate_strings=True,
+        name=f"ck_{cls.__name__.lower()}",
+        values_callable=lambda e: [m.value for m in e],
+    )
 
 
 class Base(DeclarativeBase):
@@ -64,7 +71,9 @@ def _created() -> Mapped[datetime]:
 
 
 def _updated() -> Mapped[datetime]:
-    return mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    return mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
 
 
 class User(Base):
@@ -105,8 +114,12 @@ class CompanyFact(Base):
     __tablename__ = "company_facts"
 
     id: Mapped[uuid.UUID] = _uuid_pk()
-    channel_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("channel_configs.id", ondelete="CASCADE"), index=True)
-    category: Mapped[str] = mapped_column(String(32))  # contact | service | route | price | terms | case | other
+    channel_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("channel_configs.id", ondelete="CASCADE"), index=True
+    )
+    category: Mapped[str] = mapped_column(
+        String(32)
+    )  # contact | service | route | price | terms | case | other
     key: Mapped[str] = mapped_column(String(100))
     statement: Mapped[str] = mapped_column(Text)
     valid_until: Mapped[date | None] = mapped_column(Date)
@@ -122,7 +135,9 @@ class ContentPlan(Base):
     __tablename__ = "content_plans"
 
     id: Mapped[uuid.UUID] = _uuid_pk()
-    channel_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("channel_configs.id", ondelete="CASCADE"), index=True)
+    channel_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("channel_configs.id", ondelete="CASCADE"), index=True
+    )
     horizon_days: Mapped[int] = mapped_column(Integer)
     period_start: Mapped[date] = mapped_column(Date)
     period_end: Mapped[date] = mapped_column(Date)
@@ -225,8 +240,12 @@ class MediaAsset(Base):
     __tablename__ = "media_assets"
 
     id: Mapped[uuid.UUID] = _uuid_pk()
-    channel_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("channel_configs.id", ondelete="SET NULL"))
-    item_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("content_items.id", ondelete="SET NULL"), index=True)
+    channel_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("channel_configs.id", ondelete="SET NULL")
+    )
+    item_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("content_items.id", ondelete="SET NULL"), index=True
+    )
     kind: Mapped[MediaKind] = mapped_column(_enum(MediaKind))
     origin: Mapped[MediaOrigin] = mapped_column(_enum(MediaOrigin))
     title: Mapped[str | None] = mapped_column(Text)
@@ -256,8 +275,12 @@ class MediaAsset(Base):
 class VersionMedia(Base):
     __tablename__ = "version_media"
 
-    version_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("content_versions.id", ondelete="CASCADE"), primary_key=True)
-    asset_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("media_assets.id", ondelete="RESTRICT"), primary_key=True)
+    version_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("content_versions.id", ondelete="CASCADE"), primary_key=True
+    )
+    asset_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("media_assets.id", ondelete="RESTRICT"), primary_key=True
+    )
     role: Mapped[str] = mapped_column(String(32), primary_key=True)  # primary | cover | thumbnail
     position: Mapped[int] = mapped_column(Integer, default=0)
 
@@ -304,7 +327,9 @@ class VideoJob(Base):
     estimated_cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
     actual_cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
     usage_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("provider_usage.id", ondelete="SET NULL"))
-    output_asset_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("media_assets.id", ondelete="SET NULL"))
+    output_asset_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("media_assets.id", ondelete="SET NULL")
+    )
     error: Mapped[str | None] = mapped_column(Text)
     error_code: Mapped[str | None] = mapped_column(String(100))
     next_poll_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -321,7 +346,9 @@ class ApprovalEvent(Base):
 
     id: Mapped[uuid.UUID] = _uuid_pk()
     item_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("content_items.id", ondelete="CASCADE"), index=True)
-    version_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("content_versions.id", ondelete="CASCADE"))
+    version_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("content_versions.id", ondelete="CASCADE")
+    )
     content_hash: Mapped[str | None] = mapped_column(String(64))
     action: Mapped[ApprovalAction] = mapped_column(_enum(ApprovalAction))
     actor_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
@@ -341,7 +368,9 @@ class PublishingJob(Base):
     content_hash: Mapped[str] = mapped_column(String(64))
     approval_event_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("approval_events.id"))
     scheduled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    status: Mapped[PublishingJobStatus] = mapped_column(_enum(PublishingJobStatus), default=PublishingJobStatus.pending)
+    status: Mapped[PublishingJobStatus] = mapped_column(
+        _enum(PublishingJobStatus), default=PublishingJobStatus.pending
+    )
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     last_error: Mapped[str | None] = mapped_column(Text)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -365,7 +394,9 @@ class PublishingResult(Base):
 
     id: Mapped[uuid.UUID] = _uuid_pk()
     publishing_job_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("publishing_jobs.id"), unique=True)
-    item_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("content_items.id", ondelete="CASCADE"), unique=True)
+    item_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("content_items.id", ondelete="CASCADE"), unique=True
+    )
     chat_id: Mapped[str] = mapped_column(String(64))
     primary_message_id: Mapped[int] = mapped_column(BigInteger)
     message_ids: Mapped[list[Any]] = mapped_column(JSONB, default=list)
@@ -456,7 +487,8 @@ class Task(Base):
     run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     max_attempts: Mapped[int] = mapped_column(Integer, default=5)
-    # Пока задача с этим ключом в очереди или выполняется, вторая такая же не ставится.
+    # Пока задача с этим ключом ждёт в очереди, вторая такая же не ставится; задачи с одним ключом
+    # выполняются строго по очереди (см. queue._CLAIM_SQL).
     dedup_key: Mapped[str | None] = mapped_column(String(200))
     # Ключ разового запуска (например, «план на 2026-11-02»): уникален навсегда.
     once_key: Mapped[str | None] = mapped_column(String(200), unique=True)
@@ -473,7 +505,7 @@ class Task(Base):
             "uq_tasks_dedup_active",
             "dedup_key",
             unique=True,
-            postgresql_where=text("status IN ('queued', 'running') AND dedup_key IS NOT NULL"),
+            postgresql_where=text("status = 'queued' AND dedup_key IS NOT NULL"),
         ),
     )
 
@@ -485,7 +517,9 @@ class TrackedLink(Base):
     code: Mapped[str] = mapped_column(String(16), unique=True)
     target_url: Mapped[str] = mapped_column(Text)
     label: Mapped[str | None] = mapped_column(String(100))
-    item_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("content_items.id", ondelete="SET NULL"), index=True)
+    item_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("content_items.id", ondelete="SET NULL"), index=True
+    )
     clicks: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
     created_at: Mapped[datetime] = _created()
 
@@ -508,7 +542,9 @@ class BotConversation(Base):
     telegram_user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     kind: Mapped[str] = mapped_column(String(32))
     item_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("content_items.id", ondelete="CASCADE"))
-    version_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("content_versions.id", ondelete="CASCADE"))
+    version_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("content_versions.id", ondelete="CASCADE")
+    )
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = _created()
 

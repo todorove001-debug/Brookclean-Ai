@@ -48,7 +48,12 @@ def day_slots(schedule: ScheduleConfig, day: date, count: int) -> list[datetime]
 
 
 def next_free_slot(
-    schedule: ScheduleConfig, occupied: list[datetime], *, preferred: datetime, not_before: datetime, horizon_days: int = 21
+    schedule: ScheduleConfig,
+    occupied: list[datetime],
+    *,
+    preferred: datetime,
+    not_before: datetime,
+    horizon_days: int = 21,
 ) -> datetime | None:
     """Ближайшее разрешённое время не раньше preferred/not_before с интервалом от занятых слотов."""
     gap = timedelta(minutes=schedule.min_gap_minutes)
@@ -64,8 +69,13 @@ def next_free_slot(
     return None
 
 
-def allocate_formats(mix: ContentMix, slots_per_day: list[int], *, days_in_month: int = 30,
-                     exclude: set[str] | None = None, start_counts: Counter[str] | None = None) -> list[list[str]]:
+def allocate_formats(
+    mix: ContentMix,
+    slots_per_day: list[int],
+    *,
+    days_in_month: int = 30,
+    exclude: set[str] | None = None,
+) -> list[list[str]]:
     """Детерминированное распределение форматов по слотам: доли из настроек, видео — в пределах месячной цели.
 
     Возвращает форматы для каждого дня. Форматы одного типа не стоят подряд, если есть выбор.
@@ -87,7 +97,10 @@ def allocate_formats(mix: ContentMix, slots_per_day: list[int], *, days_in_month
         if want > 0:
             rest = 1 - shares["video"]
             new_video = clamped / total_slots
-            shares = {k: (new_video if k == "video" else (v / rest * (1 - new_video) if rest > 0 else 0)) for k, v in shares.items()}
+            shares = {
+                k: (new_video if k == "video" else (v / rest * (1 - new_video) if rest > 0 else 0))
+                for k, v in shares.items()
+            }
 
     # Метод наибольших остатков.
     raw = {k: v * total_slots for k, v in shares.items()}
@@ -96,21 +109,24 @@ def allocate_formats(mix: ContentMix, slots_per_day: list[int], *, days_in_month
     for k in sorted(raw, key=lambda k: (raw[k] - counts[k], k), reverse=True)[:remainder]:
         counts[k] += 1
 
+    # Равномерное распределение: на каждом шаге берётся формат с наибольшим отставанием от своей доли,
+    # при этом один формат не ставится два раза подряд, если есть выбор.
     pool = Counter(counts)
-    used = Counter(start_counts or {})
+    placed: Counter[str] = Counter()
     result: list[list[str]] = []
     previous: str | None = None
+    step = 0
     for n in slots_per_day:
         day: list[str] = []
         for _ in range(n):
             candidates = [f for f, c in pool.items() if c > 0]
             if not candidates:
                 break
-            # Больше всего оставшихся, не повторять предыдущий формат.
-            candidates.sort(key=lambda f: (f == previous, f in day, -pool[f], used[f], f))
+            step += 1
+            candidates.sort(key=lambda f: (f == previous, -(counts[f] / total_slots * step - placed[f]), f))
             pick = candidates[0]
             pool[pick] -= 1
-            used[pick] += 1
+            placed[pick] += 1
             day.append(pick)
             previous = pick
         result.append(day)

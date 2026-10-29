@@ -48,7 +48,9 @@ async def ready(session: SessionDep, services: ServicesDep, response: Response) 
 @router.get("/metrics")
 async def metrics(services: ServicesDep, authorization: Annotated[str | None, Header()] = None) -> Response:
     token = services.settings.secret("metrics_token")
-    if token and not (authorization and constant_time_equals(authorization.removeprefix("Bearer ").strip(), token)):
+    if token and not (
+        authorization and constant_time_equals(authorization.removeprefix("Bearer ").strip(), token)
+    ):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "нужен токен метрик")
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
@@ -60,14 +62,26 @@ async def tracked_redirect(code: str, session: SessionDep) -> RedirectResponse:
     target = await register_click(session, code)
     if target is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
-    return RedirectResponse(target, status_code=status.HTTP_302_FOUND, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
+    return RedirectResponse(
+        target,
+        status_code=status.HTTP_302_FOUND,
+        headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"},
+    )
 
 
 @router.post("/telegram/webhook", include_in_schema=False)
-async def telegram_webhook(request: Request, services: ServicesDep, background: BackgroundTasks,
-                           x_telegram_bot_api_secret_token: Annotated[str | None, Header()] = None) -> dict[str, bool]:
+async def telegram_webhook(
+    request: Request,
+    services: ServicesDep,
+    background: BackgroundTasks,
+    x_telegram_bot_api_secret_token: Annotated[str | None, Header()] = None,
+) -> dict[str, bool]:
     secret = services.settings.secret("telegram_webhook_secret")
-    if not secret or not x_telegram_bot_api_secret_token or not constant_time_equals(x_telegram_bot_api_secret_token, secret):
+    if (
+        not secret
+        or not x_telegram_bot_api_secret_token
+        or not constant_time_equals(x_telegram_bot_api_secret_token, secret)
+    ):
         raise HTTPException(status.HTTP_403_FORBIDDEN)
     update = await request.json()
     bot = request.app.state.bot
