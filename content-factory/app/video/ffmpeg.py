@@ -18,9 +18,10 @@ class FFmpegError(RuntimeError):
         self.stderr = stderr[-3000:]
 
 
-async def run(args: list[str], *, timeout_s: float | None = None) -> tuple[int, str, str]:
+async def run(args: list[str], *, timeout_s: float | None = None, cwd: Path | None = None) -> tuple[int, str, str]:
     """Запуск без оболочки: аргументы передаются списком, внедрение команд невозможно."""
-    proc = await asyncio.create_subprocess_exec(*args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    proc = await asyncio.create_subprocess_exec(*args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                                                cwd=str(cwd) if cwd else None)
     try:
         out, err = await asyncio.wait_for(proc.communicate(), timeout=timeout_s)
     except TimeoutError:
@@ -30,10 +31,10 @@ async def run(args: list[str], *, timeout_s: float | None = None) -> tuple[int, 
     return proc.returncode or 0, out.decode("utf-8", "replace"), err.decode("utf-8", "replace")
 
 
-async def ffmpeg(*args: str, timeout_s: float | None = None) -> str:
+async def ffmpeg(*args: str, timeout_s: float | None = None, cwd: Path | None = None) -> str:
     settings = get_settings()
     cmd = [settings.ffmpeg_bin, "-hide_banner", "-nostdin", "-y", *args]
-    code, _, err = await run(cmd, timeout_s=timeout_s or settings.render_timeout_s)
+    code, _, err = await run(cmd, timeout_s=timeout_s or settings.render_timeout_s, cwd=cwd)
     if code != 0:
         raise FFmpegError(f"ffmpeg завершился с кодом {code}", err)
     return err
@@ -250,3 +251,9 @@ async def extract_frame(path: Path, at_s: float, dest: Path, *, width: int | Non
 async def extract_audio_for_asr(path: Path, dest: Path) -> Path:
     await ffmpeg("-i", str(path), "-vn", "-ac", "1", "-ar", "16000", "-c:a", "libmp3lame", "-b:a", "64k", str(dest), timeout_s=900)
     return dest
+
+
+async def ffmpeg_version() -> str:
+    settings = get_settings()
+    _, out, _ = await run([settings.ffmpeg_bin, "-hide_banner", "-version"], timeout_s=30)
+    return out.splitlines()[0] if out else "unknown"
