@@ -14,17 +14,23 @@ from urllib.parse import urlsplit
 
 ALLOWED_TAGS = {"b", "strong", "i", "em", "u", "ins", "s", "strike", "del", "a", "code", "pre", "blockquote", "tg-spoiler"}
 ALLOWED_LINK_SCHEMES = {"http", "https", "tg"}
+SKIP_CONTENT = {"script", "style", "head", "title"}
 URL_RE = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
 
 
 class _Sanitizer(HTMLParser):
-    def __init__(self) -> None:
+    def __init__(self, allowed_links: set[str] | None = None) -> None:
         super().__init__(convert_charrefs=True)
+        self.allowed_links = allowed_links
         self.out: list[str] = []
         self.stack: list[str] = []
+        self.skip = 0  # внутри <script>/<style> текст отбрасывается
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         tag = tag.lower()
+        if tag in SKIP_CONTENT:
+            self.skip += 1
+            return
         if tag == "br":
             self.out.append("\n")
             return
@@ -41,6 +47,8 @@ class _Sanitizer(HTMLParser):
             href = dict(attrs).get("href") or ""
             if urlsplit(href).scheme.lower() not in ALLOWED_LINK_SCHEMES:
                 return
+            if self.allowed_links is not None and href not in self.allowed_links:
+                return
             self.out.append(f'<a href="{html.escape(href, quote=True)}">')
         else:
             self.out.append(f"<{tag}>")
@@ -48,6 +56,9 @@ class _Sanitizer(HTMLParser):
 
     def handle_endtag(self, tag: str) -> None:
         tag = tag.lower()
+        if tag in SKIP_CONTENT:
+            self.skip = max(self.skip - 1, 0)
+            return
         if tag == "p":
             self.out.append("\n\n")
             return
@@ -61,7 +72,8 @@ class _Sanitizer(HTMLParser):
                 break
 
     def handle_data(self, data: str) -> None:
-        self.out.append(html.escape(data, quote=False))
+        if not self.skip:
+            self.out.append(html.escape(data, quote=False))
 
     def close(self) -> None:
         super().close()
@@ -69,8 +81,9 @@ class _Sanitizer(HTMLParser):
             self.out.append(f"</{self.stack.pop()}>")
 
 
-def sanitize(markup: str) -> str:
-    parser = _Sanitizer()
+def sanitize(markup: str, allowed_links: set[str] | None = None) -> str:
+    """allowed_links=None — любые http/https/tg-ссылки; множество — только перечисленные, остальные становятся текстом."""
+    parser = _Sanitizer(allowed_links)
     parser.feed(markup or "")
     parser.close()
     text = "".join(parser.out)

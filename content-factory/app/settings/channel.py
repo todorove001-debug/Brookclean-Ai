@@ -28,7 +28,7 @@ ContentFormat = Literal[
     "video",  # видео: монтаж исходников и/или ИИ-сцены
 ]
 
-FORMATS_WITH_IMAGE = {"image_post", "infographic", "article"}
+FORMATS_WITH_IMAGE = {"image_post", "infographic"}
 FORMATS_WITH_VIDEO = {"video"}
 
 

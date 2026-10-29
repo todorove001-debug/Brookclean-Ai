@@ -16,6 +16,7 @@ import asyncio
 import ipaddress
 import socket
 from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import httpx
@@ -145,6 +146,44 @@ class SafeFetcher:
                 content=content,
                 headers=headers,
             )
+        raise FetchError("слишком много редиректов")
+
+    async def fetch_to_file(self, url: str, dest: Path, *, max_bytes: int, accept: str = "*/*") -> int:
+        """Скачивает файл потоково на диск с проверкой каждого редиректа. Возвращает размер."""
+        current = url
+        for _ in range(MAX_REDIRECTS + 1):
+            scheme, host, port = validate_url_syntax(current)
+            addresses = await resolve_public(host, port, allow_private=self.allow_private)
+            parts = urlsplit(current)
+            ip = addresses[0]
+            ip_host = f"[{ip}]" if ":" in ip else ip
+            netloc = ip_host if parts.port is None else f"{ip_host}:{port}"
+            pinned = urlunsplit((scheme, netloc, parts.path or "/", parts.query, ""))
+            headers = {"Host": parts.netloc, "User-Agent": USER_AGENT, "Accept": accept}
+            extensions = {"sni_hostname": host} if scheme == "https" else {}
+            async with httpx.AsyncClient(timeout=max(self.timeout_s, 120), follow_redirects=False, trust_env=False,
+                                         transport=self._transport) as client:
+                try:
+                    async with client.stream("GET", pinned, headers=headers, extensions=extensions) as response:
+                        if response.status_code in {301, 302, 303, 307, 308}:
+                            location = response.headers.get("location")
+                            if not location:
+                                raise FetchError("редирект без Location")
+                            current = urljoin(current, location)
+                            continue
+                        if response.status_code != 200:
+                            raise FetchError(f"HTTP {response.status_code} при загрузке файла")
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        total = 0
+                        with dest.open("wb") as fh:
+                            async for chunk in response.aiter_bytes(1024 * 1024):
+                                total += len(chunk)
+                                if total > max_bytes:
+                                    raise FetchError(f"файл больше {max_bytes} байт")
+                                fh.write(chunk)
+                        return total
+                except httpx.HTTPError as exc:
+                    raise FetchError(f"{type(exc).__name__}: {exc}") from exc
         raise FetchError("слишком много редиректов")
 
     async def _request(
