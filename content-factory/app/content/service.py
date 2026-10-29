@@ -213,7 +213,9 @@ async def attach_media(
     if version.frozen_at is not None:
         raise VersionFrozen(f"версия {version.version_no} заморожена")
     if replace_role:
-        await session.execute(delete(VersionMedia).where(VersionMedia.version_id == version.id, VersionMedia.role == role))
+        await session.execute(
+            delete(VersionMedia).where(VersionMedia.version_id == version.id, VersionMedia.role == role)
+        )
     session.add(VersionMedia(version_id=version.id, asset_id=asset.id, role=role, position=position))
     await session.flush()
     session.expire(version, ["media_links"])

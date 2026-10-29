@@ -9,7 +9,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import LinkClick, TrackedLink
-from app.security.ssrf import UnsafeURLError, validate_url_syntax
+from app.security.ssrf import validate_url_syntax
 from app.settings.config import get_settings
 
 
@@ -42,6 +42,3 @@ async def register_click(session: AsyncSession, code: str) -> str | None:
     )
     session.add(LinkClick(link_id=link.id))
     return link.target_url
-
-
-__all__ = ["UnsafeURLError", "create_link", "public_url", "register_click"]

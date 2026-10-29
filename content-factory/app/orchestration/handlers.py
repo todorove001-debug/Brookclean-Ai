@@ -6,7 +6,7 @@ import uuid
 from datetime import timedelta
 from typing import Any
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select
 
 from app.agents import ai_video
 from app.agents.analytics import recommendations
@@ -24,9 +24,9 @@ from app.monitoring.logging import get_logger
 from app.monitoring.metrics import CONTENT_ITEMS, QUEUE_DEPTH
 from app.monitoring.summary import health_counters
 from app.orchestration import pipeline
-from app.orchestration.queue import Handler, PermanentError, Reschedule, TaskContext, enqueue
+from app.orchestration.queue import Handler, TaskContext, enqueue
 from app.providers.telegram.client import TelegramError
-from app.publishing.service import due_items, publish_item
+from app.publishing.service import due_items, publish_item, reconcile_stuck_sending
 
 log = get_logger(__name__)
 
@@ -216,6 +216,7 @@ async def analytics_weekly(ctx: TaskContext, payload: dict[str, Any]) -> None:
 async def maintenance(ctx: TaskContext, payload: dict[str, Any]) -> None:
     async with session_scope() as session:
         settled = await settle_stale_reservations(session)
+        await reconcile_stuck_sending(session)
         await session.execute(
             delete(Task).where(
                 Task.status == TaskStatus.succeeded, Task.finished_at < utcnow() - timedelta(days=14)
@@ -277,5 +278,3 @@ HANDLERS: dict[str, Handler] = {
     "analytics.weekly": analytics_weekly,
     "maintenance": maintenance,
 }
-
-__all__ = ["HANDLERS", "PermanentError", "Reschedule", "update"]

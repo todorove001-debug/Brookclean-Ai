@@ -14,7 +14,7 @@ from __future__ import annotations
 import io
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from PIL import Image
 from sqlalchemy import select
@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.qa import caption_text
 from app.content.channel import get_channel
 from app.content.service import load_version, recompute_hash, transition
-from app.database.enums import ApprovalAction, ContentStatus, MediaKind, PublishingJobStatus, QAStatus
+from app.database.enums import ApprovalAction, ContentStatus, PublishingJobStatus, QAStatus
 from app.database.models import (
     ApprovalEvent,
     ContentItem,
@@ -411,6 +411,44 @@ async def _block(item_id: uuid.UUID, reasons: list[str]) -> None:
         )
 
 
+async def reconcile_stuck_sending(
+    session: AsyncSession, older_than: timedelta = timedelta(minutes=15)
+) -> int:
+    """Задания, «застрявшие» в sending (процесс упал во время отправки), требуют ручной сверки с каналом.
+
+    Публикация могла состояться, поэтому автоматического повтора нет: статус uncertain и уведомление.
+    """
+    jobs = (
+        (
+            await session.execute(
+                select(PublishingJob)
+                .where(
+                    PublishingJob.status == PublishingJobStatus.sending,
+                    PublishingJob.started_at < utcnow() - older_than,
+                )
+                .with_for_update(skip_locked=True)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for job in jobs:
+        job.status = PublishingJobStatus.uncertain
+        job.last_error = "процесс остановился во время отправки; проверьте канал вручную"
+        item = await session.get(ContentItem, job.item_id, with_for_update=True)
+        if item is not None and ContentStatus(item.status) == ContentStatus.publishing:
+            await transition(session, item, ContentStatus.failed, reason="публикация не подтверждена")
+            item.last_error = job.last_error
+        await notify_owner(
+            session,
+            key=f"publish-uncertain:{job.id}",
+            kind="error",
+            text=f"❓ Публикация {str(job.item_id)[:8]} не подтверждена: процесс остановился во время отправки. "
+            "Проверьте канал: если поста нет, используйте «повтор» в панели.",
+        )
+    return len(jobs)
+
+
 async def due_items(session: AsyncSession, now: datetime | None = None) -> list[uuid.UUID]:
     now = now or utcnow()
     rows = await session.execute(
@@ -420,6 +458,3 @@ async def due_items(session: AsyncSession, now: datetime | None = None) -> list[
         .limit(20)
     )
     return [r[0] for r in rows]
-
-
-__all__ = ["MediaKind", "check_publishable", "due_items", "publish_item"]

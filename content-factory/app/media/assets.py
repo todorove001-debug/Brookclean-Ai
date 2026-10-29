@@ -17,7 +17,7 @@ from app.database.enums import MediaKind, MediaOrigin
 from app.database.models import MediaAsset
 from app.database.session import utcnow
 from app.providers.storage.base import Storage, StorageError
-from app.video.ffmpeg import FFmpegError, ProbeInfo, probe
+from app.video.ffmpeg import ProbeInfo, probe
 
 EXTENSIONS = {
     "image/png": "png",
@@ -218,15 +218,3 @@ async def download_verified(storage: Storage, asset: MediaAsset, dest: Path) -> 
 def temp_dir(base: Path, prefix: str) -> tempfile.TemporaryDirectory[str]:
     base.mkdir(parents=True, exist_ok=True)
     return tempfile.TemporaryDirectory(prefix=prefix, dir=base)
-
-
-__all__ = [
-    "FFmpegError",
-    "IntegrityError",
-    "download_verified",
-    "fetch_verified",
-    "image_info",
-    "store_bytes",
-    "store_file",
-    "temp_dir",
-]

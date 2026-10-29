@@ -248,3 +248,21 @@ async def test_poll_published_with_poll_id(ready, fake_llm, fake_tg):
     async with session_scope() as s:
         res = (await s.execute(select(PublishingResult))).scalar_one()
     assert res.response["poll_id"]
+
+
+async def test_stuck_sending_becomes_uncertain(ready, fake_tg):
+    from app.publishing.service import reconcile_stuck_sending
+
+    item_id = await to_approval(ready)
+    await approve_and_make_due(item_id)
+    async with session_scope() as s:  # имитация падения процесса между «sending» и ответом Telegram
+        await s.execute(update(PublishingJob).values(status=PublishingJobStatus.sending, started_at=utcnow() - timedelta(hours=1)))
+        await s.execute(update(ContentItem).values(status=ContentStatus.publishing))
+    async with session_scope() as s:
+        assert await reconcile_stuck_sending(s) == 1
+    await dispatch(ready)
+    async with session_scope() as s:
+        job = (await s.execute(select(PublishingJob))).scalar_one()
+        notes = [n.key for n in (await s.execute(select(Notification))).scalars()]
+    assert job.status == PublishingJobStatus.uncertain and (await item(item_id)).status == ContentStatus.failed
+    assert any(k.startswith("publish-uncertain") for k in notes) and await channel_posts(fake_tg) == []

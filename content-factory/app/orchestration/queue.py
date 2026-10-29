@@ -28,6 +28,7 @@ from app.database.models import Task
 from app.database.session import session_scope, utcnow
 from app.monitoring.logging import get_logger
 from app.monitoring.metrics import TASK_SECONDS, TASKS_TOTAL
+from app.providers.base import ProviderNotConfigured
 from app.security.redaction import redact_text
 
 log = get_logger(__name__)
@@ -186,7 +187,10 @@ class Worker:
             bound.info("task.rescheduled", delay_s=exc.delay_s, reason=exc.reason)
         except Exception as exc:  # noqa: BLE001 — любая ошибка обработчика фиксируется в задаче
             error = redact_text(f"{type(exc).__name__}: {exc}\n{traceback.format_exc(limit=8)}")[-4000:]
-            permanent = isinstance(exc, PermanentError) or row.attempts >= row.max_attempts
+            # Ненастроенный сервис повтор не исправит — нужна правка конфигурации.
+            permanent = (
+                isinstance(exc, PermanentError | ProviderNotConfigured) or row.attempts >= row.max_attempts
+            )
             if permanent:
                 await self._finish(task_id, status=TaskStatus.failed, error=error)
                 async with session_scope() as session:
