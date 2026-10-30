@@ -7,7 +7,7 @@ channel_configs и меняются через Admin API без изменени
 from __future__ import annotations
 
 import re
-from datetime import time
+from datetime import date, time
 from decimal import Decimal
 from pathlib import Path
 from typing import Literal
@@ -176,6 +176,8 @@ class QAConfig(BaseModel):
     max_same_cta_per_week: int = 3
     # Маркировка рекламы (erid). Обязательность определяет владелец или юрист компании.
     ad_marking_required: bool = False
+    # False — любые суммы в тексте блокируют публикацию: цены сообщает только менеджер.
+    publish_prices: bool = True
     forbidden_phrases: list[str] = Field(
         default_factory=lambda: [
             "лучший в России",
@@ -208,6 +210,16 @@ class QAConfig(BaseModel):
     )
 
 
+class FactSeed(BaseModel):
+    """Сведение о компании из файла настроек. approved=true — владелец подтвердил его письменно."""
+
+    key: str
+    category: str = "other"
+    statement: str
+    approved: bool = False
+    valid_until: date | None = None
+
+
 class ChannelSettings(BaseModel):
     name: str = "Brookclean Trucks"
     description: str = "Перевозка автомобилей автовозами из Владивостока по России"
@@ -222,7 +234,7 @@ class ChannelSettings(BaseModel):
     cta_targets: dict[str, str] = Field(default_factory=dict)
     rss_feeds: list[str] = Field(default_factory=list)
     # Утверждённые владельцем сведения о компании: только они попадают в рекламные тексты.
-    approved_facts: list[dict[str, str]] = Field(default_factory=list)
+    approved_facts: list[FactSeed] = Field(default_factory=list)
 
 
 def load_channel_settings(path: Path) -> ChannelSettings:

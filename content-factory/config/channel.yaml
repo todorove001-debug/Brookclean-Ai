@@ -16,7 +16,7 @@ brand:
   fonts:
     regular: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
     bold: /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
-  contacts: []                          # например: ["@brookclean_manager", "+7 ..."] — только утверждённые контакты
+  contacts: ["Telegram: +7 950 281-55-55", "brookclean-trucks.ru"]   # печатаются на обложках и в концовке видео
   hashtags: ["#автовоз", "#перевозкаавто"]
   voice: >-
     Спокойный экспертный тон человека, который каждый день грузит машины на автовоз.
@@ -59,16 +59,18 @@ routes:
 
 # Куда ведут призывы к действию. Ключ — имя цели, значение — URL (оборачивается в отслеживаемую ссылку /r/<код>).
 # Например: calc: https://brookclean.ru/  или  manager: https://t.me/<менеджер>
-cta_targets: {}
+cta_targets:
+  manager: https://t.me/+79502815555    # менеджер в Telegram (по номеру +7 950 281-55-55)
 
 # RSS-ленты отраслевых СМИ и госорганов для Research Agent. Добавляйте только проверенные адреса.
 rss_feeds: []
 
 budget:
-  daily_limit_usd: 15
-  monthly_limit_usd: 300
-  max_task_cost_usd: 5
-  video_generations_per_month: 120
+  # Решение владельца 30.10.2026: не больше 250 $ в месяц на ИИ.
+  daily_limit_usd: 12
+  monthly_limit_usd: 250
+  max_task_cost_usd: 3
+  video_generations_per_month: 0   # ИИ-видео пока не используется (VIDEO_PROVIDER=none); ролики — только из ваших съёмок
   max_retries_paid: 2
   warn_thresholds: [0.5, 0.8, 0.95]
   hard_stop: true
@@ -76,13 +78,62 @@ budget:
 qa:
   max_auto_fix_rounds: 1
   ad_marking_required: false   # маркировка рекламы (erid): решение принимает владелец или юрист
+  publish_prices: false        # решение владельца 29.10.2026: цены не публикуются, стоимость сообщает менеджер
 
-# Сведения о компании. При первом запуске попадают в базу НЕутверждёнными:
-# владелец подтверждает их через API (PUT /api/v1/facts с approve: true) или командой factory facts approve.
+# Сведения о компании — единственный источник фактов о компании для текстов.
+# approved: true — владелец подтвердил письменно (сообщение от 29.10.2026). Остальные ждут утверждения:
+#   factory facts list  /  factory facts approve <ключ>
+# Новые записи из этого файла добавляются в работающую систему командой factory facts sync.
 approved_facts:
-  - {key: service.car_carrier, category: service, statement: "Компания перевозит легковые автомобили автовозами."}
-  - {key: route.vvo_nsk, category: route, statement: "Маршрут перевозки: Владивосток — Новосибирск."}
-  - {key: route.vvo_msk, category: route, statement: "Маршрут перевозки: Владивосток — Москва."}
-  - {key: route.vvo_krd, category: route, statement: "Маршрут перевозки: Владивосток — Краснодар."}
-  - {key: route.vvo_spb, category: route, statement: "Маршрут перевозки: Владивосток — Санкт-Петербург."}
-  - {key: route.vvo_tmn, category: route, statement: "Маршрут перевозки: Владивосток — Тюмень."}
+  - key: service.car_carrier
+    category: service
+    statement: "Компания перевозит легковые автомобили автовозами из Владивостока по России."
+    approved: true
+  - key: route.cities
+    category: route
+    statement: >-
+      Доставка автомобилей из Владивостока в города: Хабаровск, Новосибирск, Красноярск, Кемерово, Барнаул, Омск,
+      Тюмень, Екатеринбург, Пермь, Ижевск, Курган, Челябинск, Уфа, Тольятти, Самара, Казань, Чебоксары, Киров,
+      Нижний Новгород, Рязань, Владимир, Москва, Санкт-Петербург, Пенза, Саратов, Воронеж, Волгоград,
+      Ростов-на-Дону, Краснодар.
+    approved: true
+  - key: term.vvo_nsk
+    category: terms
+    statement: "Ориентировочный срок доставки Владивосток — Новосибирск: летом 6–8 дней, зимой 8–10 дней."
+    approved: true
+  - key: term.vvo_msk
+    category: terms
+    statement: "Ориентировочный срок доставки Владивосток — Москва: летом 10–12 дней, зимой 15–20 дней."
+    approved: true
+  - key: term.vvo_krd
+    category: terms
+    statement: "Ориентировочный срок доставки Владивосток — Краснодар: летом 12–16 дней, зимой 16–25 дней."
+    approved: true
+  - key: term.factors
+    category: terms
+    statement: >-
+      Сроки ориентировочные и могут меняться: на скорость доставки влияют дорожная обстановка, пробки, задержки
+      в пути, возможные поломки техники и наличие топлива на заправках.
+    approved: true
+  - key: contact.telegram
+    category: contact
+    statement: "Связаться с менеджером можно в Telegram по номеру +7 950 281-55-55."
+    approved: true
+  - key: contact.phone
+    category: contact
+    statement: "Телефон: +7 (950) 281-55-55."
+    approved: true
+  - key: contact.site
+    category: contact
+    statement: "Сайт компании: brookclean-trucks.ru."
+    approved: true
+  # Ниже — из прайс-листа, но без явного разрешения на публикацию. Утвердите, если согласны.
+  - key: contact.address
+    category: contact
+    statement: "Офис во Владивостоке: ул. Чукотская, 1."
+  - key: service.vehicle_types
+    category: service
+    statement: "Перевозим седаны, кроссоверы, минивэны и джипы; для джипов, минивэнов и автомобилей S-класса условия рассчитываются индивидуально."
+  - key: service.insurance
+    category: terms
+    statement: "Страхование автомобиля на время перевозки оформляется отдельно: 0,3% от полной стоимости автомобиля."

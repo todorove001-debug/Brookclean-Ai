@@ -41,9 +41,10 @@ echo "API-токен владельца для веб-панели (${PUBLIC_BAS
 docker compose run --rm api factory create-user --name "Владелец" --role owner --telegram-id "$owner_id"
 docker compose run --rm api factory issue-token --telegram-id "$owner_id"
 echo
-echo "Сведения о компании из config/channel.yaml добавлены НЕутверждёнными. Проверьте и утвердите:"
-echo "  docker compose run --rm api factory facts list"
-echo "  docker compose run --rm api factory facts approve <ключ> ..."
+docker compose run --rm api factory stories load
+echo "Сведения о компании (✔ — утверждены, ✗ — ждут вашего решения):"
+docker compose run --rm api factory facts list
+echo "Утвердить: docker compose run --rm api factory facts approve <ключ> ..."
 echo
 echo "Ежедневная резервная копия базы (cron):"
 echo "  30 3 * * * cd $(pwd) && docker compose run --rm api factory backup create >> /var/log/content-factory-backup.log 2>&1"

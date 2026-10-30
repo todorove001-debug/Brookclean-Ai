@@ -10,7 +10,9 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import ChannelConfig, CompanyFact
-from app.settings.channel import ChannelSettings, load_channel_settings
+from app.database.session import utcnow
+from app.monitoring.audit import audit
+from app.settings.channel import ChannelSettings, FactSeed, load_channel_settings
 from app.settings.config import get_settings
 
 DEFAULT_SLUG = "main"
@@ -60,20 +62,46 @@ async def bootstrap_channel(session: AsyncSession, slug: str = DEFAULT_SLUG) -> 
         )
     ).scalar_one_or_none()
     if inserted is not None:
-        for fact in channel_settings.approved_facts:
+        await sync_facts(session, inserted, channel_settings.approved_facts)
+    row = (await session.execute(select(ChannelConfig).where(ChannelConfig.slug == slug))).scalar_one()
+    return row
+
+
+async def sync_facts(session: AsyncSession, channel_id, seeds: list[FactSeed]) -> list[str]:  # noqa: ANN001
+    """Добавляет сведения из файла настроек, которых ещё нет в базе. Существующие не меняются.
+
+    Сведения с approved: true владелец подтвердил письменно — они сразу утверждены (с записью в журнале).
+    """
+    added: list[str] = []
+    for seed in seeds:
+        fact_id = (
             await session.execute(
                 insert(CompanyFact)
                 .values(
-                    channel_id=inserted,
-                    category=fact.get("category", "other"),
-                    key=fact["key"],
-                    statement=fact["statement"],
+                    channel_id=channel_id,
+                    category=seed.category,
+                    key=seed.key,
+                    statement=seed.statement,
+                    valid_until=seed.valid_until,
                     is_active=True,
+                    approved_at=utcnow() if seed.approved else None,
                 )
                 .on_conflict_do_nothing()
+                .returning(CompanyFact.id)
             )
-    row = (await session.execute(select(ChannelConfig).where(ChannelConfig.slug == slug))).scalar_one()
-    return row
+        ).scalar_one_or_none()
+        if fact_id is not None:
+            added.append(seed.key)
+            await audit(
+                session,
+                "fact.seed",
+                entity_type="company_fact",
+                entity_id=fact_id,
+                key=seed.key,
+                approved=seed.approved,
+                source="config/channel.yaml",
+            )
+    return added
 
 
 async def save_channel_settings(

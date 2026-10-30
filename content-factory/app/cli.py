@@ -248,6 +248,14 @@ async def _facts(args: argparse.Namespace) -> None:
                     f"{mark} {f.key:24} [{f.category}] {f.statement}" + ("" if f.is_active else " (отключён)")
                 )
             return
+        if args.facts_command == "sync":
+            from app.content.channel import sync_facts
+            from app.settings.channel import load_channel_settings
+
+            seeds = load_channel_settings(get_settings().channel_config_path).approved_facts
+            added = await sync_facts(session, channel.id, seeds)
+            print("Добавлено: " + (", ".join(added) if added else "новых сведений нет"))
+            return
         keys = set(args.keys)
         for f in facts:
             if f.key in keys or args.all:
@@ -261,6 +269,52 @@ async def _facts(args: argparse.Namespace) -> None:
                     entity_id=f.id,
                 )
                 print(f"Утверждён: {f.key} — {f.statement}")
+
+
+async def _stories(args: argparse.Namespace) -> None:
+    """Истории владельца из config/stories.yaml → материалы рубрики «Истории перевозок»."""
+    from datetime import timedelta
+
+    import yaml
+
+    from app.content.channel import get_channel
+    from app.database.enums import ContentStatus
+    from app.database.models import ContentItem
+
+    settings = get_settings()
+    stories = (yaml.safe_load(settings.stories_path.read_text(encoding="utf-8")) or {}).get("stories", [])
+    async with session_scope() as session:
+        channel = await get_channel(session)
+        start = utcnow() + timedelta(days=channel.settings.schedule.production_lead_days)
+        created = 0
+        for story in stories:
+            marker = f"owner_story:{story['key']}"
+            exists = (
+                await session.execute(select(ContentItem.id).where(ContentItem.created_by == marker))
+            ).first()
+            if exists:
+                print(f"уже есть: {story['key']}")
+                continue
+            session.add(
+                ContentItem(
+                    channel_id=channel.id,
+                    status=ContentStatus.idea,
+                    format="story",
+                    rubric="cases",
+                    topic=story["title"],
+                    owner_brief=story["text"].strip(),
+                    goal="Показать реальную работу компании на живом примере",
+                    audience="Покупатели автомобилей во Владивостоке и других городах",
+                    cta="Написать менеджеру",
+                    cta_target="manager" if "manager" in channel.settings.cta_targets else None,
+                    planned_at=start + timedelta(days=args.every_days * created),
+                    created_by=marker,
+                )
+            )
+            created += 1
+            print(f"добавлено: {story['title']}")
+        await audit(session, "stories.load", actor_type="system", actor_id="cli", count=created)
+    print(f"Историй добавлено: {created}. Их подготовка начнётся автоматически ближе к дате публикации.")
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -310,6 +364,17 @@ def main(argv: list[str] | None = None) -> None:
     fa.add_argument("keys", nargs="*")
     fa.add_argument("--all", action="store_true", help="утвердить все (только после прочтения списка)")
     fa.set_defaults(func=lambda a: _run(_facts(a)))
+
+    f.add_parser("sync", help="добавить новые сведения из config/channel.yaml").set_defaults(
+        func=lambda a: _run(_facts(a))
+    )
+
+    st = sub.add_parser("stories", help="истории перевозок владельца").add_subparsers(
+        dest="stories_command", required=True
+    )
+    sl = st.add_parser("load", help="загрузить истории из config/stories.yaml")
+    sl.add_argument("--every-days", type=int, default=3, help="интервал между публикациями историй, дней")
+    sl.set_defaults(func=lambda a: _run(_stories(a)))
 
     args = parser.parse_args(argv)
     args.func(args)

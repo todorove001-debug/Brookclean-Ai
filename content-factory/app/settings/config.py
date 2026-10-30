@@ -130,6 +130,7 @@ class Settings(BaseSettings):
     channel_config_path: Path = ROOT_DIR / "config" / "channel.yaml"
     pricing_path: Path = ROOT_DIR / "config" / "pricing.yaml"
     templates_path: Path = ROOT_DIR / "config" / "templates.yaml"
+    stories_path: Path = ROOT_DIR / "config" / "stories.yaml"
 
     # --- Рабочие процессы ---
     worker_concurrency: int = 2

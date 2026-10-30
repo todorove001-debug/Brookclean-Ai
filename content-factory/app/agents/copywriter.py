@@ -117,6 +117,13 @@ def _prompt(item: ContentItem, ctx: dict, qa_feedback: list[str] | None) -> str:
         f"Голос бренда: {brand.voice}",
         f"Хештеги бренда: {' '.join(brand.hashtags) or '—'}",
         "Запрещённые формулировки: " + "; ".join(qa.forbidden_phrases),
+        *(
+            []
+            if qa.publish_prices
+            else [
+                "Цены не публикуются: не указывай стоимость перевозки и никакие суммы — предлагай узнать цену у менеджера."
+            ]
+        ),
         "Утверждённые факты о компании (ключ — сведение):",
         *(
             [f"- {f.key}: {f.statement}" for f in ctx["facts"]]

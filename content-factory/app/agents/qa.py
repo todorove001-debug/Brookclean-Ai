@@ -37,6 +37,7 @@ from app.video.ffmpeg import FFmpegError, analyze, decode_errors, probe
 Severity = Literal["blocking", "warning", "manual_check", "info"]
 
 TEXT_FIXABLE = {
+    "price_forbidden",
     "length",
     "spelling",
     "forbidden_phrase",
@@ -239,6 +240,18 @@ def check_claims(text: str, *, supported_text: str, item_format: str) -> list[Fi
                 )
             )
     return out
+
+
+def check_prices_forbidden(text: str) -> list[Finding]:
+    return [
+        Finding(
+            code="price_forbidden",
+            severity="blocking",
+            message="цены компании не публикуются (решение владельца) — предложите узнать стоимость у менеджера",
+            quote=m.group(0),
+        )
+        for m in MONEY.finditer(text)
+    ]
 
 
 def check_forbidden(text: str, phrases: list[str]) -> list[Finding]:
@@ -526,6 +539,8 @@ async def run_qa(services: Services, item_id: uuid.UUID, version_id: uuid.UUID) 
         findings += check_claims(text, supported_text=supported, item_format=item.format)
         checks.append("claims")  # noqa: E702
         findings += check_forbidden(text, qa.forbidden_phrases)
+        if not qa.publish_prices:
+            findings += check_prices_forbidden(text)
         checks.append("forbidden")  # noqa: E702
         findings += check_topic(text, qa.topic_keywords)
         checks.append("topic")  # noqa: E702
