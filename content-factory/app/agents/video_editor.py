@@ -22,6 +22,7 @@ from app.database.enums import MediaKind
 from app.database.models import MediaAsset
 from app.database.session import session_scope
 from app.media.assets import download_verified, temp_dir
+from app.media.library import library
 from app.monitoring.logging import get_logger
 from app.orchestration.services import Services
 from app.providers.base import ProviderError
@@ -55,6 +56,7 @@ class Candidate:
     end: float
     speech: str
     order: int
+    label: str = ""
 
     @property
     def duration(self) -> float:
@@ -157,6 +159,7 @@ def build_candidates(asset: MediaAsset, probe_data: dict[str, Any], order_base: 
                         end=round(end, 2),
                         speech=speech,
                         order=order_base + len(out),
+                        label=asset.title or "",
                     )
                 )
             t = end
@@ -191,7 +194,7 @@ async def llm_selection(
     ]
     lines.append("Фрагменты:")
     lines += [
-        f"- {c.id}: {c.duration:.1f} с, файл {c.asset_id[:8]}, речь: {c.speech[:160] or 'нет'}"
+        f"- {c.id}: {c.duration:.1f} с, файл «{c.label[:80] or c.asset_id[:8]}», речь: {c.speech[:160] or 'нет'}"
         for c in candidates[:120]
     ]
     result = await run_agent(
@@ -340,6 +343,7 @@ def build_edl(
 
 
 async def item_sources(session, item_id: uuid.UUID, extra_ids: list[str] | None = None) -> list[MediaAsset]:  # noqa: ANN001
+    """Исходники поста: привязанные к нему или указанные явно; если их нет — из общей библиотеки съёмок."""
     stmt = select(MediaAsset).where(
         MediaAsset.kind == MediaKind.source_video, MediaAsset.rights_confirmed.is_(True)
     )
@@ -348,4 +352,7 @@ async def item_sources(session, item_id: uuid.UUID, extra_ids: list[str] | None 
         stmt = stmt.where((MediaAsset.item_id == item_id) | (MediaAsset.id.in_(ids)))
     else:
         stmt = stmt.where(MediaAsset.item_id == item_id)
-    return list((await session.execute(stmt.order_by(MediaAsset.created_at))).scalars())
+    own = list((await session.execute(stmt.order_by(MediaAsset.created_at))).scalars())
+    if own:
+        return own
+    return await library(session, MediaKind.source_video, limit=8)

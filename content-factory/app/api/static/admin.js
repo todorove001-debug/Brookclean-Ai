@@ -105,7 +105,71 @@ async function viewErrors() {
     list("Фоновые задачи", e.failed_tasks, (t) => el("p", {}, `${t.name}: ${t.count}`)));
 }
 
-const views = { status: viewStatus, drafts: viewDrafts, plan: viewPlan, budget: viewBudget, errors: viewErrors };
+function uploadOne(file, description, confirmRights, onProgress) {
+  return new Promise((resolve, reject) => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("purpose", "source");
+    if (description) form.append("title", description);
+    form.append("rights_license", "own");
+    form.append("rights_confirmed", confirmRights ? "true" : "false");
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/v1/media");
+    xhr.setRequestHeader("Authorization", `Bearer ${state.token}`);
+    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(Math.round((e.loaded / e.total) * 100));
+    xhr.onload = () => {
+      let body = {};
+      try { body = JSON.parse(xhr.responseText); } catch (_) { /* ответ не JSON */ }
+      xhr.status === 201 ? resolve(body) : reject(new Error(body.detail || `ошибка ${xhr.status}`));
+    };
+    xhr.onerror = () => reject(new Error("нет соединения"));
+    xhr.send(form);
+  });
+}
+
+async function viewUpload() {
+  const files = el("input", { type: "file", multiple: "", accept: "video/*,image/*" });
+  const description = el("input", { placeholder: "Что снято: погрузка Toyota Prius во Владивостоке, крепление колёс…" });
+  const rights = el("input", { type: "checkbox", checked: "" });
+  const log = el("div");
+  const send = async () => {
+    if (!files.files.length) return alert("Выберите файлы");
+    for (const file of files.files) {
+      const line = el("p", {}, `${file.name}: 0%`);
+      log.prepend(line);
+      try {
+        const asset = await uploadOne(file, description.value.trim(), rights.checked, (p) => { line.textContent = `${file.name}: ${p}%`; });
+        line.textContent = `✅ ${file.name}: сохранено${asset.rights_confirmed ? "" : " (права подтвердит владелец)"}`;
+      } catch (e) {
+        line.textContent = `⛔ ${file.name}: ${e.message}`;
+        line.className = "error";
+      }
+    }
+    files.value = "";
+    viewLibrary(libraryBox);
+  };
+  const libraryBox = el("div");
+  show(
+    el("h1", {}, "Загрузка съёмок"),
+    el("p", { class: "muted" }, "Видео и фото попадают в общую библиотеку: монтаж и обложки берут из неё подходящие и давно не использованные кадры. Подписывайте, что снято — так подбор точнее."),
+    el("div", { class: "card" }, files, el("label", {}, "Описание (для всех выбранных файлов)", description),
+      el("label", {}, rights, " Это наши съёмки, права на использование есть"), el("div", { class: "row" }, el("button", { onclick: send }, "Загрузить"))),
+    log, el("h2", {}, "Библиотека"), libraryBox,
+  );
+  viewLibrary(libraryBox);
+}
+
+async function viewLibrary(box) {
+  const [videos, photos] = await Promise.all([api("/api/v1/media?kind=source_video&limit=100"), api("/api/v1/media?kind=source_image&limit=100")]);
+  const rows = [...videos, ...photos].filter((a) => !a.item_id).map((a) => el("tr", {},
+    el("td", {}, fmt(a.created_at)), el("td", {}, a.kind === "source_video" ? `видео ${Math.round(a.duration_s || 0)} с` : "фото"),
+    el("td", {}, a.title || "—"), el("td", {}, a.rights_confirmed ? "права ✔" : el("button", { class: "secondary", onclick: async () => {
+      try { await api(`/api/v1/media/${a.id}/rights`, { method: "PUT", body: JSON.stringify({ license: "own", confirmed: true }) }); viewLibrary(box); } catch (e) { alert(e.message); }
+    } }, "Подтвердить права"))));
+  box.replaceChildren(rows.length ? el("table", {}, el("tr", {}, el("th", {}, "Загружено"), el("th", {}, "Тип"), el("th", {}, "Описание"), el("th", {}, "Права")), rows) : el("p", { class: "muted" }, "Пока пусто."));
+}
+
+const views = { status: viewStatus, drafts: viewDrafts, plan: viewPlan, upload: viewUpload, budget: viewBudget, errors: viewErrors };
 async function open(name) { try { await views[name](); } catch (e) { show(el("p", { class: "error" }, e.message)); } }
 
 $("#login-form").addEventListener("submit", async (ev) => {

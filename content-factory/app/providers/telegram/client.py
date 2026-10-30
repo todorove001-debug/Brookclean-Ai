@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -77,6 +78,7 @@ class TelegramBotClient:
         if not token:
             raise ValueError("не задан токен бота")
         self._base = f"{base_url.rstrip('/')}/bot{token}"
+        self._file_base = f"{base_url.rstrip('/')}/file/bot{token}"
         self._http = httpx.AsyncClient(
             timeout=httpx.Timeout(timeout_s, connect=10.0), transport=transport, proxy=proxy
         )
@@ -276,3 +278,30 @@ class TelegramBotClient:
 
     async def get_chat(self, chat_id: int | str) -> dict[str, Any]:
         return await self.call("getChat", {"chat_id": chat_id})
+
+    # Скачивание файлов, присланных боту. Лимит Bot API — 20 МБ (с локальным Bot API сервером больше).
+    BOT_DOWNLOAD_LIMIT = 20 * 1024 * 1024
+
+    async def get_file(self, file_id: str) -> dict[str, Any]:
+        return await self.call("getFile", {"file_id": file_id})
+
+    async def download_file(self, file_path: str, dest: Path, *, max_bytes: int) -> int:
+        if ".." in file_path.split("/"):
+            raise TelegramError("некорректный путь файла")
+        total = 0
+        try:
+            async with self._http.stream("GET", f"{self._file_base}/{file_path}", timeout=600) as response:
+                if response.status_code != 200:
+                    raise TelegramError(
+                        f"файл недоступен (HTTP {response.status_code})", error_code=response.status_code
+                    )
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                with dest.open("wb") as fh:
+                    async for chunk in response.aiter_bytes(1024 * 1024):
+                        total += len(chunk)
+                        if total > max_bytes:
+                            raise TelegramError("файл больше допустимого размера")
+                        fh.write(chunk)
+        except httpx.HTTPError as exc:
+            raise TelegramError(f"обрыв при загрузке файла: {type(exc).__name__}") from exc
+        return total

@@ -58,6 +58,7 @@ async def media_ready(services, fake_llm, tmp_path):
     await make_users()
     await approve_all_facts()
     fake_llm.handlers.update({"LLMReview": clean_review, "VisualReview": visual_review,
+                              "SceneSelection": lambda p: {"scenes": [{"scene_index": 1, "candidate_ids": ["c0", "c1"]}]},
                               "ScenePrompts": lambda p: {"scenes": [{"scene_index": 2, "prompt": "Car carrier truck driving on a highway"}]}})
     return services
 

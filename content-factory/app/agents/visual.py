@@ -25,6 +25,7 @@ from app.database.enums import MediaKind, MediaOrigin
 from app.database.models import ContentItem, MediaAsset
 from app.database.session import session_scope
 from app.media.assets import fetch_verified, store_bytes
+from app.media.library import library
 from app.media.templates import TemplateRenderer
 from app.monitoring.logging import get_logger
 from app.orchestration.services import Services
@@ -188,7 +189,8 @@ async def generate_illustration(
 
 
 async def owner_photo(session, item_id: uuid.UUID) -> MediaAsset | None:  # noqa: ANN001
-    return (
+    """Фото поста; если своего нет — реже всего использованное фото из библиотеки съёмок."""
+    own = (
         (
             await session.execute(
                 select(MediaAsset)
@@ -203,6 +205,10 @@ async def owner_photo(session, item_id: uuid.UUID) -> MediaAsset | None:  # noqa
         .scalars()
         .first()
     )
+    if own is not None:
+        return own
+    shared = await library(session, MediaKind.source_image, limit=1)
+    return shared[0] if shared else None
 
 
 async def prepare_visuals(services: Services, item_id: uuid.UUID, version_id: uuid.UUID) -> list[str]:

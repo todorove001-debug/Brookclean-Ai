@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -20,7 +21,7 @@ from app.approval import render
 from app.approval import service as approval
 from app.content.channel import get_channel
 from app.content.service import load_version
-from app.database.enums import ContentStatus, UserRole
+from app.database.enums import ContentStatus, MediaKind, UserRole
 from app.database.models import (
     AnalyticsSnapshot,
     BotConversation,
@@ -33,7 +34,8 @@ from app.database.models import (
     VideoJob,
 )
 from app.database.session import session_scope, utcnow
-from app.media.assets import IntegrityError, fetch_verified
+from app.media.assets import IntegrityError, fetch_verified, temp_dir
+from app.media.intake import IntakeError, accept_file
 from app.monitoring.audit import audit
 from app.monitoring.logging import get_logger
 from app.monitoring.summary import costs_summary, errors_summary
@@ -97,12 +99,84 @@ class ApprovalBot:
         if user is None:
             await self.tg.send_message(chat["id"], "Нет доступа. Обратитесь к владельцу канала.")
             return
+        incoming = incoming_media(message)
+        if incoming is not None and incoming.get("unsupported"):
+            await self.tg.send_message(chat["id"], "Принимаю только видео и фото.")
+            return
+        if incoming is not None:
+            await self._upload(chat["id"], user, message, incoming)
+            return
         text = (message.get("text") or "").strip()
         if text.startswith("/"):
             command, _, arg = text.partition(" ")
             await self._command(chat["id"], user, command.split("@")[0].lower(), arg.strip())
             return
         await self._conversation_reply(chat["id"], user, text)
+
+    # --- Загрузка съёмок в библиотеку ---
+    async def _upload(self, chat_id: int, user: User, message: dict[str, Any], media: dict[str, Any]) -> None:
+        if not has_permission(user.role, Permission.media_write):
+            await self.tg.send_message(chat_id, "Недостаточно прав для загрузки файлов.")
+            return
+        settings = self.services.settings
+        panel = f"{settings.public_base_url.rstrip('/')}/admin/"
+        if (media.get("file_size") or 0) > TelegramBotClient.BOT_DOWNLOAD_LIMIT:
+            await self.tg.send_message(
+                chat_id,
+                "Файл больше 20 МБ — Telegram не позволяет ботам скачивать такие файлы.\n"
+                f"Загрузите его через панель: {escape(panel)} → «Загрузка» (до {settings.max_upload_mb} МБ).",
+            )
+            return
+        caption = (message.get("caption") or "").strip()
+        try:
+            info = await self.tg.get_file(media["file_id"])
+            with temp_dir(settings.work_dir, "tg-") as tmp:
+                path = Path(tmp) / "upload.bin"
+                await self.tg.download_file(
+                    info["file_path"], path, max_bytes=TelegramBotClient.BOT_DOWNLOAD_LIMIT
+                )
+                async with session_scope() as session:
+                    asset = await accept_file(
+                        session,
+                        self.services.storage,
+                        settings,
+                        path,
+                        user=user,
+                        purpose="source",
+                        title=caption[:300] or None,
+                        confirm_rights=True,
+                        channel="telegram",
+                        rights={"license": "own", "notes": "загружено владельцем через Telegram-бота"},
+                    )
+        except IntakeError as exc:
+            await self.tg.send_message(chat_id, f"Файл не принят: {escape(str(exc))}")
+            return
+        except TelegramError as exc:
+            await self.tg.send_message(
+                chat_id, f"Не удалось получить файл из Telegram: {escape(exc.description)}"
+            )
+            return
+        what = "Видео" if asset.kind == MediaKind.source_video else "Фото"
+        details = []
+        if asset.duration_s:
+            details.append(f"{int(asset.duration_s // 60)}:{int(asset.duration_s % 60):02d}")
+        if asset.width and asset.height:
+            details.append(f"{asset.width}×{asset.height}")
+        lines = [
+            f"✅ {what} сохранено в библиотеку съёмок" + (f" ({', '.join(details)})" if details else "") + "."
+        ]
+        if caption:
+            lines.append(f"Описание: {escape(caption[:200])}")
+        else:
+            lines.append(
+                "Совет: подписывайте файлы — что снято (погрузка, крепление, в пути, выдача). "
+                "Так монтаж точнее подберёт кадры к сценарию."
+            )
+        if not asset.rights_confirmed:
+            lines.append("Права на файл подтвердит владелец — до этого он не используется в публикациях.")
+        if asset.kind == MediaKind.source_image and (asset.width or 0) < 800:
+            lines.append("Фото маленького размера: для обложек отправляйте его «файлом», без сжатия.")
+        await self.tg.send_message(chat_id, "\n".join(lines))
 
     # --- Команды ---
     async def _command(self, chat_id: int, user: User, command: str, arg: str) -> None:
@@ -682,6 +756,20 @@ class ApprovalBot:
                 offset = int(update["update_id"]) + 1
                 # Смещение сохраняется после обработки: при перезапуске обновление не потеряется.
                 await self._save_offset(offset)
+
+
+def incoming_media(message: dict[str, Any]) -> dict[str, Any] | None:
+    """Видео, фото или файл в сообщении. Для фото берётся самый крупный вариант."""
+    if message.get("video"):
+        return message["video"]
+    if message.get("photo"):
+        return max(message["photo"], key=lambda p: (p.get("file_size") or 0, p.get("width", 0)))
+    document = message.get("document")
+    if document and (document.get("mime_type") or "").split("/")[0] in {"video", "image"}:
+        return document
+    if document:
+        return {**document, "unsupported": True}
+    return None
 
 
 async def ensure_bootstrap_users(services: Services) -> None:

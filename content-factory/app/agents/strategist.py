@@ -21,6 +21,7 @@ from app.content.service import similarity, title_similarity
 from app.database.enums import ContentStatus, PlanStatus
 from app.database.models import ContentItem, ContentPlan
 from app.database.session import session_scope, utcnow
+from app.media.library import library_summary
 from app.monitoring.audit import audit
 from app.orchestration.services import Services
 from app.publishing.slots import allocate_formats, day_slots, target_posts_per_day
@@ -172,6 +173,7 @@ def validate_entries(
 
 def _prompt(
     channel: Channel,
+    footage: list[str],
     slots: list[PlannedSlot],
     recent: list[tuple[str, str]],
     facts: list[str],
@@ -195,6 +197,11 @@ def _prompt(
         "Недавние темы (не повторять):",
         *[f"- {t}" for t, _ in recent[:80]],
         "Аналитика: " + (insights or "данных пока мало"),
+        "Съёмки владельца в библиотеке (видео-слоты планируй под них, не придумывай кадры, которых нет):",
+        *(
+            [f"- {f}" for f in footage]
+            or ["- пока нет: для видео выбирай темы, которые легко снять на телефон"]
+        ),
         "Слоты для заполнения (индекс, время по местному часовому поясу, формат):",
         *[f"- {sl.index}: {sl.when.astimezone(tz):%a %d.%m %H:%M}, {sl.format}" for sl in slots],
     ]
@@ -218,6 +225,7 @@ async def generate_plan(
         occupied = await _occupied_per_day(session, channel, days)
         recent = await _recent_topics(session, channel.id)
         facts = [f"- [{f.key}] {f.statement}" for f in await approved_facts(session, channel.id)]
+        footage = await library_summary(session)
     slots = build_slots(channel, days, occupied)
     if not slots:
         return PlanResult(plan_id=None, created=0, skipped=["все слоты горизонта уже заполнены"])
@@ -233,7 +241,7 @@ async def generate_plan(
             services,
             agent="strategist",
             schema=PlanDraft,
-            prompt=_prompt(channel, pending, recent, facts, insights, problems if _round else None),
+            prompt=_prompt(channel, footage, pending, recent, facts, insights, problems if _round else None),
             expected_output_tokens=180 * len(pending) + 500,
             max_tokens=32000,
         )

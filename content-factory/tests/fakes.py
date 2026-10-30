@@ -63,6 +63,7 @@ class FakeTelegram:
         self._ids = itertools.count(100)
         self.fail_next: TelegramError | None = None
         self.bot_id = 1
+        self.files: dict[str, bytes] = {}  # file_id → содержимое, «присланное» боту
 
     def _result(self, method: str, chat_id: Any, **extra: Any) -> dict[str, Any]:
         if self.fail_next is not None:
@@ -112,6 +113,17 @@ class FakeTelegram:
 
     async def aclose(self) -> None:
         return None
+
+    async def get_file(self, file_id):  # noqa: ANN001, ANN201
+        if file_id not in self.files:
+            raise TelegramError("Bad Request: invalid file_id", error_code=400)
+        return {"file_id": file_id, "file_path": f"videos/{file_id}.bin", "file_size": len(self.files[file_id])}
+
+    async def download_file(self, file_path, dest, *, max_bytes):  # noqa: ANN001, ANN201
+        data = self.files[file_path.split("/")[-1].removesuffix(".bin")]
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(data)
+        return len(data)
 
     def methods(self) -> list[str]:
         return [m["method"] for m in self.sent]

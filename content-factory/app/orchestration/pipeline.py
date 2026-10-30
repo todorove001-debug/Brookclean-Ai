@@ -300,8 +300,13 @@ async def _video_stage(services: Services, item_id: uuid.UUID, version_id: uuid.
     scenes = script.get("scenes") or []
     selection: dict[int, list[str]] = {}
     if candidates:
-        if services.llm is not None and any(c.speech for c in candidates):
-            selection = await video_editor.llm_selection(services, item_id, scenes, candidates)
+        # Подбор по смыслу: описание съёмки от владельца и расшифровка речи сопоставляются со сценами.
+        if services.llm is not None and any(c.speech or c.label for c in candidates):
+            try:
+                selection = await video_editor.llm_selection(services, item_id, scenes, candidates)
+            except (ProviderRejected, ProviderUnavailable) as exc:
+                # Подбор моделью — улучшение, а не условие: без него кадры идут по порядку съёмки.
+                log.warning("video.llm_selection_failed", item_id=str(item_id), error=str(exc))
         if not selection:
             selection = video_editor.deterministic_selection(scenes, candidates)
     async with session_scope() as session:
