@@ -94,6 +94,18 @@ async def test_full_text_pipeline_and_single_publication(ready, fake_tg, fake_ll
         res = (await s.execute(select(PublishingResult))).scalar_one()
         job = (await s.execute(select(PublishingJob))).scalar_one()
     assert res.primary_message_id == posts[0]["message_id"] and job.status == PublishingJobStatus.succeeded
+    assert res.chat_id == "-1001234567890" and res.response["channel"] == CHANNEL
+
+    # Реакции на пост приходят с числовым ID канала и привязываются к материалу.
+    from app.approval.bot import ApprovalBot
+    from app.database.models import AnalyticsSnapshot
+
+    await ApprovalBot(ready).handle_update({"update_id": 9, "message_reaction_count": {
+        "chat": {"id": -1001234567890}, "message_id": res.primary_message_id, "date": 1,
+        "reactions": [{"type": {"type": "emoji", "emoji": "🔥"}, "total_count": 3}]}})
+    async with session_scope() as s:
+        snap = (await s.execute(select(AnalyticsSnapshot))).scalar_one()
+    assert snap.item_id == item_id and snap.reactions_total == 3
 
     # Повторная доставка задачи публикации не создаёт дубль.
     async with session_scope() as s:

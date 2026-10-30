@@ -282,17 +282,20 @@ async def publish_item(services: Services, item_id: uuid.UUID) -> str:
         item = await session.get(ContentItem, item_id, with_for_update=True)
         assert job is not None and item is not None
         ids = [m["message_id"] for m in sent]
+        # Telegram возвращает числовой ID канала (-100…): по нему потом сопоставляются реакции и статистика.
+        numeric_chat = (sent[-1].get("chat") or {}).get("id")
         session.add(
             PublishingResult(
                 publishing_job_id=job.id,
                 item_id=item.id,
-                chat_id=str(chat_id),
+                chat_id=str(numeric_chat or chat_id),
                 primary_message_id=ids[-1],
                 message_ids=ids,
                 published_at=utcnow(),
                 response={
                     "messages": [{"message_id": m["message_id"], "date": m.get("date")} for m in sent],
                     "poll_id": next((m["poll"]["id"] for m in sent if m.get("poll")), None),
+                    "channel": str(chat_id),
                 },
             )
         )

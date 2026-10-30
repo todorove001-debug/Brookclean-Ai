@@ -710,9 +710,7 @@ class ApprovalBot:
                     select(PublishingResult).where(PublishingResult.primary_message_id == message_id)
                 )
             ).scalars()
-            match = next(
-                (r for r in result if r.chat_id == chat_id or chat_id.endswith(r.chat_id.lstrip("@"))), None
-            )
+            match = next((r for r in result if r.chat_id == chat_id), None)
             channel = await get_channel(session)
             session.add(
                 AnalyticsSnapshot(

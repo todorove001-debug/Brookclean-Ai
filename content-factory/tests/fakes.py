@@ -69,7 +69,9 @@ class FakeTelegram:
         if self.fail_next is not None:
             exc, self.fail_next = self.fail_next, None
             raise exc
-        msg = {"message_id": next(self._ids), "date": 1700000000, "chat": {"id": chat_id}, **extra}
+        # Как в Telegram: в ответе на публикацию в канал по @username приходит числовой ID канала.
+        numeric = -1001234567890 if isinstance(chat_id, str) and chat_id.startswith("@") else chat_id
+        msg = {"message_id": next(self._ids), "date": 1700000000, "chat": {"id": numeric}, **extra}
         self.sent.append({"method": method, "chat_id": chat_id, **extra, "message_id": msg["message_id"]})
         return msg
 
