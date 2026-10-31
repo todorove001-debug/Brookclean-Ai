@@ -13,8 +13,13 @@ ask_secret(){ local q="$1" v; read -r -s -p "$q: " v; echo >&2; echo "$v"; }
 
 say "1/6 Docker и сетевой экран"
 if ! command -v docker >/dev/null; then
-  apt-get update -y && apt-get install -y curl ca-certificates
-  curl -fsSL https://get.docker.com | sh
+  apt-get update -y
+  # сначала пакеты самой Ubuntu (работают и на свежих выпусках), иначе официальный установщик Docker
+  if ! apt-get install -y docker.io docker-compose-v2; then
+    apt-get install -y curl ca-certificates
+    curl -fsSL https://get.docker.com | sh
+  fi
+  systemctl enable --now docker
 fi
 if command -v ufw >/dev/null; then
   ufw allow 22/tcp >/dev/null; ufw allow 80/tcp >/dev/null; ufw allow 443/tcp >/dev/null; ufw --force enable >/dev/null
