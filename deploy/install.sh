@@ -58,9 +58,10 @@ fi
 set -a; source .env; set +a
 
 say "3/6 Проверка доменов"
-ip=$(curl -fsS4 https://ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
+# домен, который ещё не открывается, — предупреждение, а не остановка установки
+ip=$(curl -fsS4 --max-time 10 https://ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}' || true)
 for d in "$CLIENT_DOMAIN" "$STAFF_DOMAIN"; do
-  got=$(getent ahostsv4 "$d" | awk 'NR==1{print $1}')
+  got=$( (getent ahostsv4 "$d" 2>/dev/null || true) | awk 'NR==1{print $1}')
   if [ "$got" = "$ip" ]; then echo "  $d → $ip — ок"
   else echo "  ВНИМАНИЕ: $d указывает на '${got:-ничего}', а IP сервера $ip. Сертификат HTTPS не выпустится, пока A-запись не обновится."; fi
 done
